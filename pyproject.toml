@@ -1,0 +1,27 @@
+[build-system]
+requires = ["maturin>=1.5,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "financial-analyst-cli"
+version = "0.1.0"
+description = "Financial Analyst CLI assistant using a hybrid Python-Rust engine."
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = []
+
+[project.scripts]
+fa = "main:main"
+
+[tool.maturin]
+features = ["pyo3/extension-module"]
+module-name = "financial_analyst_cli._rust"
+
+[tool.uv]
+package = true
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.6.0",
+    "ruff>=0.15.16",
+]

@@ -1,0 +1,33 @@
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-added-large-files
+      - id: detect-private-key
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    # Ruff version.
+    rev: v0.4.10
+    hooks:
+      # Run the linter.
+      - id: ruff
+        args: [ --fix ]
+      # Run the formatter.
+      - id: ruff-format
+
+  # Local secret scanner using pygrep to match common API key patterns
+  - repo: local
+    hooks:
+      - id: prevent-api-keys
+        name: Prevent API Keys
+        description: Detects typical patterns of OpenAI, Gemini, and OpenRouter API keys.
+        entry: '(?i)(sk-[a-zA-Z0-9]{32,}|AIzaSy[a-zA-Z0-9_-]{33}|or-v1-[a-f0-9]{64})'
+        language: pygrep
+        types: [text]
+        exclude: '^\.pre-commit-config\.yaml$'
