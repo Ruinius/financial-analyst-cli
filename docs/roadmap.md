@@ -121,15 +121,15 @@ Config      Ingestion   Extraction  History     Modeling    Interactive
 **Goal**: Construct local user query utilities and the interactive DCF HTML application.
 
 - **6.1 CLI Query & Trace Engine (`fa query`)**:
-  - [ ] Implement `fa query summary <ticker>`, `fa query assessment <ticker>`, and `fa query valuation <ticker>`.
-  - [ ] Implement `fa query trace <ticker> <metric> <period>` to render the audit trial/provenance of any metric from raw chunks.
+  - [x] Implement `fa query summary <ticker>`, `fa query assessment <ticker>`, and `fa query valuation <ticker>`.
+  - [x] Implement `fa query trace <ticker> <metric> <period>` to render the audit trial/provenance of any metric from raw chunks.
 - **6.2 Interactive REPL / Analyst Chat (`fa chat`)**:
-  - [ ] Implement the interactive console-based session with Sir Pennyworth.
-  - [ ] Implement the sandboxed math execution engine (`math_solver.py`) using `RestrictedPython` or `SymPy` with AST filtering and timeout guards.
+  - [x] Implement the interactive console-based session with Sir Pennyworth.
+  - [x] Implement the sandboxed math execution engine (`math_solver.py`) using `RestrictedPython` or `SymPy` with AST filtering and timeout guards.
 - **6.3 DCF Viewer Server (`fa viewer`)**:
-  - [ ] Build the zero-dependency interactive HTML browser viewer.
-  - [ ] Setup a simple Python server to launch the viewer, read from `8_historical_model_json/`, and write back updated override JSON versions (e.g. `YYYYMMDD_ticker_1.json`).
+  - [x] Build the zero-dependency interactive HTML browser viewer.
+  - [x] Setup a simple Python server to launch the viewer, read from `8_historical_model_json/`, and write back updated override JSON versions (e.g. `YYYYMMDD_ticker_1.json`).
 - **6.4 Testing & Regression Evaluation**:
-  - [ ] Test the viewer server routing, reading JSON files, and writing overrides.
-  - [ ] Test interactive REPL prompts, mock user inputs, math solver AST filtering, and timeout watchdogs.
-  - [ ] Run the full end-to-end regression evaluation suite across multiple companies (e.g. AAPL, MSFT) and generate comparative accuracy reports.
+  - [x] Test the viewer server routing, reading JSON files, and writing overrides.
+  - [x] Test interactive REPL prompts, mock user inputs, math solver AST filtering, and timeout watchdogs.
+  - [x] Run the full end-to-end regression evaluation suite across multiple companies (e.g. AAPL, MSFT) and generate comparative accuracy reports.
