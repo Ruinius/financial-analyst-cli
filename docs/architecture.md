@@ -153,3 +153,25 @@ sequenceDiagram
    All metrics in the data lake (down to individual cells) must contain strict metadata properties tracking their provenance (`source_file`, `chunk_id`, `exact_snippet`). This ensures all calculated valuations can be verified in a single query, preventing model hallucination.
 7. **Interactive Shell with Sandboxed Execution**:
    To move beyond static pipelines, `fa chat` implements a stateful conversational loop. It exposes a math solver tool (`math_solver.py`) that executes mathematical Python code in a safe sandbox to perform ad-hoc quantitative operations over extracted data.
+
+---
+
+## 5. Sandboxed Execution Architecture
+
+To execute LLM-generated math calculations safely on the user's host OS (Windows) without the high overhead and dependency requirements of local Docker containers, the `math_solver.py` service implements an in-process AST (Abstract Syntax Tree) sandboxed executor based on `RestrictedPython`:
+
+```mermaid
+graph TD
+    LLM[LLM Agent] -->|Generates Python Expression| Solver[math_solver.py]
+    Solver -->|1. Parse AST| ASTFilter[AST Verification Filter]
+    ASTFilter -->|Check Allowed Syntax / Disallow __| ExecutionEngine[Restricted Namespace Engine]
+    ExecutionEngine -->|2. Inject Whitelisted Scope: math, numpy, data variables| SandboxedRun[Isolated Exec Context]
+    SandboxedRun -->|3. Run with Timeout Watchdog| Monitor[Timeout Daemon Thread]
+    Monitor -->|Success| Output[Return Output String]
+    Monitor -->|Timeout / Exception| Error[Format Traceback & Error Context]
+```
+
+### Sandbox Containment Mechanisms:
+1. **AST Node Filtering:** Blocks execution of forbidden syntax elements (e.g., imports, attribute mutations, private double-underscore `__` accessors).
+2. **Namespace Isolation:** Execution scope is restricted to a custom dictionary containing only whitelisted functions (`math` libraries, safe `numpy` helpers, basic builtins like `abs`, `min`, `max`, `sum`) and read-only injections of the company's historical financial tables.
+3. **Execution Guardrails:** Thread-wrapped timeout controls terminate execution if processing exceeds a strict 5-second CPU time limit, guarding against infinite loops or resource starvation attacks.
