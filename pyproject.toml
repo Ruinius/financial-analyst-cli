@@ -8,7 +8,11 @@ version = "0.1.0"
 description = "Financial Analyst CLI assistant using a hybrid Python-Rust engine."
 readme = "README.md"
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "pydantic>=2.13.4",
+    "rich>=15.0.0",
+    "typer>=0.26.7",
+]
 
 [project.scripts]
 fa = "main:main"
@@ -22,6 +26,8 @@ package = true
 
 [dependency-groups]
 dev = [
+    "maturin>=1.13.3",
     "pre-commit>=4.6.0",
+    "pytest>=9.0.3",
     "ruff>=0.15.16",
 ]

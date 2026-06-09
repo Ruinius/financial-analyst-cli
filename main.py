@@ -1,5 +1,4 @@
-def main():
-    print("Hello from fa!")
+from src.cli.main import main
 
 
 if __name__ == "__main__":

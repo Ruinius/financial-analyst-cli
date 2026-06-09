@@ -28,13 +28,22 @@ Welcome to the `financial-analyst-cli` project.
 - [tmp/](file:///f:/AIML projects/financial-analyst-cli/tmp): Temporary logs, scratchpads, and execution scripts.
 - [src/](file:///f:/AIML projects/financial-analyst-cli/src): Application source package.
   - [src/cli/](file:///f:/AIML projects/financial-analyst-cli/src/cli): Sub-commands and main CLI definitions.
+    - [src/cli/main.py](file:///f:/AIML projects/financial-analyst-cli/src/cli/main.py): Primary Typer entry point and command router.
+    - [src/cli/commands/config.py](file:///f:/AIML projects/financial-analyst-cli/src/cli/commands/config.py): Commands for config initialization (`init`) and masked printing (`show`).
+    - [src/cli/commands/use.py](file:///f:/AIML projects/financial-analyst-cli/src/cli/commands/use.py): Workspace switcher command that updates active ticker and initializes 8 folders.
   - [src/core/](file:///f:/AIML projects/financial-analyst-cli/src/core): Settings, custom exception classes, and Pydantic schemas.
+    - [src/core/config.py](file:///f:/AIML projects/financial-analyst-cli/src/core/config.py): Settings model definition, loading/saving utilities, and API key masking.
+    - [src/core/exceptions.py](file:///f:/AIML projects/financial-analyst-cli/src/core/exceptions.py): Custom exception classes (e.g. ConfigError, WorkspaceError).
   - [src/pipeline/](file:///f:/AIML projects/financial-analyst-cli/src/pipeline): Execution runner stages (ingest, extract, historical, model).
   - [src/services/](file:///f:/AIML projects/financial-analyst-cli/src/services): SEC client, LLM wrapper, web search, and AST-sandboxed math solver.
   - [src/rust_core/lib.rs](file:///f:/AIML projects/financial-analyst-cli/src/rust_core/lib.rs): Rust module with PyO3 bindings for financial and mathematical calculations.
   - [src/viewer/index.html](file:///f:/AIML projects/financial-analyst-cli/src/viewer/index.html): Interactive zero-dependency web viewer template.
   - [src/resources/dictionary/](file:///f:/AIML projects/financial-analyst-cli/src/resources/dictionary): Central accounting glossary and classification dictionary containing definition markdowns and valuation treatment guidelines.
   - [src/utils/](file:///f:/AIML projects/financial-analyst-cli/src/utils): CLI output formatting and filesystem helpers.
+    - [src/utils/formatting.py](file:///f:/AIML projects/financial-analyst-cli/src/utils/formatting.py): Rich terminal formatting helpers and Sir Pennyworth speech bubbles.
+- [tests/](file:///f:/AIML projects/financial-analyst-cli/tests): Test suite folder.
+  - [tests/test_config.py](file:///f:/AIML projects/financial-analyst-cli/tests/test_config.py): Unit and integration tests for CLI commands, key masking, settings logic, and folder initialization.
+
 
 
 ## Architectural Patterns & Guidelines
