@@ -26,6 +26,9 @@ Config      Ingestion   Extraction  History     Modeling    Interactive
   - Build `fa config show` with masked API keys.
   - Implement workspace validation that checks for and automatically initializes the 8 folders (`1_ingest_data/` to `8_historical_model_json/`) with boilerplate instructions.
   - Build the workspace switching command `fa use <ticker>` to set active workspace paths dynamically.
+- **1.3 Testing & Verification**:
+  - Setup the `pytest` testing suite and configuration.
+  - Implement unit tests for configuration parsing, masking, CLI command calls, and directory structure initialization using mock parameters.
 
 ---
 
@@ -45,6 +48,9 @@ Config      Ingestion   Extraction  History     Modeling    Interactive
   - Integrate LLM to detect true document dates, quarters, and types.
   - Rename files to `YYYYMMDD_document_type.md` (and raw equivalent in `3_archived_data/`).
   - Create and update `6_company_context/ingest_context.md`.
+- **2.4 Testing & Verification**:
+  - Mock the SEC EDGAR API calls to verify downloader functionality.
+  - Test sequential job queuing, SHA-256 deduplication hashing, chunking outputs, and renaming logic using temporary directory fixtures (`tmp_path`).
 
 ---
 
@@ -65,6 +71,10 @@ Config      Ingestion   Extraction  History     Modeling    Interactive
   - Expand the **Rust Core Engine** via PyO3 to calculate Invested Capital, EBITA, Adjusted Taxes, NOPAT, and ROIC schedules.
   - Create and update `6_company_context/extract_context.md`.
   - Propagate audit lineage through all derived metrics calculations.
+- **3.4 Testing & Verification**:
+  - Write unit tests for PyO3 Rust extension arithmetic schedules (ROIC, NOPAT, WACC) with test tables.
+  - Test Pydantic validation schemas under valid/invalid payloads.
+  - Verify chunk retrieval and audit lineage tagging metadata outputs.
 
 ---
 
@@ -78,6 +88,9 @@ Config      Ingestion   Extraction  History     Modeling    Interactive
 - **4.2 Quantitative Trend Synthesis**:
   - Build the longitudinal financials processor to update `financials_quarter.md` and `financials_annual.md`.
   - Implement Q4 deduction logic (Annual minus Q1-Q3).
+- **4.3 Testing & Evaluation (Evals)**:
+  - Test historical trend compiling and fourth-quarter arithmetic deductions.
+  - **Baseline Evaluation Setup**: Establish the initial Golden Dataset for benchmark tickers (e.g. AAPL 2024 JSON) containing ground truth numbers and classifications. Implement basic validation assertions.
 
 ---
 
@@ -94,6 +107,9 @@ Config      Ingestion   Extraction  History     Modeling    Interactive
 - **5.3 Financial Model Generation**:
   - Generate the DCF model markdown inside `7_financial_model/`.
   - Output the baseline model JSON (`YYYYMMDD_ticker_0.json`) inside `8_historical_model_json/`.
+- **5.4 Testing & Evaluation (Evals)**:
+  - Test default assumptions calculations and model state export functions.
+  - **Model LLM Evals Pipeline**: Implement programmatic quantitative scorecards (pass/fail thresholds) and qualitative semantic scoring (1-5 scale) using an LLM-as-a-Judge mechanism to evaluate the accuracy of final models.
 
 ---
 
@@ -110,3 +126,7 @@ Config      Ingestion   Extraction  History     Modeling    Interactive
 - **6.3 DCF Viewer Server (`fa viewer`)**:
   - Build the zero-dependency interactive HTML browser viewer.
   - Setup a simple Python server to launch the viewer, read from `8_historical_model_json/`, and write back updated override JSON versions (e.g. `YYYYMMDD_ticker_1.json`).
+- **6.4 Testing & Regression Evaluation**:
+  - Test the viewer server routing, reading JSON files, and writing overrides.
+  - Test interactive REPL prompts, mock user inputs, math solver AST filtering, and timeout watchdogs.
+  - Run the full end-to-end regression evaluation suite across multiple companies (e.g. AAPL, MSFT) and generate comparative accuracy reports.
