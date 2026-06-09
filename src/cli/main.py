@@ -93,9 +93,21 @@ def run_extract(ticker: str = typer.Option(None, "--ticker", "-t")):
 @run_app.command("historical")
 def run_historical(ticker: str = typer.Option(None, "--ticker", "-t")):
     """Synthesize longitudinal trends and analyst views."""
-    formatting.print_warning(
-        "The 'run historical' command is currently under development (Phase 4)."
-    )
+    formatting.print_info("Starting historical trend synthesis stage...")
+    try:
+        if ticker:
+            use_cmd.main_use(ticker)
+
+        from src.pipeline.analyzer import Analyzer
+
+        analyzer = Analyzer()
+        analyzer.run_analysis()
+        formatting.print_success(
+            "Successfully synthesized all longitudinal financial trends and views."
+        )
+    except Exception as e:
+        formatting.print_error(f"Historical trend synthesis failed: {str(e)}")
+        raise typer.Exit(1)
 
 
 @run_app.command("model")

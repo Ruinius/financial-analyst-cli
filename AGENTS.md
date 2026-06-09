@@ -37,6 +37,7 @@ Welcome to the `financial-analyst-cli` project.
   - [src/pipeline/](file:///f:/AIML projects/financial-analyst-cli/src/pipeline): Execution runner stages (ingest, extract, historical, model).
     - [src/pipeline/queue.py](file:///f:/AIML projects/financial-analyst-cli/src/pipeline/queue.py): Safe job queue and exponential back-off retry manager.
     - [src/pipeline/ingester.py](file:///f:/AIML projects/financial-analyst-cli/src/pipeline/ingester.py): File parsing, deduplication, chunking, and LLM metadata identification.
+    - [src/pipeline/analyzer.py](file:///f:/AIML projects/financial-analyst-cli/src/pipeline/analyzer.py): Longitudinal trend synthesis, analyst view compiling, and Q4 deduction engine.
   - [src/services/](file:///f:/AIML projects/financial-analyst-cli/src/services): SEC client, LLM wrapper, web search, and AST-sandboxed math solver.
     - [src/services/edgar_client.py](file:///f:/AIML projects/financial-analyst-cli/src/services/edgar_client.py): SEC EDGAR download API client.
     - [src/services/llm_client.py](file:///f:/AIML projects/financial-analyst-cli/src/services/llm_client.py): Unified client for text & vision LLMs.
@@ -56,6 +57,8 @@ Welcome to the `financial-analyst-cli` project.
   - [tests/test_edgar.py](file:///f:/AIML projects/financial-analyst-cli/tests/test_edgar.py): Unit tests for the SEC EDGAR client and submissions retrieval.
   - [tests/test_ingester.py](file:///f:/AIML projects/financial-analyst-cli/tests/test_ingester.py): Unit tests for layout-preserving parsing, file hashing, chunking, and metadata identification.
   - [tests/test_extractor.py](file:///f:/AIML projects/financial-analyst-cli/tests/test_extractor.py): Unit tests for Pydantic validation schemas, classification, arithmetic schedules, and audit trail lineage.
+  - [tests/test_analyzer.py](file:///f:/AIML projects/financial-analyst-cli/tests/test_analyzer.py): Unit tests for qualitative views compiling, longitudinal financial trends, and Q4 deduction logic.
+  - [tests/data/golden_aapl_2024.json](file:///f:/AIML projects/financial-analyst-cli/tests/data/golden_aapl_2024.json): Golden evaluation baseline dataset for AAPL.
 
 
 

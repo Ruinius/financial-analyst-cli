@@ -1,0 +1,19 @@
+{
+  "ticker": "AAPL",
+  "period": "2024",
+  "ground_truth": {
+    "Revenue": 391035.0,
+    "EBITA": 114601.0,
+    "NOPAT": 96264.84,
+    "Invested Capital": 120500.0,
+    "Basic Shares Outstanding": 15285.0,
+    "Diluted Shares Outstanding": 15383.0
+  },
+  "classifications": {
+    "Research and Development": "operating",
+    "Selling, General and Administrative": "operating",
+    "Interest Expense": "non-operating",
+    "Interest Income": "non-operating",
+    "Other income, net": "non-operating"
+  }
+}

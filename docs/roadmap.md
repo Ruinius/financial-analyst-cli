@@ -86,14 +86,14 @@ Config      Ingestion   Extraction  History     Modeling    Interactive
 **Goal**: Synthesize multi-period metrics and trends into single markdown reports.
 
 - **4.1 Qualitative Trend Synthesis**:
-  - [ ] Compile analyst views (moat, margins, growth changes over time) into `5_historical_analysis/analyst_views.md`.
-  - [ ] Track press trends and conference call transcripts in `news_trend.md` and `transcript_trend.md`.
+  - [x] Compile analyst views (moat, margins, growth changes over time) into `5_historical_analysis/analyst_views.md`.
+  - [x] Track press trends and conference call transcripts in `news_trend.md` and `transcript_trend.md`.
 - **4.2 Quantitative Trend Synthesis**:
-  - [ ] Build the longitudinal financials processor to update `financials_quarter.md` and `financials_annual.md`.
-  - [ ] Implement Q4 deduction logic (Annual minus Q1-Q3).
+  - [x] Build the longitudinal financials processor to update `financials_quarter.md` and `financials_annual.md`.
+  - [x] Implement Q4 deduction logic (Annual minus Q1-Q3).
 - **4.3 Testing & Evaluation (Evals)**:
-  - [ ] Test historical trend compiling and fourth-quarter arithmetic deductions.
-  - [ ] **Baseline Evaluation Setup**: Establish the initial Golden Dataset for benchmark tickers (e.g. AAPL 2024 JSON) containing ground truth numbers and classifications. Implement basic validation assertions.
+  - [x] Test historical trend compiling and fourth-quarter arithmetic deductions.
+  - [x] **Baseline Evaluation Setup**: Establish the initial Golden Dataset for benchmark tickers (e.g. AAPL 2024 JSON) containing ground truth numbers and classifications. Implement basic validation assertions.
 
 ---
 
