@@ -1,104 +1,165 @@
 # Requirements Specification: Financial Analyst CLI
 
-The system prompt should make it clear that the LLM is a senior financial analyst.
+This document outlines the product requirements and technical specifications for the Financial Analyst CLI (`fa`). It defines the system behavior, LLM personas, processing pipelines, and local analysis workflows.
 
-The initial config workflow:
+---
 
-1. Full name, email, and project name. Tell the user that this information is needed to access EDGAR API. If these are fake, then the API access may fail.
+## 1. System Identity & LLM Persona
+The CLI is hosted by **Sir Pennyworth**, a senior financial analyst persona. All system prompts directed to the LLM must enforce this persona:
+- **Senior Financial Analyst Expertise**: Displays deep expertise in corporate finance, valuation, accounting, and security analysis.
+- **Tone**: Sophisticated, polite, precise, and analytical, with a touch of pig/wealth puns (e.g., "truffle-hunting for value").
+- **Accuracy**: Extremely rigorous with numbers. Ensures metrics are double-checked and structured neatly.
 
-2. **LLM API Credentials**:
-   - The user's API Key (e.g., OpenRouter, Gemini, OpenAI, Anthropic, Fireworks AI). Need at least one.
+---
 
+## 2. Configuration & Workspace Setup
+
+### 2.1 First-Time Configuration Flow
+When the CLI is executed for the first time (or if configuration is missing), it guides the user through the initialization:
+1. **User Identity**: Prompt for **Full Name**, **Email Address**, and **Project Name**.
+   > [!IMPORTANT]
+   > This information is required for user-agent headers when accessing the SEC EDGAR API. Fake information may lead to connection blocks or API access failures.
+2. **LLM API Credentials**: Prompt for at least one API Key (e.g., OpenRouter, Gemini, OpenAI, Anthropic, Fireworks AI).
 3. **Model Selection**:
-   - The user must specify:
-     - A **text-to-text model**
-     - A **vision-to-text model**
-   - _Alternative_: The user can choose to use the default **Gemma** model, which is natively multi-modal and handles both text and vision tasks.
+   - The user must configure:
+     - A **text-to-text model** (e.g., `google/gemma-2-9b-it`).
+     - A **vision-to-text model** (for charts/tables).
+   - *Alternative*: Option to use a unified multimodal model (e.g., **Gemma**) natively for both text and vision tasks.
+4. **Workspace Path**: Prompt for the location of the active workspace.
+   > [!IMPORTANT]
+   > Each workspace must contain data for exactly **one company** to avoid context bloat. The workspace directory should be named after the company's ticker symbol (e.g., `AAPL` or `MSFT`).
+5. **Workspace Switcher (`fa use <ticker>`)**:
+   - The CLI must support switching between different company workspaces dynamically.
+   - When the user runs `fa use <ticker>`, the system updates the active workspace path in the configuration, initializes the directories if they don't exist, and loads the corresponding self-healing company contexts.
 
-4. **Workspace Path**:
-   - The user must specify the location for their active workspace.
-   - **CRITICAL WORKSPACE REMINDER (Always displayed)**:
-     > [!IMPORTANT]
-     > Each workspace should only contain one company to reduce potential context bloat. Ideally name the workspace directory after the company's ticker symbol (e.g., `AAPL` or `MSFT`), which serves as a convenient unique identifier.
+### 2.2 Workspace Directory Structure
+When a workspace path is set or initialized, the CLI automatically verifies and creates the following subfolders:
+- `1_ingest_data/`: Raw downloaded documents (PDFs, HTML filings, press releases).
+- `2_parsed_data/`: Parsed files converted to markdown format.
+- `3_archived_data/`: Archived original raw files.
+- `4_extracted_data/`: Extracted metrics and summaries of individual documents.
+- `5_historical_analysis/`: Longitudinal historical models and qualitative trends.
+- `6_company_context/`: Self-healing context files and accounting override definitions.
+- `7_financial_model/`: Markdown representations of projected DCF valuation models.
+- `8_historical_model_json/`: JSON model versions for the interactive web viewer.
 
-The fa workflow assuming the config is done.
+---
 
-1. the user creates or opens a workspace, which is a folder. Regardless, double check the folder structure and add the necessary folders.
+## 3. Core Workflow Pipeline
 
-2. the user types `fa run edgar` and the CLI will ask for the company ticker and the time period, which should be limited to five years in the past. Then the CLI will use the EDGAR API to download all the 10K, 10Q, or 20F filings. The files should be downloaded into the 1_ingest_data folder.
+```mermaid
+flowchart TD
+    A[EDGAR / Raw Data] -->|fa run edgar| B(1_ingest_data)
+    B -->|fa run ingest| C(2_parsed_data / 3_archived_data)
+    C -->|fa run extract| D(4_extracted_data / 6_company_context)
+    D -->|fa run historical| E(5_historical_analysis)
+    E -->|fa run model| F(7_financial_model / 8_historical_model_json)
+```
 
-3. the user types `fa run ingest` and the CLI will look in the 1_ingest_data folder for files. If there are no files, the CLI will tell the user there is nothing to ingest. If there is something to ingest, then the CLI will do the following in order:
-   - for each file, run one-by-one. We need to add a queue and race conditions here. There should also be robust retry and back-off. DO NOT RELY ON AI TO MANAGE THE QUEUE.
-     - Deterministic script: hash the file and compare to the hash of all the files documented in the parsed_data.csv. If there is a hash match, skip the file as a duplicate. If the file is new, then append a new entry in the parsed_data.csv with the original file name, hash, and placeholders for new file name, document_type, document_date, and fiscal quarter.
-     - Deterministic script: based on the file type, run the correct script to convert the file into a markdown. In particular, the PDF or HTML conversion script should be one that takes into account the spacing and lines, which convey important information in a financial statement. THIS IS IMPORTANT> DO NOT MISS THIS.
-     - Deterministic script: the markdown file should be placed in the parsed_data folder and the original raw file should be placed in the archived_data folder.
-     - Deterministic script: chunk the markdown into 5000 char chunks and create a simple table of the chunk_id, char X to Y, frequency of numbers, frequency of symbols. Prepend this table onto the markdown file. chunk_id=0 should always be the file metadata and this simple table. Then chunk_id=1 is the first char of the main body and 5000 chars.
-     - Give the LLM the document_types.json as reference. Give the LLM the correct entry in the parsed_data.csv and ingest_context.md. Ask the LLM what is the date of the document, keeping in mind that the filing date of 10Q or 10K is often 30-60 days after the date of quarter end, and what is the document type? Add the document type, document date to the parsed_data.csv. If the document_type is 10Q, 10K or earnings_announcement also add fiscal quarter to parsed_data.csv entry. Also rename the markdown file and the raw file. Update the parsed_data.csv entry with the new file name.
-     - Self-healing and learning. Create and update 6_company_context/ingest_context.md with what is the likely fiscal year end and therefore which months corresponds to which quarters. Also include in the 6_company_context/ingest_context.md information such as this company likes to include the date of the document in chunk_id=1 while others like to include it in the last chunk. Double check the parsed_data.csv to see if the fiscal quarter for any entry. Also double check if the document date needs to be changed. If the document date changes, then the files should be renamed as well.
+### 3.1 Step 1: Data Fetching (`fa run edgar`)
+- **Action**: Fetch financial filings using the SEC EDGAR API.
+- **Parameters**: Ticker symbol and time period (restricted to a maximum of **5 years in the past**).
+- **Output**: Downloads all `10-K`, `10-Q`, and `20-F` filings for the period into `1_ingest_data/`.
 
-4. the user types `fa run extract` and the CLI will look at the 2_parse_data folder and 4_extracted_data folder and compare their respective csv files. For all the files that is in the parsed_data but not in the extracted_data, add to the queue. COMMENT: we need to consider using a single queue for the entire CLI, so there's no race conditions across commands. Based on the queue, for each file, the CLI will do the following:
-   - Deterministic script: based on the document_type, the AI agent will be asked to do a different task.
-   - COMMENT: The LLM should determine based on the simple table of chunks which chunk_id it needs and access the chunks one by one to determine if it has gathered sufficient information. However, each time the LLM accesses a new chunk, it should summarize what that chunk is about in 1-2 sentences and append the chunk_id and summary in YYYYMMDD_filetype_extracted.md. At the very end, append the final result to the YYYYMMDD_filetype_extracted.md.
-   - If the document_type is analyst_report then write a short summary on the analyst views on the company with a special focus on the company's economic moat (none, narrow, wide), future margins (decreasing, stable, increasing), and future growth (decelerating, stable, accelerating).
-   - If the document_type is press_release, news_article, and other, then write a short summary that focuses on what is different, not mundane, or special.
-   - If the document_type is transcript, then write a short summary focusing on the analyst questions and focus on what is different, not mundane, or special.
-   - If the document_type is 10Q, 10K, 20F (this is currently missing in document_types.json. Need to add it), or earnings announcement, then the LLM needs to extract the financial statement of the current fiscal quarter or year. Look through the chunks to find the balance sheet and income statement. For the 10Q, 10K, 20F, and earnings_announcement, the LLM should also extract the past period revenue and calculate a simple growth rate. The LLM should try and find constant currency or organic growth. The LLM should find the basic shares outstanding and diluted shares outstanding. Use frequency of numbers and frequency of symbols to prioritize the chunks to focus on. The LLM could also use the search tool to find specific items.
-   - For the 10Q, 10K, 20F, and earnings_announcement, after extracting the financial statement, the CLI also needs to categorize the line items into operating and non-operating (financial-analyst-skills used a tiger-transformer model, but I would like to switch back to LLM judgement here) and calculate Invested Capital, EBITA, adjusted taxes, NOPAT, ROIC, and other calculations.
-   - Self-healing and learning. Create and update 6_company_context/extract_context.md. This is the most important for 10Q, 10K, 20F, and earnings_announcement. For example, how does the company's financial statement label its dates on the financial statement? Some companies like to use Quarter. Some companies use a date. How does the company organize its financial statement? Some companies like to separate the revenue and cost by business units. Other uses weird formatting where indention signify total instead of writing total. The user may ask to make changes to the operating vs non-operating classification sometimes. These requests should also be documented in the this self-healing file.
+### 3.2 Step 2: Ingestion (`fa run ingest`)
+- **Queue & Retries**: Processes files in `1_ingest_data/` one-by-one. Utilizes a deterministic queue to prevent race conditions. Implements robust exponential back-off and retry logic. *Do not rely on the LLM to manage the queue.*
+- **Step 2A: Hash Verification**:
+  - Deterministically hash each file and compare it to the hashes in `parsed_data.csv`.
+  - If a duplicate hash is found, skip the file.
+  - If new, append a new entry to `parsed_data.csv` with placeholders for `new_filename`, `document_type`, `document_date`, and `fiscal_quarter`.
+- **Step 2B: Conversion**:
+  - Convert PDFs or HTML to markdown. The parsing script must maintain the alignment, spaces, and lines of financial tables.
+  - Write markdown to `2_parsed_data/` and move the original raw file to `3_archived_data/`.
+- **Step 2C: Chunking & Metadata Prepending**:
+  - Split the markdown file into **5,000-character chunks**.
+  - Create a summary table of the chunk distribution: `chunk_id`, character range (`char X to Y`), frequency of numbers, and frequency of symbols.
+  - Prepend this summary table and document metadata as **`chunk_id=0`** to the markdown file. `chunk_id=1` will contain the first 5,000 characters of the document body.
+- **Step 2D: LLM Identification**:
+  - Prompt the LLM with `document_types.json`, `ingest_context.md`, and the current entry in `parsed_data.csv`.
+  - The LLM identifies the true document date and type.
+  - *Note*: Filing dates are often 30-60 days after the actual quarter/fiscal period end.
+  - If the document is a `10-Q`, `10-K`, or `earnings_announcement`, the LLM also identifies the fiscal quarter.
+  - Rename the markdown and raw files to `YYYYMMDD_document_type.md` (and corresponding raw extension) using the identified document date, and update `parsed_data.csv`.
+- **Step 2E: Self-Healing Ingestion Context**:
+  - Create/update `6_company_context/ingest_context.md` with identified company details:
+    - Fiscal year-end month and the mapping of calendar months to fiscal quarters.
+    - Company-specific formatting preferences (e.g., where document dates are typically located).
+  - Verify and correct fiscal quarter/document date mappings retroactively.
 
-5. the user types `fa run historical` and the CLI will look at the 4_extracted_data folder and 5_historical_analysis folder and compare their csv files. For all the files that is not already incorporated in the historical analysis, add to the queue. For each file in the queue, the CLI will do the following:
-   - Deterministic script: based on the document_type, the AI agent will be asked to do a different task.
-   - If the document_type is analyst_report then create or edit a 5_historical_analysis/analyst_views.md. The goal here is to track how the analyst reviews have changed over time, especially regarding the company's economic moat (none, narrow, wide), future margins (decreasing, stable, increasing), and future growth (decelerating, stable, accelerating). Maintain a table of how the views changed with each file. Keep comments about specific files to a minimum and focus on summarizing an overarching view.
-   - If the document_type is press_release, news_article, and other, then create or edit a 5_historical_analysis/news_trend.md. The goal here is to surface interesting trends, contradictions, or other non-obvious news. Maintain a table of how the views changed with each file. Keep comments about specific files to a minimum and focus on summarizing an overarching view.
-   - If the document_type is transcript, then create or edit a 5_historical_analysis/transcript_trend.md. The goal here is to surface interesting trends, contradictions, or other non-obvious news. Maintain a table of how the views changed with each file. Keep comments about specific files to a minimum and focus on summarizing an overarching view.
-   - If the document_type is 10Q or earnings announcement, then create or edit a 5_historical_analysis/financials_quarter.md. The goal here is to maintain a longitudinal quarterly view of the financial statements and analysis.
-   - If the document_type is 10K or 20F, then create or edit a 5_historical_analysis/financials_annual.md. The goal here is to maintain a longitudinal annual view of the financial statements and analysis.
-   - Self-healing and learning. When a 10Q, earnings_announcement, 10K or 20F is processed, the LLM should check if there is sufficient information to calculate a missing fourth quarter in 5_historical_analysis/financials_quarter.md. Sometimes, a fourth quarter income statement is only obtained by subtracting three quarters worth of numbers from the annual number.
+### 3.3 Step 3: Metric Extraction (`fa run extract`)
+- **Queue**: Compare files in `2_parsed_data/` against `4_extracted_data/` registries and queue unprocessed files.
+- **Step 3A: Chunk-Based Extraction**:
+  - The LLM examines the prepended table in `chunk_id=0` to locate relevant sections.
+  - The LLM pulls chunks one-by-one. For each chunk accessed, it appends a 1-2 sentence summary of that chunk to `YYYYMMDD_filetype_extracted.md` along with the `chunk_id`.
+- **Step 3B: Task-Specific Summaries**:
+  - **`analyst_report`**: Summary focused on the company's **economic moat** (none, narrow, wide), **future margins** (decreasing, stable, increasing), and **future growth** (decelerating, stable, accelerating).
+  - **`press_release` / `news_article` / `other`**: Concise summary of what is different, unusual, or special.
+  - **`transcript`**: Focus on analyst questions, management guidance, and non-mundane developments.
+  - **`10-Q` / `10-K` / `20-F` / `earnings_announcement`**:
+    - Extract Balance Sheet and Income Statement.
+    - Extract current and past period revenues, calculating simple and organic/constant-currency growth rates.
+    - Identify basic and diluted shares outstanding.
+    - **Traceability and Audit Linkage**: For every extracted financial figure, the model must record metadata containing `source_file`, `chunk_id`, and `exact_snippet`. This ensures full auditing capabilities.
+- **Step 3C: Financial Calculations & Rust Boundaries**:
+  - Classify financial line items into **operating** and **non-operating** categories using LLM judgment (guided by `6_company_context/extract_context.md` and the central tool dictionary in `src/resources/dictionary/`).
+  - Pass the classified statements as Pydantic-validated JSON structures to the **Rust Core Engine** to calculate key metrics: Invested Capital, EBITA, Adjusted Taxes, Net Operating Profit Less Adjusted Taxes (NOPAT), and Return on Invested Capital (ROIC) schedules. This enforces a strict math contract between Python and Rust.
+  - All calculated metrics must preserve the audit linkage metadata back to their respective raw source numbers.
+- **Step 3D: Self-Healing Extraction Context**:
+  - Create/update `6_company_context/extract_context.md` detailing:
+    - How the company labels and organizes its statements (e.g., division revenue details, indentation patterns).
+    - Custom classifications for operating/non-operating items requested by the user.
 
-6. the user types `fa run model` and the CLI will look at 5_historical_analysis and generate a financial model based on the latest files.
-   - Deterministic script: calculate the base_WACC, base_capital_turnover, base_revenue, base_ebita_margin, base_adjusted_tax_rate, base_growth_rate, base_terminal_growth
-   - Based on the analyst_views.md, financials_quarter.md, and financials_annual.md, determine what is the fair base_ebita_margin, base_growth_rate, base_terminal_growth, and base_revenue (only really relevant if there is an acquisition or one-time event).
-   - Based on context, financial_quarter.md, and financial_annual.md, determine what is the fair WACC, capital_turnover, and adjusted_tax_rate (only really relevant if there are major distorting effects).
-   - Show the user a table of the assumptions and ask for feedback or proceed. If there is feedback to change one of the values. Document this change in self-healing and learning. Specifically, create and update 6_company_context/model_context.md.
-   - Deterministic script: create the financial model and output the markdown in 7_financial_model and json in 8_historical_model_json
+### 3.4 Step 4: Historical Analysis (`fa run historical`)
+- **Queue**: Identify files in `4_extracted_data/` not yet integrated into `5_historical_analysis/`.
+- **Processing Tasks**:
+  - **`analyst_report`**: Update `5_historical_analysis/analyst_views.md`. Track changes in moat, margins, and growth trajectory using a structured table. Keep comments concise and focus on the overall synthesis.
+  - **`press_release` / `news_article` / `other`**: Update `5_historical_analysis/news_trend.md`. Surface contradictions or major trends.
+  - **`transcript`**: Update `5_historical_analysis/transcript_trend.md`. Track themes in analyst inquiries.
+  - **`10-Q` / `earnings_announcement`**: Update `5_historical_analysis/financials_quarter.md` (quarterly metrics).
+  - **`10-K` / `20-F`**: Update `5_historical_analysis/financials_annual.md` (annual metrics).
+- **Self-Healing Integration**:
+  - If annual reports are processed, the LLM checks if it can deduce a missing fourth quarter's financials by subtracting the first three quarters from the annual total, and writes the calculated Q4 metrics to `financials_quarter.md`.
 
-### 2. `query` Command Group
+### 3.5 Step 5: Financial Modeling (`fa run model`)
+- **Step 5A: Base Assumption Derivation**:
+  - Run deterministic calculations to determine default values for: `base_WACC`, `base_capital_turnover`, `base_revenue`, `base_ebita_margin`, `base_adjusted_tax_rate`, `base_growth_rate`, and `base_terminal_growth`.
+- **Step 5B: LLM Estimation**:
+  - Use `analyst_views.md`, `financials_quarter.md`, and `financials_annual.md` to propose optimized assumptions for margins, growth, capital turnover, tax rates, and WACC.
+- **Step 5C: User Validation & Self-Healing**:
+  - Present the assumptions table to the user for feedback.
+  - Record any overrides or adjustments in `6_company_context/model_context.md`.
+- **Step 5D: Execution**:
+  - Generate the projected financial model. Output the readable markdown file to `7_financial_model/` and the structured JSON to `8_historical_model_json/` as `YYYYMMDD_ticker_0.json`.
 
-Retrieves and displays processed financial analysis data from the workspace directories.
+---
 
-- **`fa query summary <ticker>`**
-  - Displays the company profile and the calculated historical financial metrics summary table (Revenue, EBITA, Tax Rate, Invested Capital, NOPAT, ROIC, and Organic Growth) by reading from `5_historical_analysis/`.
-- **`fa query assessment <ticker>`**
-  - Displays the qualitative assessments (economic moat, EBITA margin trajectory, organic growth trajectory) with their bullet rationales and confidence ratings by reading from `5_historical_analysis/`.
-- **`fa query valuation <ticker>`**
-  - Displays the calculated WACC details (beta, risk-free rate, equity risk premium, cost of debt/equity), DCF assumptions, 10-year projected cash flows, terminal value, and calculated intrinsic value per share by reading from `7_financial_model/`.
+## 4. Commands & User Interface
 
-  ### 3. `viewer` Command
+### 4.1 CLI Commands
+- `fa run edgar`: Fetch filings from SEC EDGAR.
+- `fa run ingest`: Parse and ingest files from `1_ingest_data/`.
+- `fa run extract`: Extract statements and key metrics.
+- `fa run historical`: Update longitudinal analysis files.
+- `fa run model`: Propose and generate valuation models.
+- `fa chat <ticker>`: Open an interactive analyst shell/REPL with Sir Pennyworth, enabling ad-hoc queries, direct statement auditing, and manual model updates.
+- `fa query summary <ticker>` / `assessment <ticker>` / `valuation <ticker>`: Query tables.
+- `fa query trace <ticker> <metric> <period>`: Retrieve the audit trail (file, chunk, exact text snippet) for any compiled metrics.
+- `fa use <ticker>`: Dynamically switch the current active workspace to the folder for the specified company ticker.
+- `fa viewer`: Start the local interactive HTML viewer server.
+- `fa config init` / `show`: Handle environment keys, model configurations, and workspace settings.
 
-Serves the interactive zero-dependency DCF HTML viewer.
+### 4.2 Local HTML Viewer
+- Zero-dependency DCF HTML application.
+- Loads JSON files from `8_historical_model_json/`.
+- Allows modifying assumptions (e.g., tax rate, WACC, growth) in the browser, recalculating cash flows and intrinsic value in real time, and saving the new model back as `YYYYMMDD_ticker_1.json`, etc.
 
-- **`fa viewer`**
-  - Launches `tools/simple_frontend_server.py` to serve the interactive valuation viewer.
-  - The viewer scans and loads JSON models from `8_historical_model_json/` (e.g., `YYYYMMDD_ticker_0.json`) and enables the user to modify assumptions and save updated versions back to the same folder as `YYYYMMDD_ticker_1.json`, etc.
-  - Options:
-    - `--port`: Port to listen on (default: `3000`).
-    - `--host`: Host address to bind to (default: `127.0.0.1`).
+---
 
-### 4. `config` Command Group
-
-Manages settings, API credentials, and active workspaces.
-
-- **`fa config init`**
-  - Interactively configures paths to the directories, API keys (Yahoo Finance, OpenRouter/OpenAI/Gemini keys), and standard LLM configurations. When a new workspace path is set, automatically initializes the 8 workspace subfolders (`1_ingest_data/` to `8_historical_model_json/`) with instructions.
-- **`fa config show`**
-  - Prints the current system settings, path locations, active workspace, and API configurations (with sensitive API keys masked).
-
-Tools that the CLI should have access to:
-
-- COMMENT: look at opencode and other open source CLI tools and copy their tools for generic file manipulation. DO NOT REINVENT THE WHEEL.
-- Search for terms that retrieves a json of results with the location, 200 chars before and after the term.
-- Prepend, append, and insert text into a markdown.
-- Prepend, append, and insert entries into a csv.
-- Get a specific section of a parsed_data markdown identified by chunk id, which translates to between char X and char Y. We should NEVER pass a giant document directly to the LLM. The LLM should use chunk_id=0 which and pull chunk_id=? one at a time asking if itself if it has enough information.
-- Search whether a line_item is operating or non-operating. This should first search a CLI internal dictionary. If nothing is found, then search the web, specifically investopedia.
-- This is not a comprehensive list.
+## 5. Tools Available to the CLI Agent
+To manage files and perform context-aware tasks, the CLI agent has access to:
+- **Term Search**: Returns a JSON of matches with 200 characters of surrounding context.
+- **Markdown Mutators**: Prepend, append, or insert text blocks.
+- **CSV Mutators**: Prepend, append, or insert rows.
+- **Chunk Retrieval**: Extract a specific character-bound chunk ID. *Never pass full raw filings directly to the LLM context.*
+- **Operating Classification Helper**: Searches the central dictionary in `src/resources/dictionary/` (structured with an `index.md` listing all line items, and individual markdown files for each line item defining its accounting definition and valuation treatment). If not found locally, falls back to web searches (specifically Investopedia) to classify operating vs non-operating line items.
+- **Dynamic Math Expression Solver**: A sandboxed execution environment that allows the agent to run mathematical Python expressions to solve custom calculations requested by the user during interactive chat sessions.

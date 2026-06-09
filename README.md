@@ -16,45 +16,57 @@ The interface is hosted by **Sir Pennyworth**, a greedy financial analyst pig wi
 
 ---
 
+## A Personal Growth Journey
+
+This project is a milestone in my personal developer and AI alignment journey:
+
+- **January 2026 — [Tiger-Cafe](https://github.com/Ruinius/tiger-cafe)**: I started by building a modern web application, diving deep into React, FastAPI, and full-stack development.
+- **March 2026 — [Financial Analyst Skills](https://github.com/Ruinius/financial-analyst-skills)**: I transitioned into AI agent design, mapping out high-quality financial analysis concepts and domain-specific skills.
+- **June 2026 — Financial Analyst CLI**: Now, I'm building this robust CLI workspace (`fa`) to merge structured agentic pipelines, local developer environments, and high-performance Rust calculations.
+
+I am constantly learning and growing. I am incredibly grateful for any comments, feedback, or outreach—please feel free to open issues, start discussions, or connect!
+
+---
+
 ## Table of Contents
 
+- [A Personal Growth Journey](#a-personal-growth-journey)
 - [Core Features](#core-features)
 - [Installation & Setup](#installation--setup)
 - [First-Time Configuration](#first-time-configuration)
 - [Workspace Directory Structure](#workspace-directory-structure)
 - [Command Line Interface (CLI) Reference](#command-line-interface-cli-reference)
   - [fa run](#1-fa-run-pipeline-orchestration)
-  - [fa query](#2-fa-query-data-display)
-  - [fa viewer](#3-fa-viewer-interactive-dcf-viewer)
-  - [fa config](#4-fa-config-settings-management)
+  - [fa chat](#2-fa-chat-interactive-analyst-shell)
+  - [fa query](#3-fa-query-data-display)
+  - [fa use](#4-fa-use-workspace-switching)
+  - [fa viewer](#5-fa-viewer-interactive-dcf-viewer)
+  - [fa config](#6-fa-config-settings-management)
 - [Architecture](#architecture)
-- [Related Projects](#related-projects)
 - [License](#license)
 
 ---
 
 ## Core Features
 
-1. **Ticker Insights & Overview**: Fetch company profile details (sector, industry, description) and summarize recent news and market sentiment.
-2. **Financial Statements Analysis**: Retrieve multi-year Income Statements, Balance Sheets, and Cash Flow Statements. Automatically compute margins, leverage ratios, and ROIC.
-3. **Valuation Models**:
-   - **Discounted Cash Flow (DCF)**: Calculate intrinsic value using custom revenue growth projections, terminal growth rates, and Weighted Average Cost of Capital (WACC).
-   - **Comparable Analysis (Comps)**: Price-to-Earnings (P/E), Price-to-Sales (P/S), and EV/EBITDA comparisons against direct competitors.
-4. **Technical & Market Data**: Generate moving averages (SMA/EMA) and core technical indicators (RSI, MACD) to summarize current market trends.
-5. **Interactive DCF Viewer**: Launch a zero-dependency HTML dashboard to load and tune financial model assumptions, saving custom iterations directly back to your workspace.
-6. **Report Generation**: Export structured markdown reports and print terminal-optimized tables via `rich`.
+1. **Structured Ingestion & Parsing**: Automated retrieval of filings (10-K, 10-Q, 20-F) from SEC EDGAR, layout-preserved markdown parsing, duplicate hashing, and smart LLM-driven date/quarter identification.
+2. **Auditable Metric Extraction**: Extract Balance Sheet and Income Statement line items. Every data point is tagged with trace metadata (`source_file`, `chunk_id`, `exact_snippet`) for absolute auditing.
+3. **Hybrid Rust-Python Engine**: Perform performance-critical calculations (Invested Capital, NOPAT, EBITA, WACC, and ROIC schedules) in Rust via PyO3 bindings with strict Pydantic payload verification.
+4. **Self-Healing Company Context**: Company-specific extraction and mapping contexts that automatically heal and improve on successive pipeline runs.
+5. **Interactive REPL / Analyst Shell (`fa chat`)**: Talk directly to Sir Pennyworth. Probe extracted financial metrics, execute custom math formulas in a sandboxed execution environment, and audit statements.
+6. **Zero-Dependency DCF Viewer**: Start a local viewer server to dynamically tune DCF assumptions and save custom scenarios back to the workspace.
 
 ---
 
 ## Installation & Setup
 
-This project is built using a modern hybrid architecture consisting of a Python CLI and a Rust performance/calculation core.
+This project uses a hybrid architecture consisting of a Python CLI and a compiled Rust computation core.
 
 ### Prerequisites
 
-1. **Python**: Ensure you have Python >= 3.14 installed.
-2. **uv**: This project uses `uv` for Python package and environment management. If you do not have it, follow the [uv installation instructions](https://github.com/astral-sh/uv#installation).
-3. **Rust Toolchain**: To compile the Rust core modules, you must have Rust and `cargo` installed. You can install them via [rustup](https://rustup.rs/).
+1. **Python**: Python >= 3.12 (recommend managing via `uv`).
+2. **uv**: This project uses `uv` for package management. Install it via `pip install uv` or follow instructions on [astral.sh/uv](https://astral.sh/uv).
+3. **Rust Toolchain**: To compile the Rust core modules, you must have Rust and `cargo` installed (via [rustup.rs](https://rustup.rs/)).
 
 ### Environment Initialization
 
@@ -63,108 +75,121 @@ Clone this repository and run the following in your shell:
 ```powershell
 # Create a virtual environment and sync dependencies
 uv venv
+.venv\Scripts\activate
 
 # Build the Rust extension module using Maturin
 uv pip install maturin
 uv run maturin develop
 
-# Setup pre-commit linting and secret checks
+# Setup pre-commit linting and checks
 uv run pre-commit install
 
 # Run the project entry point
 uv run python main.py
 ```
 
-
 ---
 
 ## First-Time Configuration
 
-When you execute `fa` for the first time, Sir Pennyworth will guide you through an interactive setup process:
+When you execute `fa` for the first time, Sir Pennyworth guides you through an interactive configuration setup:
 
-1. **LLM API Credentials**: Setup OpenRouter, OpenAI, or Gemini API keys.
-2. **Model Selection**: Select your preferred text and vision LLM models. By default, it integrates with OpenRouter, defaulting to the Gemma model (e.g., `google/gemma-4-31b-it`).
-3. **Workspace Path**: Specify a workspace directory.
-
-> [!IMPORTANT]
-> To avoid context bloat and keep analyses clean, use a separate workspace directory for each company. It is recommended to name the directory after the company's ticker symbol (e.g., `AAPL` or `MSFT`).
+1. **User Identity**: Full name, email, and project name (crucial for declaring SEC EDGAR user-agent headers).
+2. **LLM API Credentials**: Setup OpenRouter, Gemini, OpenAI, or other keys.
+3. **Model Selection**: Select your preferred text and vision LLMs.
+4. **Workspace Path**: Specify a directory where company analyses will be run.
 
 ---
 
 ## Workspace Directory Structure
 
-Setting up a workspace initializes the following 8 subfolders and instruction templates:
+Setting up a workspace for a company ticker (e.g., `AAPL` or `MSFT`) initializes the following directory structure:
 
-*   **`1_ingest_data/`**: Place raw documents (10-Ks, 10-Qs, earnings transcripts, analyst reports, press releases, etc.) here. An `edgar_downloads.csv` file tracks SEC filings retrieved from the EDGAR API.
-*   **`2_parsed_data/`**: Where raw files are parsed and converted to Markdown files (`YYYYMMDD_filetype.md`). A `parsed_data.csv` index is maintained in this directory.
-*   **`3_archived_data/`**: Raw original files are archived here (`YYYYMMDD_filetype.pdf`) with an `archived_data.csv` log tracking movements.
-*   **`4_extracted_data/`**: Contains parsed summaries by content (e.g. quarterly statement summaries), cataloged in `extracted_data.md`.
-*   **`5_historical_analysis/`**: Contains generated reports summarizing qualitative moats, margins, capital efficiency, and ROIC trends.
-*   **`6_company_context/`**: Customizable accounting rules (e.g., `operating_income.md`, `invested_capital.md`) that direct how metrics are extracted and analyzed.
-*   **`7_financial_model/`**: Contains the final markdown representation of the DCF and valuation models.
-*   **`8_historical_model_json/`**: Stores financial model JSON objects (`YYYYMMDD_ticker_N.json`) for import into the interactive viewer.
+- **`1_ingest_data/`**: Raw documents (10-Ks, 10-Qs, earnings transcripts, analyst reports, press releases, etc.) and `edgar_downloads.csv`.
+- **`2_parsed_data/`**: Markdown conversions of raw files (`YYYYMMDD_filetype.md`) and a `parsed_data.csv` index.
+- **`3_archived_data/`**: Archived original files.
+- **`4_extracted_data/`**: Parsed metrics, statement summaries, and audit trail metadata.
+- **`5_historical_analysis/`**: Generated reports summarizing qualitative moats (`analyst_views.md`), transcripts (`transcript_trend.md`), and quantitative trends (`financials_quarter.md`, `financials_annual.md`).
+- **`6_company_context/`**: Customizable self-healing accounting contexts (`ingest_context.md`, `extract_context.md`, `model_context.md`).
+- **`7_financial_model/`**: Markdown representations of DCF models.
+- **`8_historical_model_json/`**: JSON model states for import/export in the interactive viewer.
 
 ---
 
 ## Command Line Interface (CLI) Reference
 
-The CLI commands are structured as follows:
-
 ### 1. `fa run` (Pipeline Orchestration)
 
-Executes the end-to-end data pipeline on documents in your workspace.
+Execute sequentially structured pipeline steps:
 
 ```powershell
-# Run the complete pipeline
-uv run fa run
+# Fetch filings from SEC EDGAR
+uv run fa run edgar AAPL --years 5
 
-# Options
-# --ticker, -t           Limit processing to a specific stock ticker
-# --phase, -p            Run a specific phase only:
-#                          - 1 / classify : Document Classification
-#                          - 2 / parse    : Convert raw files to markdown
-#                          - 3 / extract  : Financial Data Extraction
-#                          - 4 / calculate: Financial Calculations
-#                          - 5 / organize : Archive raw files & write summaries
-#                          - 6 / assess   : Qualitative Assessment
-#                          - 7 / model    : Financial DCF/Comps Modeling
-#                          - 8 / json     : Export model state JSON
-# --skip-quality-gate    Skip the metrics verification check
-# --postrun              Perform self-improvement and run curation updates
+# Parse and chunk ingested raw files
+uv run fa run ingest
+
+# Extract financial statements and audit details
+uv run fa run extract
+
+# Synthesize multi-period metrics and qualitative trends
+uv run fa run historical
+
+# Generate DCF model projections
+uv run fa run model
 ```
 
-### 2. `fa query` (Data Display)
+### 2. `fa chat` (Interactive Analyst Shell)
 
-Interrogate and view analysis results in the console.
+Start an interactive shell with Sir Pennyworth to ask questions, run calculations with a sandboxed Python solver, and examine financial metrics:
 
 ```powershell
-# Show summary profile and historical financial statement metrics
-uv run fa query summary <ticker>
-
-# Show qualitative assessments (moats, margin trajectory, confidence)
-uv run fa query assessment <ticker>
-
-# Show WACC, DCF assumptions, cash flow projections, and intrinsic value
-uv run fa query valuation <ticker>
+uv run fa chat AAPL
 ```
 
-### 3. `fa viewer` (Interactive DCF Viewer)
+### 3. `fa query` (Data Display)
 
-Launches the interactive local web application to adjust DCF assumptions in real-time.
+Query analysis tables, qualitative assessments, and trace audit trails:
+
+```powershell
+# Show summary profile and historical financial statement metrics (with console sparklines)
+uv run fa query summary AAPL
+
+# Show qualitative assessments
+uv run fa query assessment AAPL
+
+# Show WACC inputs, projected cash flows, and intrinsic values
+uv run fa query valuation AAPL
+
+# Trace the exact raw file provenance/source text of a metric
+uv run fa query trace AAPL Revenue 2025
+```
+
+### 4. `fa use` (Workspace Switching)
+
+Switch the active workspace directory dynamically:
+
+```powershell
+uv run fa use AAPL
+```
+
+### 5. `fa viewer` (Interactive DCF Viewer)
+
+Start the local web server to launch the zero-dependency interactive HTML model viewer:
 
 ```powershell
 uv run fa viewer --port 3000 --host 127.0.0.1
 ```
 
-### 4. `fa config` (Settings Management)
+### 6. `fa config` (Settings Management)
 
-Configure settings and manage active workspace structures.
+Initialize or display active configuration properties:
 
 ```powershell
 # Interactively update your configurations and initialize directories
 uv run fa config init
 
-# Display the current configuration profiles (with sensitive keys masked)
+# Display current configuration profile
 uv run fa config show
 ```
 
@@ -172,13 +197,7 @@ uv run fa config show
 
 ## Architecture
 
-For more details on modular clients, Pydantic data modeling, and codebase organization, refer to the [System Architecture Document](docs/architecture.md).
-
----
-
-## Related Projects
-
-*   [financial-analyst-skills](https://github.com/Ruinius/financial-analyst-skills): The repository containing the financial analysis concepts and skill definitions that inspire the layout and automation pipeline of this project.
+For details on modular clients, Pydantic validation structures, the central dictionary (`src/resources/dictionary/`), and core architecture decisions, refer to the [System Architecture Document](docs/architecture.md).
 
 ---
 

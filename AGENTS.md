@@ -10,6 +10,7 @@ Welcome to the `financial-analyst-cli` project.
 - [docs/architecture.md](file:///f:/AIML projects/financial-analyst-cli/docs/architecture.md): System architecture, folder structure, and software design decisions.
 - [docs/cli_spec.md](file:///f:/AIML projects/financial-analyst-cli/docs/cli_spec.md): CLI command hierarchy, options, parameters, and user experience specification.
 - [docs/requirements.md](file:///f:/AIML projects/financial-analyst-cli/docs/requirements.md): Scope of capabilities and product requirements translated from financial-analyst-skills.
+- [docs/roadmap.md](file:///f:/AIML projects/financial-analyst-cli/docs/roadmap.md): Six-phase development plan for implementing the Financial Analyst CLI.
 - [LICENSE](file:///f:/AIML projects/financial-analyst-cli/LICENSE): MIT License.
 - [main.py](file:///f:/AIML projects/financial-analyst-cli/main.py): Application entry point.
 - [pyproject.toml](file:///f:/AIML projects/financial-analyst-cli/pyproject.toml): Project metadata and dependencies (managed via `uv`), including Maturin build-backend configuration.
@@ -25,6 +26,7 @@ Welcome to the `financial-analyst-cli` project.
   - [market_data.py](file:///f:/AIML projects/financial-analyst-cli/scripts/market_data.py): Yahoo Finance market data and ticker checker.
   - [simple_frontend_server.py](file:///f:/AIML projects/financial-analyst-cli/scripts/simple_frontend_server.py): Local scenario server and viewer host.
 - [src/rust_core/lib.rs](file:///f:/AIML projects/financial-analyst-cli/src/rust_core/lib.rs): Rust module with PyO3 bindings for financial and mathematical calculations.
+- [src/resources/dictionary/](file:///f:/AIML projects/financial-analyst-cli/src/resources/dictionary): Central accounting glossary and classification dictionary containing definition markdowns and valuation treatment guidelines.
 
 
 ## Architectural Patterns & Guidelines
