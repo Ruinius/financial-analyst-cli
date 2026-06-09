@@ -1,0 +1,48 @@
+{
+    "document_types": {
+        "earnings_announcement": {
+            "abbreviation": "EA",
+            "description": "Press releases reporting quarterly or annual earnings results, financial performance metrics (revenue, profit, EPS), and earnings guidance.",
+            "examples": ["Quarterly earnings release", "Annual results announcement"]
+        },
+        "quarterly_filing": {
+            "abbreviation": "10Q",
+            "description": "Official SEC quarterly filings (10-Q forms).",
+            "examples": ["Form 10-Q"]
+        },
+        "annual_filing": {
+            "abbreviation": "10K",
+            "description": "Official SEC annual filings (10-K forms).",
+            "examples": ["Form 10-K", "Annual Report"]
+        },
+        "press_release": {
+            "abbreviation": "PR",
+            "description": "All other press releases that are NOT earnings announcements. Product launches, partnerships, executive appointments, regulatory updates, etc.",
+            "examples": ["Product launch announcement", "Partnership announcement"]
+        },
+        "analyst_report": {
+            "abbreviation": "AR",
+            "description": "Reports from financial analysts or research firms.",
+            "examples": ["Equity research report", "Industry analysis"]
+        },
+        "news_article": {
+            "abbreviation": "NA",
+            "description": "Third-party news articles about the company.",
+            "examples": ["Bloomberg article", "Reuters report"]
+        },
+        "transcript": {
+            "abbreviation": "TR",
+            "description": "Earnings call transcripts or other company presentations.",
+            "examples": ["Earnings call transcript", "Investor day transcript"]
+        },
+        "other": {
+            "abbreviation": "OTH",
+            "description": "Any document that doesn't fit the above categories.",
+            "examples": ["Internal memo", "Regulatory filing"]
+        }
+    },
+    "time_period_corrections": {
+        "earnings_announcement_fy_to_q4": "If document_type is earnings_announcement and time_period is FY YYYY, change to Q4 YYYY",
+        "annual_filing_q4_to_fy": "If document_type is annual_filing and time_period is Q4 YYYY, change to FY YYYY"
+    }
+}

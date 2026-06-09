@@ -14,6 +14,16 @@ Welcome to the `financial-analyst-cli` project.
 - [main.py](file:///f:/AIML projects/financial-analyst-cli/main.py): Application entry point.
 - [pyproject.toml](file:///f:/AIML projects/financial-analyst-cli/pyproject.toml): Project metadata and dependencies (managed via `uv`), including Maturin build-backend configuration.
 - [README.md](file:///f:/AIML projects/financial-analyst-cli/README.md): Project overview and setup instructions.
+- [scripts/](file:///f:/AIML projects/financial-analyst-cli/scripts): Temporary directory containing copied pipeline and calculation scripts.
+  - [calculate_calculations.py](file:///f:/AIML projects/financial-analyst-cli/scripts/calculate_calculations.py): Derived financial metrics calculation engine.
+  - [calculate_modeling.py](file:///f:/AIML projects/financial-analyst-cli/scripts/calculate_modeling.py): Intrinsic value and WACC valuation engine.
+  - [generate_json.py](file:///f:/AIML projects/financial-analyst-cli/scripts/generate_json.py): Model JSON generator.
+  - [organize.py](file:///f:/AIML projects/financial-analyst-cli/scripts/organize.py): Processed document organization and unit harmonization.
+  - [process_classification.py](file:///f:/AIML projects/financial-analyst-cli/scripts/process_classification.py): PDF classification script.
+  - [transform_and_append.py](file:///f:/AIML projects/financial-analyst-cli/scripts/transform_and_append.py): Tiger-Transformer output append logic.
+  - [markdown_parser.py](file:///f:/AIML projects/financial-analyst-cli/scripts/markdown_parser.py): Markdown table extraction helpers.
+  - [market_data.py](file:///f:/AIML projects/financial-analyst-cli/scripts/market_data.py): Yahoo Finance market data and ticker checker.
+  - [simple_frontend_server.py](file:///f:/AIML projects/financial-analyst-cli/scripts/simple_frontend_server.py): Local scenario server and viewer host.
 - [src/rust_core/lib.rs](file:///f:/AIML projects/financial-analyst-cli/src/rust_core/lib.rs): Rust module with PyO3 bindings for financial and mathematical calculations.
 
 

@@ -93,15 +93,16 @@ When you execute `fa` for the first time, Sir Pennyworth will guide you through 
 
 ## Workspace Directory Structure
 
-Setting up a workspace initializes the following 7 subfolders and instruction templates:
+Setting up a workspace initializes the following 8 subfolders and instruction templates:
 
-*   **`1_ingest_data/`**: Place raw documents (10-Ks, 10-Qs, earnings transcripts, analyst reports, etc.) here.
-*   **`2_summarized_data/`**: Raw documents are parsed, summarized into Markdown format (`YYYYMMDD_filetype.md`), and indexed in `summarized_data_list.md`.
-*   **`3_archived_data/`**: Raw files are archived here (`YYYYMMDD_filetype.pdf`) after being successfully processed.
-*   **`4_historical_analysis/`**: Contains generated reports summarizing qualitative moats, margins, capital efficiency, and ROIC trends.
-*   **`5_company_specific_rules/`**: Customizable accounting rules (e.g., `operating_income.md`, `invested_capital.md`) that direct how metrics are extracted and analyzed.
-*   **`6_financial_model/`**: Contains the final markdown representation of the DCF and valuation models.
-*   **`7_historical_model_json/`**: Stores financial model JSON objects (`YYYYMMDD_ticker_N.json`) for import into the interactive viewer.
+*   **`1_ingest_data/`**: Place raw documents (10-Ks, 10-Qs, earnings transcripts, analyst reports, press releases, etc.) here. An `edgar_downloads.csv` file tracks SEC filings retrieved from the EDGAR API.
+*   **`2_parsed_data/`**: Where raw files are parsed and converted to Markdown files (`YYYYMMDD_filetype.md`). A `parsed_data.csv` index is maintained in this directory.
+*   **`3_archived_data/`**: Raw original files are archived here (`YYYYMMDD_filetype.pdf`) with an `archived_data.csv` log tracking movements.
+*   **`4_extracted_data/`**: Contains parsed summaries by content (e.g. quarterly statement summaries), cataloged in `extracted_data.md`.
+*   **`5_historical_analysis/`**: Contains generated reports summarizing qualitative moats, margins, capital efficiency, and ROIC trends.
+*   **`6_company_context/`**: Customizable accounting rules (e.g., `operating_income.md`, `invested_capital.md`) that direct how metrics are extracted and analyzed.
+*   **`7_financial_model/`**: Contains the final markdown representation of the DCF and valuation models.
+*   **`8_historical_model_json/`**: Stores financial model JSON objects (`YYYYMMDD_ticker_N.json`) for import into the interactive viewer.
 
 ---
 
@@ -121,12 +122,13 @@ uv run fa run
 # --ticker, -t           Limit processing to a specific stock ticker
 # --phase, -p            Run a specific phase only:
 #                          - 1 / classify : Document Classification
-#                          - 2 / extract  : Financial Data Extraction
-#                          - 3 / calculate: Financial Calculations
-#                          - 4 / organize : Move raw files & write summaries
-#                          - 5 / assess   : Qualitative Assessment
-#                          - 6 / model    : Financial DCF/Comps Modeling
-#                          - 7 / json     : Export model state JSON
+#                          - 2 / parse    : Convert raw files to markdown
+#                          - 3 / extract  : Financial Data Extraction
+#                          - 4 / calculate: Financial Calculations
+#                          - 5 / organize : Archive raw files & write summaries
+#                          - 6 / assess   : Qualitative Assessment
+#                          - 7 / model    : Financial DCF/Comps Modeling
+#                          - 8 / json     : Export model state JSON
 # --skip-quality-gate    Skip the metrics verification check
 # --postrun              Perform self-improvement and run curation updates
 ```
