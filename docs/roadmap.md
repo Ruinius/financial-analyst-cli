@@ -59,7 +59,8 @@ Config      Ingestion   Extraction  History     Modeling    Interactive
   - Extract relevant sections (Balance Sheet, Income Statement, Moat indicators, Press release announcements) based on document type.
   - Bind metadata containing `source_file`, `chunk_id`, and `exact_snippet` to every extracted numerical figure for auditing.
 - **3.3 Financial Calculation Engine & Rust Boundaries**:
-  - Build the Operating/Non-Operating classifier using LLM judgment, local dictionary lookups, and Investopedia web search fallbacks.
+  - Build the Operating/Non-Operating classifier using LLM judgment, central dictionary lookups, and Investopedia web search fallbacks (using `duckduckgo-search`).
+  - Seed the central dictionary (`src/resources/dictionary/`) with an initial `index.md` and basic accounting definitions/treatment markdowns.
   - Define strict Pydantic schemas to validate financial data before passing to Rust.
   - Expand the **Rust Core Engine** via PyO3 to calculate Invested Capital, EBITA, Adjusted Taxes, NOPAT, and ROIC schedules.
   - Create and update `6_company_context/extract_context.md`.
@@ -105,7 +106,7 @@ Config      Ingestion   Extraction  History     Modeling    Interactive
   - Implement `fa query trace <ticker> <metric> <period>` to render the audit trial/provenance of any metric from raw chunks.
 - **6.2 Interactive REPL / Analyst Chat (`fa chat`)**:
   - Implement the interactive console-based session with Sir Pennyworth.
-  - Integrate a sandboxed dynamic math execution context for custom math formulas.
+  - Implement the sandboxed math execution engine (`math_solver.py`) using `RestrictedPython` or `SymPy` with AST filtering and timeout guards.
 - **6.3 DCF Viewer Server (`fa viewer`)**:
   - Build the zero-dependency interactive HTML browser viewer.
   - Setup a simple Python server to launch the viewer, read from `8_historical_model_json/`, and write back updated override JSON versions (e.g. `YYYYMMDD_ticker_1.json`).
