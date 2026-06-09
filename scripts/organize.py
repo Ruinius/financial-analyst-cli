@@ -23,34 +23,35 @@ import glob
 from datetime import datetime
 
 sys.path.append(os.path.dirname(__file__))
-from markdown_parser import parse_markdown_table, parse_kv_table, clean_value
+from markdown_parser import parse_kv_table, clean_value
 
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 
 UNIT_FACTORS = {
-    "ones":             1,
-    "thousands":        1_000,
-    "ten_thousands":    10_000,
-    "millions":         1_000_000,
+    "ones": 1,
+    "thousands": 1_000,
+    "ten_thousands": 10_000,
+    "millions": 1_000_000,
     "hundred_millions": 100_000_000,
-    "billions":         1_000_000_000,
+    "billions": 1_000_000_000,
 }
 
 # Aliases for fuzzy matching
 UNIT_ALIASES = {
-    "万":               "ten_thousands",
-    "億":               "hundred_millions",
-    "thousand":         "thousands",
-    "million":          "millions",
-    "billion":          "billions",
+    "万": "ten_thousands",
+    "億": "hundred_millions",
+    "thousand": "thousands",
+    "million": "millions",
+    "billion": "billions",
 }
 
 
 # ---------------------------------------------------------------------------
 # Unit Helpers
 # ---------------------------------------------------------------------------
+
 
 def normalize_unit_name(raw_unit: str) -> str:
     """Map a raw unit string to our canonical unit key."""
@@ -85,12 +86,13 @@ def convert_value(value: float, from_unit: str, to_unit: str) -> float:
 # Section Helpers
 # ---------------------------------------------------------------------------
 
+
 def _section_content(content, section_header):
     """Extract the markdown content scoped to a specific ## section."""
     if section_header in content:
         parts = content.split(section_header)
         after_header = parts[1]
-        res = re.split(r'\n##\s+', after_header, maxsplit=1)
+        res = re.split(r"\n##\s+", after_header, maxsplit=1)
         return res[0]
     return ""
 
@@ -100,7 +102,7 @@ def _get_section_unit(content, section_name):
     section_text = _section_content(content, f"## {section_name}")
     if not section_text:
         return None
-    match = re.search(r'\|\s*Unit\s*\|\s*(\S+)\s*\|', section_text)
+    match = re.search(r"\|\s*Unit\s*\|\s*(\S+)\s*\|", section_text)
     return match.group(1).strip() if match else None
 
 
@@ -113,7 +115,9 @@ def _get_prevailing_unit(content):
         if normalize_unit_name(bs_unit) == normalize_unit_name(is_unit):
             return normalize_unit_name(bs_unit)
         # Disagree: take BS as default
-        print(f"  [WARN] BS unit ({bs_unit}) differs from IS unit ({is_unit}). Using BS unit.")
+        print(
+            f"  [WARN] BS unit ({bs_unit}) differs from IS unit ({is_unit}). Using BS unit."
+        )
         return normalize_unit_name(bs_unit)
     return normalize_unit_name(bs_unit or is_unit or "millions")
 
@@ -122,33 +126,36 @@ def _get_prevailing_unit(content):
 # Step 1: Read classification metadata
 # ---------------------------------------------------------------------------
 
+
 def read_classification(content):
     """Extract classification metadata from the markdown.
-    
+
     Note: The classification section uses a single '# ' header, which the
     shared markdown_parser doesn't handle (it only detects ## and ###).
     We parse it directly with regex here.
     """
     meta = {}
     # Find the classification section (between "# Document Classification" and the next ---)
-    cls_match = re.search(r'# Document Classification\s*\n(.*?)(?:\n---|\n#\s)', content, re.DOTALL)
+    cls_match = re.search(
+        r"# Document Classification\s*\n(.*?)(?:\n---|\n#\s)", content, re.DOTALL
+    )
     if cls_match:
         section = cls_match.group(1)
         # Parse KV rows: | Key | Value |
-        for row_match in re.finditer(r'\|\s*(.+?)\s*\|\s*(.+?)\s*\|', section):
+        for row_match in re.finditer(r"\|\s*(.+?)\s*\|\s*(.+?)\s*\|", section):
             key = row_match.group(1).strip()
             val = row_match.group(2).strip()
             if key and val and "---" not in key and "Field" not in key:
                 meta[key] = val
 
     return {
-        "ticker":        meta.get("Ticker", ""),
-        "company_name":  meta.get("Company Name", ""),
+        "ticker": meta.get("Ticker", ""),
+        "company_name": meta.get("Company Name", ""),
         "document_type": meta.get("Document Type", ""),
         "document_date": meta.get("Document Date", ""),
-        "time_period":   meta.get("Time Period", ""),
+        "time_period": meta.get("Time Period", ""),
         "period_end_date": meta.get("Period End Date", ""),
-        "currency":      meta.get("Currency", "USD"),
+        "currency": meta.get("Currency", "USD"),
     }
 
 
@@ -156,9 +163,10 @@ def read_classification(content):
 # Step 2: Harmonize units
 # ---------------------------------------------------------------------------
 
+
 def harmonize_units(content):
     """
-    Check units across sections and harmonize Shares Outstanding 
+    Check units across sections and harmonize Shares Outstanding
     to the prevailing unit. Returns (updated_content, prevailing_unit, notes).
     """
     prevailing = _get_prevailing_unit(content)
@@ -167,17 +175,27 @@ def harmonize_units(content):
     # Check Shares Outstanding
     shares_section = _section_content(content, "## Shares Outstanding")
     if shares_section:
-        basic_unit_match = re.search(r'\|\s*Basic Unit\s*\|\s*(\S+)\s*\|', shares_section)
-        diluted_unit_match = re.search(r'\|\s*Diluted Unit\s*\|\s*(\S+)\s*\|', shares_section)
+        basic_unit_match = re.search(
+            r"\|\s*Basic Unit\s*\|\s*(\S+)\s*\|", shares_section
+        )
+        diluted_unit_match = re.search(
+            r"\|\s*Diluted Unit\s*\|\s*(\S+)\s*\|", shares_section
+        )
 
-        basic_unit = basic_unit_match.group(1).strip() if basic_unit_match else prevailing
-        diluted_unit = diluted_unit_match.group(1).strip() if diluted_unit_match else prevailing
+        basic_unit = (
+            basic_unit_match.group(1).strip() if basic_unit_match else prevailing
+        )
+        diluted_unit = (
+            diluted_unit_match.group(1).strip() if diluted_unit_match else prevailing
+        )
 
         conversions_needed = False
 
         if normalize_unit_name(basic_unit) != prevailing:
             # Convert basic shares
-            basic_match = re.search(r'\|\s*Basic Shares Outstanding\s*\|\s*(\S+)\s*\|', shares_section)
+            basic_match = re.search(
+                r"\|\s*Basic Shares Outstanding\s*\|\s*(\S+)\s*\|", shares_section
+            )
             if basic_match:
                 old_val = clean_value(basic_match.group(1))
                 new_val = convert_value(old_val, basic_unit, prevailing)
@@ -187,16 +205,18 @@ def harmonize_units(content):
                 # Replace in content
                 content = content.replace(
                     f"| Basic Shares Outstanding   | {basic_match.group(1).strip()}",
-                    f"| Basic Shares Outstanding   | {new_val:.1f}"
+                    f"| Basic Shares Outstanding   | {new_val:.1f}",
                 )
                 content = content.replace(
                     f"| Basic Unit                 | {basic_unit}",
-                    f"| Basic Unit                 | {prevailing}"
+                    f"| Basic Unit                 | {prevailing}",
                 )
                 conversions_needed = True
 
         if normalize_unit_name(diluted_unit) != prevailing:
-            diluted_match = re.search(r'\|\s*Diluted Shares Outstanding\s*\|\s*(\S+)\s*\|', shares_section)
+            diluted_match = re.search(
+                r"\|\s*Diluted Shares Outstanding\s*\|\s*(\S+)\s*\|", shares_section
+            )
             if diluted_match:
                 old_val = clean_value(diluted_match.group(1))
                 new_val = convert_value(old_val, diluted_unit, prevailing)
@@ -205,11 +225,11 @@ def harmonize_units(content):
                 print(f"  [UPDATE] {note}")
                 content = content.replace(
                     f"| Diluted Shares Outstanding | {diluted_match.group(1).strip()}",
-                    f"| Diluted Shares Outstanding | {new_val:.1f}"
+                    f"| Diluted Shares Outstanding | {new_val:.1f}",
                 )
                 content = content.replace(
                     f"| Diluted Unit               | {diluted_unit}",
-                    f"| Diluted Unit               | {prevailing}"
+                    f"| Diluted Unit               | {prevailing}",
                 )
                 conversions_needed = True
 
@@ -219,19 +239,33 @@ def harmonize_units(content):
     # Check Organic Growth prior-year revenue unit
     growth_section = _section_content(content, "## Organic Growth")
     if growth_section:
-        prior_unit_match = re.search(r'\|\s*Prior Year Revenue Unit\s*\|\s*(\S+)\s*\|', growth_section)
-        curr_unit_match = re.search(r'\|\s*Current Revenue Unit\s*\|\s*(\S+)\s*\|', growth_section)
-        if prior_unit_match and normalize_unit_name(prior_unit_match.group(1).strip()) != prevailing:
-            notes.append(f"⚠️ Prior Year Revenue unit ({prior_unit_match.group(1).strip()}) differs from prevailing ({prevailing})")
-        if curr_unit_match and normalize_unit_name(curr_unit_match.group(1).strip()) != prevailing:
-            notes.append(f"⚠️ Current Revenue unit ({curr_unit_match.group(1).strip()}) differs from prevailing ({prevailing})")
+        prior_unit_match = re.search(
+            r"\|\s*Prior Year Revenue Unit\s*\|\s*(\S+)\s*\|", growth_section
+        )
+        curr_unit_match = re.search(
+            r"\|\s*Current Revenue Unit\s*\|\s*(\S+)\s*\|", growth_section
+        )
+        if (
+            prior_unit_match
+            and normalize_unit_name(prior_unit_match.group(1).strip()) != prevailing
+        ):
+            notes.append(
+                f"⚠️ Prior Year Revenue unit ({prior_unit_match.group(1).strip()}) differs from prevailing ({prevailing})"
+            )
+        if (
+            curr_unit_match
+            and normalize_unit_name(curr_unit_match.group(1).strip()) != prevailing
+        ):
+            notes.append(
+                f"⚠️ Current Revenue unit ({curr_unit_match.group(1).strip()}) differs from prevailing ({prevailing})"
+            )
 
     # Insert prevailing unit note at top if not already there
     if "| Prevailing Unit |" not in content:
         # Insert after the classification table's ---
         content = content.replace(
             "\n---\n\n## <!-- Sections below",
-            f"\n\n| Prevailing Unit | {prevailing} |\n\n---\n\n## <!-- Sections below"
+            f"\n\n| Prevailing Unit | {prevailing} |\n\n---\n\n## <!-- Sections below",
         )
 
     return content, prevailing, notes
@@ -241,16 +275,17 @@ def harmonize_units(content):
 # Step 3: Read Financial Summary for metadata
 # ---------------------------------------------------------------------------
 
+
 def read_financial_summary(content):
     """Extract key financial metrics from the Financial Summary table."""
     raw_summary = parse_kv_table(content, "## Financial Summary")
-    
+
     # Strip bold markers from keys (e.g., **Revenue** -> Revenue)
     summary = {}
     for k, v in raw_summary.items():
         clean_key = k.replace("**", "").strip()
         summary[clean_key] = v
-    
+
     def safe_clean(key, strip_pct=False):
         """Get a value, handling bold markers and percent signs."""
         val = summary.get(key, "0")
@@ -265,21 +300,26 @@ def read_financial_summary(content):
         return clean_value(val)
 
     return {
-        "revenue":          safe_clean("Revenue"),
-        "ebita":            safe_clean("EBITA"),
-        "ebita_margin":     summary.get("EBITA Margin", "0").replace("**", "").strip(),
-        "adj_tax_rate":     summary.get("Adjusted Tax Rate", "0").replace("**", "").strip(),
-        "nopat":            safe_clean("NOPAT"),
+        "revenue": safe_clean("Revenue"),
+        "ebita": safe_clean("EBITA"),
+        "ebita_margin": summary.get("EBITA Margin", "0").replace("**", "").strip(),
+        "adj_tax_rate": summary.get("Adjusted Tax Rate", "0").replace("**", "").strip(),
+        "nopat": safe_clean("NOPAT"),
         "invested_capital": safe_clean("Invested Capital"),
-        "capital_turnover": summary.get("Capital Turnover", "0").replace("**", "").strip(),
-        "roic":             summary.get("ROIC", "0").replace("**", "").strip(),
-        "organic_growth":   summary.get("Organic Revenue Growth", "0").replace("**", "").strip(),
+        "capital_turnover": summary.get("Capital Turnover", "0")
+        .replace("**", "")
+        .strip(),
+        "roic": summary.get("ROIC", "0").replace("**", "").strip(),
+        "organic_growth": summary.get("Organic Revenue Growth", "0")
+        .replace("**", "")
+        .strip(),
     }
 
 
 # ---------------------------------------------------------------------------
 # Step 4: Create / Update metadata
 # ---------------------------------------------------------------------------
+
 
 def _format_number(val):
     """Format a number with comma separators for metadata display."""
@@ -293,7 +333,9 @@ def _format_number(val):
     return f"{val:,.1f}"
 
 
-def create_metadata(ticker, company_name, currency, unit, cls_meta, fin_summary, today_iso):
+def create_metadata(
+    ticker, company_name, currency, unit, cls_meta, fin_summary, today_iso
+):
     """Create a brand new metadata file content."""
     doc_type_display = cls_meta["document_type"]
     fname = f"{ticker}_{_doctype_abbrev(doc_type_display)}_{cls_meta['document_date'].replace('-', '')}"
@@ -313,17 +355,29 @@ def create_metadata(ticker, company_name, currency, unit, cls_meta, fin_summary,
     lines.append("")
     lines.append("## Processed Documents")
     lines.append("")
-    lines.append("| # | File | Document Type | Time Period | Period End Date | Document Date | Processed |")
-    lines.append("|---|------|--------------|-------------|-----------------|---------------|-----------|")
-    lines.append(f"| 1 | [{fname}.md]({fname}.md) | {doc_type_display} | {cls_meta['time_period']} | {cls_meta['period_end_date']} | {cls_meta['document_date']} | {today_iso} |")
+    lines.append(
+        "| # | File | Document Type | Time Period | Period End Date | Document Date | Processed |"
+    )
+    lines.append(
+        "|---|------|--------------|-------------|-----------------|---------------|-----------|"
+    )
+    lines.append(
+        f"| 1 | [{fname}.md]({fname}.md) | {doc_type_display} | {cls_meta['time_period']} | {cls_meta['period_end_date']} | {cls_meta['document_date']} | {today_iso} |"
+    )
     lines.append("")
     lines.append("---")
     lines.append("")
     lines.append("## Financial History")
     lines.append("")
-    lines.append("| Time Period | Period End | Revenue | EBITA | EBITA Margin | Adj Tax Rate | NOPAT | Invested Capital | Capital Turnover | ROIC | Organic Growth |")
-    lines.append("|-------------|-----------|---------|-------|--------------|-------------|-------|-----------------|------------------|------|----------------|")
-    lines.append(f"| {cls_meta['time_period']} | {cls_meta['period_end_date']} | {_format_number(fin_summary['revenue'])} | {_format_number(fin_summary['ebita'])} | {fin_summary['ebita_margin']} | {fin_summary['adj_tax_rate']} | {_format_number(fin_summary['nopat'])} | {_format_number(fin_summary['invested_capital'])} | {fin_summary['capital_turnover']} | {fin_summary['roic']} | {fin_summary['organic_growth']} |")
+    lines.append(
+        "| Time Period | Period End | Revenue | EBITA | EBITA Margin | Adj Tax Rate | NOPAT | Invested Capital | Capital Turnover | ROIC | Organic Growth |"
+    )
+    lines.append(
+        "|-------------|-----------|---------|-------|--------------|-------------|-------|-----------------|------------------|------|----------------|"
+    )
+    lines.append(
+        f"| {cls_meta['time_period']} | {cls_meta['period_end_date']} | {_format_number(fin_summary['revenue'])} | {_format_number(fin_summary['ebita'])} | {fin_summary['ebita_margin']} | {fin_summary['adj_tax_rate']} | {_format_number(fin_summary['nopat'])} | {_format_number(fin_summary['invested_capital'])} | {fin_summary['capital_turnover']} | {fin_summary['roic']} | {fin_summary['organic_growth']} |"
+    )
     lines.append("")
 
     return "\n".join(lines)
@@ -350,14 +404,22 @@ def update_metadata(existing_content, ticker, cls_meta, fin_summary, today_iso):
     for i, line in enumerate(lines):
         if "## Processed Documents" in line:
             doc_table_start = i
-        if doc_table_start is not None and i > doc_table_start + 3 and (not line.strip() or line.strip() == "---"):
+        if (
+            doc_table_start is not None
+            and i > doc_table_start + 3
+            and (not line.strip() or line.strip() == "---")
+        ):
             doc_table_end = i
             break
 
     if doc_table_start is not None:
         # Parse existing rows
         for i in range(doc_table_start, doc_table_end or len(lines)):
-            if lines[i].startswith("| ") and "---" not in lines[i] and "#" not in lines[i].split("|")[1]:
+            if (
+                lines[i].startswith("| ")
+                and "---" not in lines[i]
+                and "#" not in lines[i].split("|")[1]
+            ):
                 doc_rows.append(lines[i])
 
         # Check for duplicate time_period (re-processing)
@@ -366,7 +428,11 @@ def update_metadata(existing_content, ticker, cls_meta, fin_summary, today_iso):
         for row in doc_rows:
             cols = [c.strip() for c in row.split("|")]
             # cols[4] is Time Period
-            if len(cols) > 4 and cols[4] == new_row_time and cls_meta["document_type"] in cols[3]:
+            if (
+                len(cols) > 4
+                and cols[4] == new_row_time
+                and cls_meta["document_type"] in cols[3]
+            ):
                 print(f"  [UPDATE] Replacing existing row for {new_row_time}")
                 continue
             filtered.append(row)
@@ -412,13 +478,21 @@ def update_metadata(existing_content, ticker, cls_meta, fin_summary, today_iso):
     for i, line in enumerate(lines):
         if "## Financial History" in line:
             fin_table_start = i
-        if fin_table_start is not None and i > fin_table_start + 3 and (not line.strip() or line.strip() == "---"):
+        if (
+            fin_table_start is not None
+            and i > fin_table_start + 3
+            and (not line.strip() or line.strip() == "---")
+        ):
             fin_table_end = i
             break
 
     if fin_table_start is not None:
         for i in range(fin_table_start, fin_table_end or len(lines)):
-            if lines[i].startswith("| ") and "---" not in lines[i] and "Time Period" not in lines[i]:
+            if (
+                lines[i].startswith("| ")
+                and "---" not in lines[i]
+                and "Time Period" not in lines[i]
+            ):
                 fin_rows.append(lines[i])
 
         # Check for duplicate time_period
@@ -448,7 +522,11 @@ def update_metadata(existing_content, ticker, cls_meta, fin_summary, today_iso):
                 break
 
         rebuild = header_lines + filtered_fin
-        lines = lines[:fin_table_start] + rebuild + (lines[fin_table_end:] if fin_table_end else [])
+        lines = (
+            lines[:fin_table_start]
+            + rebuild
+            + (lines[fin_table_end:] if fin_table_end else [])
+        )
 
     return "\n".join(lines)
 
@@ -457,11 +535,11 @@ def _doctype_abbrev(doc_type):
     """Map document_type to filename abbreviation."""
     mapping = {
         "earnings_announcement": "EA",
-        "quarterly_filing":     "10Q",
-        "annual_filing":        "10K",
-        "analyst_report":       "AR",
-        "transcript":           "TR",
-        "press_release":        "PR",
+        "quarterly_filing": "10Q",
+        "annual_filing": "10K",
+        "analyst_report": "AR",
+        "transcript": "TR",
+        "press_release": "PR",
     }
     return mapping.get(doc_type, "DOC")
 
@@ -469,6 +547,7 @@ def _doctype_abbrev(doc_type):
 # ---------------------------------------------------------------------------
 # Step 5: File operations (move + cleanup)
 # ---------------------------------------------------------------------------
+
 
 def move_files(md_path, ticker, project_root):
     """
@@ -526,7 +605,7 @@ def move_files(md_path, ticker, project_root):
             moved.append(f"  [DELETE] Cleaned up input_data/{os.path.basename(match)}")
 
     if not cleaned:
-        print(f"  [INFO] No matching files found in input_data/ to clean up")
+        print("  [INFO] No matching files found in input_data/ to clean up")
 
     return moved
 
@@ -534,6 +613,7 @@ def move_files(md_path, ticker, project_root):
 # ---------------------------------------------------------------------------
 # Verification
 # ---------------------------------------------------------------------------
+
 
 def verify(ticker, md_basename, project_root):
     """Verify files were moved correctly."""
@@ -572,6 +652,7 @@ def verify(ticker, md_basename, project_root):
 # Main orchestrator
 # ---------------------------------------------------------------------------
 
+
 def run(md_path):
     """Execute the full document organization pipeline."""
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -590,7 +671,9 @@ def run(md_path):
     ticker = cls_meta["ticker"]
     company_name = cls_meta["company_name"]
     currency = cls_meta["currency"]
-    print(f"  [1/5] Classification: {ticker} | {cls_meta['time_period']} | {cls_meta['document_type']}")
+    print(
+        f"  [1/5] Classification: {ticker} | {cls_meta['time_period']} | {cls_meta['document_type']}"
+    )
 
     # Step 2: Harmonize units
     content, prevailing_unit, unit_notes = harmonize_units(content)
@@ -602,9 +685,11 @@ def run(md_path):
 
     # Step 3: Read financial summary
     fin_summary = read_financial_summary(content)
-    print(f"  [3/5] Financial summary: Rev={_format_number(fin_summary['revenue'])}, "
-          f"EBITA={_format_number(fin_summary['ebita'])}, "
-          f"Growth={fin_summary['organic_growth']}")
+    print(
+        f"  [3/5] Financial summary: Rev={_format_number(fin_summary['revenue'])}, "
+        f"EBITA={_format_number(fin_summary['ebita'])}, "
+        f"Growth={fin_summary['organic_growth']}"
+    )
 
     # Step 4: Create/update metadata
     output_dir = os.path.join(project_root, "output_data", ticker)
@@ -614,12 +699,22 @@ def run(md_path):
     if os.path.exists(meta_path):
         with open(meta_path, "r", encoding="utf-8") as f:
             existing_meta = f.read()
-        updated_meta = update_metadata(existing_meta, ticker, cls_meta, fin_summary, today_iso)
+        updated_meta = update_metadata(
+            existing_meta, ticker, cls_meta, fin_summary, today_iso
+        )
         with open(meta_path, "w", encoding="utf-8") as f:
             f.write(updated_meta)
         print(f"  [4/5] Metadata updated: {meta_path}")
     else:
-        new_meta = create_metadata(ticker, company_name, currency, prevailing_unit, cls_meta, fin_summary, today_iso)
+        new_meta = create_metadata(
+            ticker,
+            company_name,
+            currency,
+            prevailing_unit,
+            cls_meta,
+            fin_summary,
+            today_iso,
+        )
         with open(meta_path, "w", encoding="utf-8") as f:
             f.write(new_meta)
         print(f"  [4/5] Metadata created: {meta_path}")
@@ -628,10 +723,10 @@ def run(md_path):
     file_ops = move_files(md_path, ticker, project_root)
     for op in file_ops:
         print(op)
-    print(f"  [5/5] File operations complete")
+    print("  [5/5] File operations complete")
 
     # Verification
-    print(f"\n  --- Verification ---")
+    print("\n  --- Verification ---")
     md_basename = os.path.basename(md_path)
     all_pass = verify(ticker, md_basename, project_root)
 
@@ -639,23 +734,29 @@ def run(md_path):
     final_name = md_basename.replace("_temp", "")
     print(f"\n{'='*60}")
     if all_pass:
-        print(f"  [OK] Document organized:")
+        print("  [OK] Document organized:")
         print(f"     {final_name} -> output_data/{ticker}/")
-        doc_count = sum(1 for f in os.listdir(output_dir) if f.endswith(".md") and "metadata" not in f)
+        doc_count = sum(
+            1
+            for f in os.listdir(output_dir)
+            if f.endswith(".md") and "metadata" not in f
+        )
         print(f"     Metadata updated: {doc_count} document(s) for {ticker}")
         if unit_notes:
             for note in unit_notes:
                 print(f"     Unit: {note}")
         else:
-            print(f"     Unit harmonization: No conversions needed")
+            print("     Unit harmonization: No conversions needed")
     else:
-        print(f"  [FAIL] Organization completed with errors — check output above")
+        print("  [FAIL] Organization completed with errors — check output above")
     print(f"{'='*60}\n")
 
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: python organize.py <markdown_file>")
-        print("Example: python skills/document_organization/scripts/organize.py processing_data/ADBE_EA_20250312_temp.md")
+        print(
+            "Example: python skills/document_organization/scripts/organize.py processing_data/ADBE_EA_20250312_temp.md"
+        )
         sys.exit(1)
     run(sys.argv[1])

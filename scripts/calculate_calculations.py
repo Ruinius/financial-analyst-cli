@@ -10,14 +10,17 @@ from markdown_parser import parse_markdown_table, parse_kv_table, clean_value
 # Shared helpers
 # ---------------------------------------------------------------------------
 
+
 def _get_revenue(is_items):
     """Extract revenue using strict standardized name matching."""
     for item in is_items:
         std_name = item.get("Standardized Name", "").lower()
-        if (std_name == "revenue" and item.get("Calculated", "No") == "No") or \
-           (std_name == "total_revenue" and item.get("Calculated", "No") == "Yes"):
+        if (std_name == "revenue" and item.get("Calculated", "No") == "No") or (
+            std_name == "total_revenue" and item.get("Calculated", "No") == "Yes"
+        ):
             return clean_value(item.get("Value", "0"))
     return 0
+
 
 def _get_time_period(content):
     """Extract time period and annualization multiplier."""
@@ -26,13 +29,14 @@ def _get_time_period(content):
     multiplier = 4 if time_period.startswith("Q") else 1
     return time_period, multiplier
 
+
 def _section_content(content, section_header):
     """Extract the markdown content scoped to a specific ## section."""
     if section_header in content:
         parts = content.split(section_header)
         after_header = parts[1]
         # Look for the next ## header at the start of a line to avoid splitting on ###
-        res = re.split(r'\n##\s+', after_header, maxsplit=1)
+        res = re.split(r"\n##\s+", after_header, maxsplit=1)
         return res[0]
     return content
 
@@ -40,6 +44,7 @@ def _section_content(content, section_header):
 # ---------------------------------------------------------------------------
 # Step 1: EBITA
 # ---------------------------------------------------------------------------
+
 
 def calculate_ebita(content, is_items):
     """Calculate EBITA from Income Statement and GAAP Reconciliation data."""
@@ -72,7 +77,9 @@ def calculate_ebita(content, is_items):
             val = clean_value(item.get("Value", "0"))
             if val != 0:
                 ebita += val
-                adjustments_out.append(f"| {adj_id} | {item.get('Line Name')} | {val} | GAAP Reconciliation |")
+                adjustments_out.append(
+                    f"| {adj_id} | {item.get('Line Name')} | {val} | GAAP Reconciliation |"
+                )
                 adj_id += 1
 
     # IS Non-Operating additions: remove non-operating items above Operating Income
@@ -80,11 +87,17 @@ def calculate_ebita(content, is_items):
     for item in is_items:
         if item.get("Standardized Name") in ("operating_income", "income_before_taxes"):
             found_op_inc = True
-        if not found_op_inc and item.get("Operating", "Yes") == "No" and item.get("Calculated", "Yes") == "No":
+        if (
+            not found_op_inc
+            and item.get("Operating", "Yes") == "No"
+            and item.get("Calculated", "Yes") == "No"
+        ):
             val = clean_value(item.get("Value", "0"))
             if val != 0:
                 ebita += -val
-                adjustments_out.append(f"| {adj_id} | {item.get('Line Name')} | {-val} | Income Statement |")
+                adjustments_out.append(
+                    f"| {adj_id} | {item.get('Line Name')} | {-val} | Income Statement |"
+                )
                 adj_id += 1
 
     ebita_margin = (ebita / revenue) * 100 if revenue else 0
@@ -94,7 +107,9 @@ def calculate_ebita(content, is_items):
     out = "\n\n---\n\n## EBITA\n\n| Field | Value |\n|-------|-------|\n"
     out += f"| Starting Point | {starting_name} |\n"
     out += f"| Starting Value | {starting_val} |\n| EBITA | {ebita} |\n"
-    out += f"| EBITA Margin | {ebita_margin:.2f}% |\n| Calculation Date | {date_iso} |\n\n"
+    out += (
+        f"| EBITA Margin | {ebita_margin:.2f}% |\n| Calculation Date | {date_iso} |\n\n"
+    )
 
     if adjustments_out:
         out += "### Adjustments\n\n| # | Line Name | Value | Source |\n|---|-----------|-------|--------|\n"
@@ -102,15 +117,17 @@ def calculate_ebita(content, is_items):
 
     return out, ebita, ebita_margin
 
+
 # ---------------------------------------------------------------------------
 # Step 2: Invested Capital
 # ---------------------------------------------------------------------------
+
 
 def calculate_invested_capital(content, is_items):
     """Calculate Invested Capital from Balance Sheet data."""
     bs_content = _section_content(content, "## Balance Sheet")
     bs_items = parse_markdown_table(bs_content, "### Line Items")
-    
+
     revenue = _get_revenue(is_items)
     _, multiplier = _get_time_period(content)
     ann_rev = revenue * multiplier
@@ -120,9 +137,12 @@ def calculate_invested_capital(content, is_items):
     for item in bs_items:
         val = clean_value(item.get("Value", "0"))
         # Skip calculated or non-operating items
-        if item.get("Calculated", "No") == "Yes" or item.get("Operating", "Yes") == "No":
+        if (
+            item.get("Calculated", "No") == "Yes"
+            or item.get("Operating", "Yes") == "No"
+        ):
             continue
-            
+
         cat = item.get("Category", "").lower()
         line_name = item.get("Line Name", "")
 
@@ -154,21 +174,47 @@ def calculate_invested_capital(content, is_items):
     out += f"| Capital Turnover | {turnover:.2f}x |\n"
     out += f"| Calculation Date | {date_iso} |\n\n"
 
-    def render_breakdown(title, title_val, name_assets, arr_assets, name_liab, arr_liab):
+    def render_breakdown(
+        title, title_val, name_assets, arr_assets, name_liab, arr_liab
+    ):
         res = f"### {title} Breakdown\n\n| Component | Items | Total |\n|-----------|-------|-------|\n"
-        res += f"| {name_assets} | " + ", ".join([x[0] for x in arr_assets]) + f" | {sum([x[1] for x in arr_assets])} |\n"
-        res += f"| {name_liab} | " + ", ".join([x[0] for x in arr_liab]) + f" | {sum([x[1] for x in arr_liab])} |\n"
+        res += (
+            f"| {name_assets} | "
+            + ", ".join([x[0] for x in arr_assets])
+            + f" | {sum([x[1] for x in arr_assets])} |\n"
+        )
+        res += (
+            f"| {name_liab} | "
+            + ", ".join([x[0] for x in arr_liab])
+            + f" | {sum([x[1] for x in arr_liab])} |\n"
+        )
         res += f"| **{title}** | | **{title_val}** |\n\n"
         return res
 
-    out += render_breakdown("Net Working Capital", nwc, "Operating Current Assets", oca_items, "Operating Current Liabilities", ocl_items)
-    out += render_breakdown("Net Long-Term Operating Assets", nltoa, "Operating Noncurrent Assets", onca_items, "Operating Noncurrent Liabilities", oncl_items)
+    out += render_breakdown(
+        "Net Working Capital",
+        nwc,
+        "Operating Current Assets",
+        oca_items,
+        "Operating Current Liabilities",
+        ocl_items,
+    )
+    out += render_breakdown(
+        "Net Long-Term Operating Assets",
+        nltoa,
+        "Operating Noncurrent Assets",
+        onca_items,
+        "Operating Noncurrent Liabilities",
+        oncl_items,
+    )
 
     return out, nwc, nltoa, ic, turnover
+
 
 # ---------------------------------------------------------------------------
 # Step 3: Tax Rates (depends on EBITA)
 # ---------------------------------------------------------------------------
+
 
 def calculate_tax(content, is_items, ebita):
     """Calculate Effective and Adjusted Tax Rates."""
@@ -214,7 +260,9 @@ def calculate_tax(content, is_items, ebita):
         tax_effect = val * marginal_rate
         total_tax_adj += tax_effect
         rate_str = f"{int(marginal_rate*100)}%"
-        adj_out.append(f"| {len(adj_out)+1} | {item.get('Line Name')} | {val} | {tax_effect:.2f} | {source} | {rate_str} |")
+        adj_out.append(
+            f"| {len(adj_out)+1} | {item.get('Line Name')} | {val} | {tax_effect:.2f} | {source} | {rate_str} |"
+        )
 
     adjusted_tax = income_tax_expense + total_tax_adj
     adjusted_rate = -(adjusted_tax / ebita) if ebita != 0 else 0
@@ -237,11 +285,24 @@ def calculate_tax(content, is_items, ebita):
 
     return out, effective_rate, adjusted_rate
 
+
 # ---------------------------------------------------------------------------
 # Step 4: Summary Table (depends on all prior)
 # ---------------------------------------------------------------------------
 
-def calculate_summary(content, is_items, ebita, ebita_margin, effective_rate, adjusted_rate, nwc, nltoa, ic, turnover):
+
+def calculate_summary(
+    content,
+    is_items,
+    ebita,
+    ebita_margin,
+    effective_rate,
+    adjusted_rate,
+    nwc,
+    nltoa,
+    ic,
+    turnover,
+):
     """Compile all calculated metrics into a final summary table."""
     shares_table = parse_kv_table(content, "## Shares Outstanding")
     growth_table = parse_kv_table(content, "## Organic Growth")
@@ -253,7 +314,6 @@ def calculate_summary(content, is_items, ebita, ebita_margin, effective_rate, ad
         std_name = item.get("Standardized Name", "").lower()
         if std_name in ("interest_expense", "interest_expense_net"):
             interest_expense = abs(clean_value(item.get("Value", "0")))
-
 
     # Tax choice
     chosen_tax_rate = adjusted_rate if adjusted_rate != 0 else effective_rate
@@ -297,9 +357,11 @@ def calculate_summary(content, is_items, ebita, ebita_margin, effective_rate, ad
 
     return out
 
+
 # ---------------------------------------------------------------------------
 # Main orchestrator
 # ---------------------------------------------------------------------------
+
 
 def run_all(md_path):
     """Execute all financial calculations in dependency order."""
@@ -308,7 +370,12 @@ def run_all(md_path):
 
     # Idempotency: Remove existing calculation sections if they exist
     original_content = content
-    for section in ["## EBITA", "## Invested Capital", "## Tax Rates", "## Financial Summary"]:
+    for section in [
+        "## EBITA",
+        "## Invested Capital",
+        "## Tax Rates",
+        "## Financial Summary",
+    ]:
         if section in content:
             # Strip everything from the section header to the next --- or end of file
             parts = content.split(f"\n\n---\n\n{section}")
@@ -318,13 +385,13 @@ def run_all(md_path):
                 # If separator format differs, try simple split
                 parts = content.split(section)
                 content = parts[0]
-    
+
     if content != original_content:
         # Trim multiple --- if any
-        content = re.sub(r'(\n\s*---\s*)+\n*$', '\n\n---\n', content.strip())
+        content = re.sub(r"(\n\s*---\s*)+\n*$", "\n\n---\n", content.strip())
         with open(md_path, "w", encoding="utf-8") as f:
             f.write(content)
-        print(f"  [0/4] Existing calculation sections removed for fresh run")
+        print("  [0/4] Existing calculation sections removed for fresh run")
 
     # Parse Income Statement once
     is_content = _section_content(content, "## Income Statement")
@@ -349,11 +416,24 @@ def run_all(md_path):
 
     # Step 3: Tax Rates (depends on EBITA adjustments in file)
     tax_out, effective_rate, adjusted_rate = calculate_tax(content, is_items, ebita)
-    print(f"  [3/4] Effective Tax Rate: {effective_rate*100:.2f}%, Adjusted: {adjusted_rate*100:.2f}%")
+    print(
+        f"  [3/4] Effective Tax Rate: {effective_rate*100:.2f}%, Adjusted: {adjusted_rate*100:.2f}%"
+    )
 
     # Step 4: Summary Table (depends on all prior)
-    summary_out = calculate_summary(content, is_items, ebita, ebita_margin, effective_rate, adjusted_rate, nwc, nltoa, ic, turnover)
-    print(f"  [4/4] Summary Table compiled")
+    summary_out = calculate_summary(
+        content,
+        is_items,
+        ebita,
+        ebita_margin,
+        effective_rate,
+        adjusted_rate,
+        nwc,
+        nltoa,
+        ic,
+        turnover,
+    )
+    print("  [4/4] Summary Table compiled")
 
     # Append Steps 3 & 4
     with open(md_path, "a", encoding="utf-8") as f:
@@ -361,6 +441,7 @@ def run_all(md_path):
         f.write(summary_out)
 
     print(f"Financial calculations complete for {md_path}")
+
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:

@@ -12,7 +12,6 @@ Serves:
 
 import http.server
 import json
-import os
 import sys
 import urllib.parse
 from pathlib import Path
@@ -31,7 +30,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
         # Root → serve the viewer
         if path == "/" or path == "":
-            self.path = "/scripts/financial_model_viewer.html" + ("?" + parsed.query if parsed.query else "")
+            self.path = "/scripts/financial_model_viewer.html" + (
+                "?" + parsed.query if parsed.query else ""
+            )
             return super().do_GET()
 
         return super().do_GET()
@@ -48,7 +49,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 ticker = data.get("ticker", "UNKNOWN")
                 scenario = data.get("scenario", {})
 
-                scenarios_path = ROOT / "output_data" / ticker / f"{ticker}_scenarios.json"
+                scenarios_path = (
+                    ROOT / "output_data" / ticker / f"{ticker}_scenarios.json"
+                )
                 scenarios_path.parent.mkdir(parents=True, exist_ok=True)
 
                 # Load existing scenarios or create new list
@@ -66,7 +69,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Access-Control-Allow-Origin", "*")
                 self.end_headers()
-                self.wfile.write(json.dumps({"ok": True, "count": len(existing)}).encode())
+                self.wfile.write(
+                    json.dumps({"ok": True, "count": len(existing)}).encode()
+                )
 
             except Exception as e:
                 self.send_response(500)
@@ -107,7 +112,7 @@ def main():
 
     print(f"Financial Analyst Skills Viewer | http://127.0.0.1:{port}/?ticker=ADBE")
     print(f"Serving from: {ROOT}")
-    print(f"Press Ctrl+C to stop\n")
+    print("Press Ctrl+C to stop\n")
 
     with http.server.HTTPServer(("127.0.0.1", port), Handler) as httpd:
         try:
