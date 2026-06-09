@@ -41,6 +41,8 @@ financial-analyst-cli/
 │   ├── cli_spec.md
 │   ├── requirements.md
 │   └── roadmap.md
+├── scripts/                        # Legacy reference scripts (DO NOT use as-is)
+├── tmp/                            # Temporary logs, scratchpads, and scripts
 ├── src/                            # Application source code
 │   ├── __init__.py
 │   ├── cli/                        # Typer CLI commands definition

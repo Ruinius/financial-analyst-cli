@@ -1,0 +1,1 @@
+# Keep tmp directory tracked by git, but gitignore its contents if needed.

@@ -2,6 +2,9 @@
 
 This document outlines the phased development roadmap for the Financial Analyst CLI (`fa`). It breaks down the system requirements into six logical, incremental milestones.
 
+> [!WARNING]
+> All files located in the [scripts/](file:///f:/AIML projects/financial-analyst-cli/scripts) directory are legacy scripts from the old `financial-analyst-skills` repository. **Do not use these scripts as-is.** They are intended purely to serve as reference material, inspiration, and ideas for the implementation of the roadmap phases.
+
 ---
 
 ## Roadmap Overview

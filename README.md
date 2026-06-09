@@ -195,9 +195,16 @@ uv run fa config show
 
 ---
 
-## Architecture
+## Repository Structure & Architecture
 
-For details on modular clients, Pydantic validation structures, the central dictionary (`src/resources/dictionary/`), and core architecture decisions, refer to the [System Architecture Document](docs/architecture.md).
+The codebase is organized as a hybrid Python-Rust application:
+
+* **`src/`**: Contains the active application source code, including sub-commands (`cli/`), execution pipeline steps (`pipeline/`), external API clients and sandboxed execution tools (`services/`), PyO3 Rust bindings (`rust_core/`), accounting classification dictionaries (`resources/`), and console/file utilities (`utils/`).
+* **`scripts/`**: Contains legacy reference scripts from the old `financial-analyst-skills` repository. **Note:** Do not run these as-is; they serve strictly as inspiration/reference.
+* **`tmp/`**: Dedicated local directory for temporary developer logs, scratchpads, and execution scripts.
+* **`docs/`**: Full project specification, requirements, and design documents.
+
+For deeper details on modular clients, Pydantic validation structures, the central dictionary, and core design decisions, refer to the [System Architecture Document](docs/architecture.md) and the agent guidelines in [AGENTS.md](AGENTS.md).
 
 ---
 
