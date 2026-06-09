@@ -71,7 +71,7 @@ def clean_val(val: str) -> float:
         if "%" in cleaned:
             return float(cleaned.replace("%", "")) / 100.0
         return float(cleaned)
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return 0.0
 
 
@@ -559,8 +559,8 @@ Return a valid JSON object matching this structure:
         output_lines.append("## Tax Rates\n")
         output_lines.append("| Field | Value |")
         output_lines.append("|---|---|")
-        output_lines.append(f"| Effective Tax Rate | {effective_rate*100:.2f}% |")
-        output_lines.append(f"| Adjusted Tax Rate | {adjusted_rate*100:.2f}% |")
+        output_lines.append(f"| Effective Tax Rate | {effective_rate * 100:.2f}% |")
+        output_lines.append(f"| Adjusted Tax Rate | {adjusted_rate * 100:.2f}% |")
         output_lines.append("\n---\n")
 
         output_lines.append("## Financial Summary\n")

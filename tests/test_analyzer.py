@@ -259,6 +259,6 @@ def test_baseline_golden_evaluation():
         assert k in extracted_metrics, f"Metric {k} not present in extracted metrics"
         extracted_val = extracted_metrics[k]
         diff = abs(extracted_val - ground_truth_val) / ground_truth_val
-        assert (
-            diff <= tolerance
-        ), f"Metric {k} diff {diff:.4f} exceeds tolerance of {tolerance}"
+        assert diff <= tolerance, (
+            f"Metric {k} diff {diff:.4f} exceeds tolerance of {tolerance}"
+        )

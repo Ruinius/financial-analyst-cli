@@ -102,17 +102,17 @@ Config      Ingestion   Extraction  History     Modeling    Interactive
 **Goal**: Establish DCF assumptions and perform valuation modeling.
 
 - **5.1 Default Assumptions Calculator**:
-  - [ ] Develop deterministic estimators for base WACC, capital turnover, and growth rates.
+  - [x] Develop deterministic estimators for base WACC, capital turnover, and growth rates.
 - **5.2 Modeler Agent (`fa run model`)**:
-  - [ ] Leverage historical financials and analyst views to estimate final assumptions.
-  - [ ] Display the interactive assumptions table to the user for feedback.
-  - [ ] Save adjustments to `6_company_context/model_context.md`.
+  - [x] Leverage historical financials and analyst views to estimate final assumptions.
+  - [x] Display the interactive assumptions table to the user for feedback.
+  - [x] Save adjustments to `6_company_context/model_context.md`.
 - **5.3 Financial Model Generation**:
-  - [ ] Generate the DCF model markdown inside `7_financial_model/`.
-  - [ ] Output the baseline model JSON (`YYYYMMDD_ticker_0.json`) inside `8_historical_model_json/`.
+  - [x] Generate the DCF model markdown inside `7_financial_model/`.
+  - [x] Output the baseline model JSON (`YYYYMMDD_ticker_0.json`) inside `8_historical_model_json/`.
 - **5.4 Testing & Evaluation (Evals)**:
-  - [ ] Test default assumptions calculations and model state export functions.
-  - [ ] **Model LLM Evals Pipeline**: Implement programmatic quantitative scorecards (pass/fail thresholds) and qualitative semantic scoring (1-5 scale) using an LLM-as-a-Judge mechanism to evaluate the accuracy of final models.
+  - [x] Test default assumptions calculations and model state export functions.
+  - [x] **Model LLM Evals Pipeline**: Implement programmatic quantitative scorecards (pass/fail thresholds) and qualitative semantic scoring (1-5 scale) using an LLM-as-a-Judge mechanism to evaluate the accuracy of final models.
 
 ---
 

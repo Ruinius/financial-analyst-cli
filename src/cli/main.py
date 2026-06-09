@@ -8,6 +8,7 @@ from src.utils import formatting
 from src.services.edgar_client import EdgarClient
 from src.pipeline.ingester import Ingester
 from src.pipeline.extractor import Extractor
+from src.pipeline.modeler import Modeler
 
 app = typer.Typer(
     name="fa",
@@ -113,9 +114,14 @@ def run_historical(ticker: str = typer.Option(None, "--ticker", "-t")):
 @run_app.command("model")
 def run_model(ticker: str = typer.Option(None, "--ticker", "-t")):
     """Propose assumptions and construct valuation models."""
-    formatting.print_warning(
-        "The 'run model' command is currently under development (Phase 5)."
-    )
+    formatting.print_info("Starting financial modeling stage...")
+    try:
+        modeler = Modeler()
+        modeler.run_modeling(ticker)
+        formatting.print_success("Successfully generated valuation models.")
+    except Exception as e:
+        formatting.print_error(f"Modeling failed: {str(e)}")
+        raise typer.Exit(1)
 
 
 query_app = typer.Typer(help="Query parsed metrics and evaluations.")
