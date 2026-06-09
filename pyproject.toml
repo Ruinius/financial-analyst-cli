@@ -15,6 +15,7 @@ dependencies = [
     "pydantic>=2.13.4",
     "rich>=15.0.0",
     "typer>=0.26.7",
+    "yfinance>=1.4.1",
 ]
 
 [project.scripts]
