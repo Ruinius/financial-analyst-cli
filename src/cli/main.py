@@ -4,6 +4,9 @@ import typer
 from src.core.config import config_exists
 from src.cli.commands import config as config_cmd
 from src.cli.commands import use as use_cmd
+from src.cli.commands import query as query_cmd
+from src.cli.commands import chat as chat_cmd
+from src.cli.commands import viewer as viewer_cmd
 from src.utils import formatting
 from src.services.edgar_client import EdgarClient
 from src.pipeline.ingester import Ingester
@@ -124,59 +127,13 @@ def run_model(ticker: str = typer.Option(None, "--ticker", "-t")):
         raise typer.Exit(1)
 
 
-query_app = typer.Typer(help="Query parsed metrics and evaluations.")
-app.add_typer(query_app, name="query")
+app.add_typer(query_cmd.app, name="query", help="Query parsed metrics and evaluations.")
 
 
-@query_app.command("summary")
-def query_summary(ticker: str):
-    """Display historical metric tables."""
-    formatting.print_warning(
-        "The 'query summary' command is currently under development (Phase 6)."
-    )
+app.command("chat")(chat_cmd.main_chat)
 
 
-@query_app.command("assessment")
-def query_assessment(ticker: str):
-    """Display qualitative moat and margin assessments."""
-    formatting.print_warning(
-        "The 'query assessment' command is currently under development (Phase 6)."
-    )
-
-
-@query_app.command("valuation")
-def query_valuation(ticker: str):
-    """Display WACC metrics and intrinsic value models."""
-    formatting.print_warning(
-        "The 'query valuation' command is currently under development (Phase 6)."
-    )
-
-
-@query_app.command("trace")
-def query_trace(ticker: str, metric: str, period: str):
-    """Retrieve full audit trail/provenance for a metric."""
-    formatting.print_warning(
-        "The 'query trace' command is currently under development (Phase 6)."
-    )
-
-
-@app.command("chat")
-def chat(ticker: str):
-    """Open interactive REPL/chat session with Sir Pennyworth."""
-    formatting.print_warning(
-        "The 'chat' command is currently under development (Phase 6)."
-    )
-
-
-@app.command("viewer")
-def viewer(
-    port: int = typer.Option(3000, "--port", "-p", help="Server port"),
-    host: str = typer.Option("127.0.0.1", "--host", "-h", help="Server host"),
-):
-    """Launch local HTML DCF viewer server."""
-    formatting.print_warning(
-        "The 'viewer' command is currently under development (Phase 6)."
-    )
+app.command("viewer")(viewer_cmd.main_viewer)
 
 
 @app.callback()

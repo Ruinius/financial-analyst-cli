@@ -4,8 +4,103 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DCF Model Viewer</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        .form-group { margin-bottom: 10px; }
+        label { display: inline-block; width: 150px; }
+    </style>
 </head>
 <body>
-    <h1>DCF Model Viewer</h1>
+    <h1>Financial Model Viewer</h1>
+
+    <div class="form-group">
+        <label for="modelSelect">Select Model:</label>
+        <select id="modelSelect" onchange="loadModel()"></select>
+    </div>
+
+    <div id="modelEditor" style="display:none; margin-top:20px;">
+        <h2>Model Adjustments</h2>
+        <div class="form-group">
+            <label>Ticker:</label>
+            <input type="text" id="ticker" disabled />
+        </div>
+        <div class="form-group">
+            <label>Base WACC (%):</label>
+            <input type="number" id="wacc" step="0.1" />
+        </div>
+        <div class="form-group">
+            <label>Terminal Growth (%):</label>
+            <input type="number" id="terminal_growth" step="0.1" />
+        </div>
+        <button onclick="saveScenario()">Save Scenario</button>
+    </div>
+
+    <div id="message" style="margin-top: 10px; color: green; font-weight: bold;"></div>
+
+    <script>
+        let currentData = {};
+
+        async function fetchModels() {
+            const res = await fetch('/api/models');
+            if (res.ok) {
+                const files = await res.json();
+                const select = document.getElementById('modelSelect');
+                select.innerHTML = '';
+
+                if (files.length === 0) {
+                    select.innerHTML = '<option value="">No models found</option>';
+                    return;
+                }
+
+                files.forEach(file => {
+                    const opt = document.createElement('option');
+                    opt.value = file;
+                    opt.textContent = file;
+                    select.appendChild(opt);
+                });
+                loadModel();
+            }
+        }
+
+        async function loadModel() {
+            const select = document.getElementById('modelSelect');
+            const file = select.value;
+            if (!file) return;
+
+            const res = await fetch(`/api/models/${file}`);
+            if (res.ok) {
+                currentData = await res.json();
+                document.getElementById('ticker').value = currentData.ticker || '';
+                document.getElementById('wacc').value = (currentData.wacc || 0) * 100;
+                document.getElementById('terminal_growth').value = (currentData.terminal_growth || 0) * 100;
+                document.getElementById('modelEditor').style.display = 'block';
+                document.getElementById('message').textContent = '';
+            }
+        }
+
+        async function saveScenario() {
+            const updatedData = { ...currentData };
+            updatedData.wacc = parseFloat(document.getElementById('wacc').value) / 100;
+            updatedData.terminal_growth = parseFloat(document.getElementById('terminal_growth').value) / 100;
+
+            const res = await fetch('/api/save-scenario', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updatedData)
+            });
+
+            if (res.ok) {
+                const result = await res.json();
+                document.getElementById('message').textContent = `Saved as ${result.filename}!`;
+                await fetchModels(); // Refresh list to show new file
+            } else {
+                document.getElementById('message').textContent = 'Error saving scenario.';
+                document.getElementById('message').style.color = 'red';
+            }
+        }
+
+        // Initialize
+        fetchModels();
+    </script>
 </body>
 </html>
