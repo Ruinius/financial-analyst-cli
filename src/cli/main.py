@@ -5,6 +5,9 @@ from src.core.config import config_exists
 from src.cli.commands import config as config_cmd
 from src.cli.commands import use as use_cmd
 from src.utils import formatting
+from src.services.edgar_client import EdgarClient
+from src.pipeline.ingester import Ingester
+from src.pipeline.extractor import Extractor
 
 app = typer.Typer(
     name="fa",
@@ -33,25 +36,58 @@ def run_edgar(
     ticker: str, years: int = typer.Option(5, "--years", "-y", help="Years to download")
 ):
     """Download filings from SEC EDGAR."""
-    formatting.print_warning(
-        "The 'run edgar' command is currently under development (Phase 2)."
+    formatting.print_info(
+        f"Starting filings download for {ticker} (limit {years} years)..."
     )
+    try:
+        client = EdgarClient()
+        paths = client.download_filings(ticker, years)
+        if paths:
+            formatting.print_success(
+                f"Successfully downloaded {len(paths)} filings for {ticker} to 1_ingest_data/."
+            )
+        else:
+            formatting.print_warning(
+                f"No filings found or downloaded for {ticker} in the last {years} years."
+            )
+    except Exception as e:
+        formatting.print_error(f"Failed to download filings: {str(e)}")
+        raise typer.Exit(1)
 
 
 @run_app.command("ingest")
 def run_ingest(ticker: str = typer.Option(None, "--ticker", "-t")):
     """Parse and ingest raw files."""
-    formatting.print_warning(
-        "The 'run ingest' command is currently under development (Phase 2)."
-    )
+    formatting.print_info("Starting ingestion stage...")
+    try:
+        ingester = Ingester()
+        # Note: workspace context handles ticker, but we can log ticker filtering if passed
+        ingester.run_ingestion()
+        formatting.print_success(
+            "Successfully processed all raw files in 1_ingest_data/."
+        )
+    except Exception as e:
+        formatting.print_error(f"Ingestion failed: {str(e)}")
+        raise typer.Exit(1)
 
 
 @run_app.command("extract")
 def run_extract(ticker: str = typer.Option(None, "--ticker", "-t")):
     """Extract statements and metrics from parsed data."""
-    formatting.print_warning(
-        "The 'run extract' command is currently under development (Phase 3)."
-    )
+    formatting.print_info("Starting extraction stage...")
+    try:
+        if ticker:
+            # Switch ticker if explicitly requested
+            use_cmd.main_use(ticker)
+
+        extractor = Extractor()
+        extractor.run_extraction()
+        formatting.print_success(
+            "Successfully extracted financial data and calculated metrics."
+        )
+    except Exception as e:
+        formatting.print_error(f"Extraction failed: {str(e)}")
+        raise typer.Exit(1)
 
 
 @run_app.command("historical")

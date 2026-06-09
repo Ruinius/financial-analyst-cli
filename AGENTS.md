@@ -35,14 +35,27 @@ Welcome to the `financial-analyst-cli` project.
     - [src/core/config.py](file:///f:/AIML projects/financial-analyst-cli/src/core/config.py): Settings model definition, loading/saving utilities, and API key masking.
     - [src/core/exceptions.py](file:///f:/AIML projects/financial-analyst-cli/src/core/exceptions.py): Custom exception classes (e.g. ConfigError, WorkspaceError).
   - [src/pipeline/](file:///f:/AIML projects/financial-analyst-cli/src/pipeline): Execution runner stages (ingest, extract, historical, model).
+    - [src/pipeline/queue.py](file:///f:/AIML projects/financial-analyst-cli/src/pipeline/queue.py): Safe job queue and exponential back-off retry manager.
+    - [src/pipeline/ingester.py](file:///f:/AIML projects/financial-analyst-cli/src/pipeline/ingester.py): File parsing, deduplication, chunking, and LLM metadata identification.
   - [src/services/](file:///f:/AIML projects/financial-analyst-cli/src/services): SEC client, LLM wrapper, web search, and AST-sandboxed math solver.
+    - [src/services/edgar_client.py](file:///f:/AIML projects/financial-analyst-cli/src/services/edgar_client.py): SEC EDGAR download API client.
+    - [src/services/llm_client.py](file:///f:/AIML projects/financial-analyst-cli/src/services/llm_client.py): Unified client for text & vision LLMs.
   - [src/rust_core/lib.rs](file:///f:/AIML projects/financial-analyst-cli/src/rust_core/lib.rs): Rust module with PyO3 bindings for financial and mathematical calculations.
+  - [src/rust_core/fallback.py](file:///f:/AIML projects/financial-analyst-cli/src/rust_core/fallback.py): Pure Python fallback for calculations when Rust library is not compiled.
+  - [src/rust_core/__init__.py](file:///f:/AIML projects/financial-analyst-cli/src/rust_core/__init__.py): Hybrid import loader for calculation engine.
   - [src/viewer/index.html](file:///f:/AIML projects/financial-analyst-cli/src/viewer/index.html): Interactive zero-dependency web viewer template.
   - [src/resources/dictionary/](file:///f:/AIML projects/financial-analyst-cli/src/resources/dictionary): Central accounting glossary and classification dictionary containing definition markdowns and valuation treatment guidelines.
+    - [index.md](file:///f:/AIML projects/financial-analyst-cli/src/resources/dictionary/index.md): Index registry of all tracked accounting items.
+    - [revenue.md](file:///f:/AIML projects/financial-analyst-cli/src/resources/dictionary/revenue.md): Revenue definitions and treatment.
+    - [operating_income.md](file:///f:/AIML projects/financial-analyst-cli/src/resources/dictionary/operating_income.md): Operating income definitions and treatment.
+    - [cash.md](file:///f:/AIML projects/financial-analyst-cli/src/resources/dictionary/cash.md): Cash and equivalents definitions and treatment.
   - [src/utils/](file:///f:/AIML projects/financial-analyst-cli/src/utils): CLI output formatting and filesystem helpers.
     - [src/utils/formatting.py](file:///f:/AIML projects/financial-analyst-cli/src/utils/formatting.py): Rich terminal formatting helpers and Sir Pennyworth speech bubbles.
 - [tests/](file:///f:/AIML projects/financial-analyst-cli/tests): Test suite folder.
   - [tests/test_config.py](file:///f:/AIML projects/financial-analyst-cli/tests/test_config.py): Unit and integration tests for CLI commands, key masking, settings logic, and folder initialization.
+  - [tests/test_edgar.py](file:///f:/AIML projects/financial-analyst-cli/tests/test_edgar.py): Unit tests for the SEC EDGAR client and submissions retrieval.
+  - [tests/test_ingester.py](file:///f:/AIML projects/financial-analyst-cli/tests/test_ingester.py): Unit tests for layout-preserving parsing, file hashing, chunking, and metadata identification.
+  - [tests/test_extractor.py](file:///f:/AIML projects/financial-analyst-cli/tests/test_extractor.py): Unit tests for Pydantic validation schemas, classification, arithmetic schedules, and audit trail lineage.
 
 
 
