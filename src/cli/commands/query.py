@@ -28,7 +28,9 @@ def query_summary(ticker: str = typer.Argument(..., help="Company ticker symbol"
     annual_path = workspace / "5_historical_analysis" / "financials_annual.md"
     quarterly_path = workspace / "5_historical_analysis" / "financials_quarter.md"
 
-    formatting.print_info(f"Summary for {ticker}:\n")
+    formatting.speak(
+        f"Here is a summary of historical financial tables for [bold]{ticker}[/bold], my dear fellow:"
+    )
     read_markdown_file(annual_path)
     read_markdown_file(quarterly_path)
 
@@ -41,7 +43,9 @@ def query_assessment(ticker: str = typer.Argument(..., help="Company ticker symb
 
     views_path = workspace / "5_historical_analysis" / "analyst_views.md"
 
-    formatting.print_info(f"Qualitative Assessment for {ticker}:\n")
+    formatting.speak(
+        f"Here is the qualitative moat and margin assessment report for [bold]{ticker}[/bold]:"
+    )
     read_markdown_file(views_path)
 
 
@@ -65,7 +69,9 @@ def query_valuation(ticker: str = typer.Argument(..., help="Company ticker symbo
     # Get the most recently created/modified model
     latest_model = max(models, key=lambda p: p.stat().st_mtime)
 
-    formatting.print_info(f"Latest Valuation Model for {ticker}:\n")
+    formatting.speak(
+        f"Behold the cost of capital and DCF intrinsic valuation models for [bold]{ticker}[/bold]:"
+    )
     read_markdown_file(latest_model)
 
 
@@ -91,7 +97,9 @@ def query_trace(
         )
         return
 
-    formatting.print_info(f"Trace for '{metric}' in {period}:\n")
+    formatting.speak(
+        f"Tracing the audit trail and provenance for [bold]'{metric}'[/bold] in [bold]{period}[/bold]:"
+    )
     found = False
 
     for file_path in target_files:

@@ -13,10 +13,10 @@ class Settings(BaseModel):
     project_name: str = Field(..., description="Project name")
     primary_llm_api_key: str = Field(..., description="Primary LLM API key")
     text_model_id: str = Field(
-        "google/gemma-2-9b-it", description="Text-to-Text Model ID"
+        "google/gemma-4-31b-it:free", description="Text-to-Text Model ID"
     )
     vision_model_id: str = Field(
-        "google/gemma-2-9b-it", description="Vision-to-Text Model ID"
+        "google/gemma-4-31b-it:free", description="Vision-to-Text Model ID"
     )
     base_workspace_dir: str = Field(
         ..., description="Base directory containing workspaces"

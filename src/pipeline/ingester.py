@@ -396,7 +396,7 @@ This file contains automatically detected company configuration parameters.
             self.settings.active_ticker or "UNK", doc_type, doc_date, fiscal_quarter
         )
 
-    def run_ingestion(self) -> None:
+    def run_ingestion(self, limit: int = None) -> None:
         """Scan 1_ingest_data/ and run jobs sequentially via the sequential JobQueue."""
         if not self.settings.active_workspace_path:
             raise ValueError(
@@ -412,6 +412,9 @@ This file contains automatically detected company configuration parameters.
         if not raw_files:
             logger.info("No raw files found to ingest.")
             return
+
+        if limit is not None:
+            raw_files = raw_files[:limit]
 
         registry = self.load_parsed_registry()
 

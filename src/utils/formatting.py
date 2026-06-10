@@ -26,10 +26,11 @@ def get_sir_pennyworth_art(color: str = COLOR_CHAR) -> Text:
     return Text(PENNYWORTH_ASCII.strip("\n"), style=color)
 
 
-def speak(message: str, title: str = "Sir Pennyworth") -> None:
+def speak(message: str, title: str = "Sir Pennyworth", show_art: bool = True) -> None:
     """Make Sir Pennyworth speak a message in a beautiful Pink/Rose panel."""
-    art = get_sir_pennyworth_art()
-    console.print(art)
+    if show_art:
+        art = get_sir_pennyworth_art()
+        console.print(art)
 
     panel = Panel(
         Text(message, style="italic"),

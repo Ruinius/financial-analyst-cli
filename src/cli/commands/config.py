@@ -7,7 +7,7 @@ from prompt_toolkit import PromptSession
 
 from src.core.config import Settings, save_config, load_config, mask_key
 from src.utils import formatting
-from src.utils.pig_animation import get_input_with_pig
+from src.utils.pig_animation import get_input_with_pig, pig_state
 
 app = typer.Typer(help="Manage Sir Pennyworth's configuration settings.")
 
@@ -29,18 +29,18 @@ async def _initialize_config_flow_async() -> Settings:
     )
 
     text_model = await get_input_with_pig(
-        session, prompt_text="Text-to-Text Model ID [google/gemma-2-9b-it]: "
+        session, prompt_text="Text-to-Text Model ID [google/gemma-4-31b-it:free]: "
     )
     if not text_model.strip():
-        text_model = "google/gemma-2-9b-it"
+        text_model = "google/gemma-4-31b-it:free"
 
     vision_model = await get_input_with_pig(
-        session, prompt_text="Vision-to-Text Model ID [google/gemma-2-9b-it]: "
+        session, prompt_text="Vision-to-Text Model ID [google/gemma-4-31b-it:free]: "
     )
     if not vision_model.strip():
-        vision_model = "google/gemma-2-9b-it"
+        vision_model = "google/gemma-4-31b-it:free"
 
-    default_ws = str(Path.home() / "Desktop")
+    default_ws = str(Path.home() / "Desktop" / project_name.strip())
     base_ws_dir = await get_input_with_pig(
         session,
         prompt_text=f"Workspace Path (Base folder for company workspaces) [{default_ws}]: ",
@@ -64,7 +64,7 @@ async def _initialize_config_flow_async() -> Settings:
 
 def initialize_config_flow() -> Settings:
     """Interactively guides the user to set up configuration and returns the Settings object."""
-    formatting.speak(
+    pig_state.quote = (
         "Greetings! I am Sir Pennyworth, your financial concierge. "
         "Before we begin our financial trufflings, we must establish our settings."
     )

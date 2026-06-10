@@ -3,9 +3,13 @@
 Welcome to the `financial-analyst-cli` project.
 
 ## Project Structure
+
 - [AGENTS.md](file:///f:/AIML projects/financial-analyst-cli/AGENTS.md): Architectural patterns, module boundaries, and documentation standards.
 - [.gitignore](file:///f:/AIML projects/financial-analyst-cli/.gitignore): Ignored files configuration.
 - [.pre-commit-config.yaml](file:///f:/AIML projects/financial-analyst-cli/.pre-commit-config.yaml): Git pre-commit hooks configuration (linters, secret prevention checks).
+- [.jules/](file:///f:/AIML projects/financial-analyst-cli/.jules): Run learnings and vulnerability post-mortems.
+  - [.jules/bolt.md](file:///f:/AIML projects/financial-analyst-cli/.jules/bolt.md): Learning from file I/O bottleneck in financial line item extraction.
+  - [.jules/sentinel.md](file:///f:/AIML projects/financial-analyst-cli/.jules/sentinel.md): Learnings and preventions from path traversal vulnerabilities in local viewer server.
 - [Cargo.toml](file:///f:/AIML projects/financial-analyst-cli/Cargo.toml): Cargo configuration for the Rust Core calculation engine.
 - [docs/architecture.md](file:///f:/AIML projects/financial-analyst-cli/docs/architecture.md): System architecture, folder structure, and software design decisions.
 - [docs/cli_spec.md](file:///f:/AIML projects/financial-analyst-cli/docs/cli_spec.md): CLI command hierarchy, options, parameters, and user experience specification.
@@ -43,7 +47,7 @@ Welcome to the `financial-analyst-cli` project.
     - [src/services/llm_client.py](file:///f:/AIML projects/financial-analyst-cli/src/services/llm_client.py): Unified client for text & vision LLMs.
   - [src/rust_core/lib.rs](file:///f:/AIML projects/financial-analyst-cli/src/rust_core/lib.rs): Rust module with PyO3 bindings for financial and mathematical calculations.
   - [src/rust_core/fallback.py](file:///f:/AIML projects/financial-analyst-cli/src/rust_core/fallback.py): Pure Python fallback for calculations when Rust library is not compiled.
-  - [src/rust_core/__init__.py](file:///f:/AIML projects/financial-analyst-cli/src/rust_core/__init__.py): Hybrid import loader for calculation engine.
+  - [src/rust_core/__init__.py](file:///f:/AIML projects/financial-analyst-cli/src/rust_core/**init**.py): Hybrid import loader for calculation engine.
   - [src/viewer/index.html](file:///f:/AIML projects/financial-analyst-cli/src/viewer/index.html): Interactive zero-dependency web viewer template.
   - [src/resources/dictionary/](file:///f:/AIML projects/financial-analyst-cli/src/resources/dictionary): Central accounting glossary and classification dictionary containing definition markdowns and valuation treatment guidelines.
     - [index.md](file:///f:/AIML projects/financial-analyst-cli/src/resources/dictionary/index.md): Index registry of all tracked accounting items.
@@ -53,18 +57,24 @@ Welcome to the `financial-analyst-cli` project.
   - [src/utils/](file:///f:/AIML projects/financial-analyst-cli/src/utils): CLI output formatting and filesystem helpers.
     - [src/utils/formatting.py](file:///f:/AIML projects/financial-analyst-cli/src/utils/formatting.py): Rich terminal formatting helpers and Sir Pennyworth speech bubbles.
 - [tests/](file:///f:/AIML projects/financial-analyst-cli/tests): Test suite folder.
+  - [tests/test_analyzer.py](file:///f:/AIML projects/financial-analyst-cli/tests/test_analyzer.py): Unit tests for qualitative views compiling, longitudinal financial trends, and Q4 deduction logic.
+  - [tests/test_chat.py](file:///f:/AIML projects/financial-analyst-cli/tests/test_chat.py): Unit tests for interactive chat and assistant behavior.
   - [tests/test_config.py](file:///f:/AIML projects/financial-analyst-cli/tests/test_config.py): Unit and integration tests for CLI commands, key masking, settings logic, and folder initialization.
   - [tests/test_edgar.py](file:///f:/AIML projects/financial-analyst-cli/tests/test_edgar.py): Unit tests for the SEC EDGAR client and submissions retrieval.
-  - [tests/test_ingester.py](file:///f:/AIML projects/financial-analyst-cli/tests/test_ingester.py): Unit tests for layout-preserving parsing, file hashing, chunking, and metadata identification.
   - [tests/test_extractor.py](file:///f:/AIML projects/financial-analyst-cli/tests/test_extractor.py): Unit tests for Pydantic validation schemas, classification, arithmetic schedules, and audit trail lineage.
-  - [tests/test_analyzer.py](file:///f:/AIML projects/financial-analyst-cli/tests/test_analyzer.py): Unit tests for qualitative views compiling, longitudinal financial trends, and Q4 deduction logic.
+  - [tests/test_formatting.py](file:///f:/AIML projects/financial-analyst-cli/tests/test_formatting.py): Unit tests for terminal formatting, rich output rendering, and animations.
+  - [tests/test_ingester.py](file:///f:/AIML projects/financial-analyst-cli/tests/test_ingester.py): Unit tests for layout-preserving parsing, file hashing, chunking, and metadata identification.
+  - [tests/test_math_solver.py](file:///f:/AIML projects/financial-analyst-cli/tests/test_math_solver.py): Unit tests for the AST-sandboxed mathematical equation solver.
+  - [tests/test_modeler.py](file:///f:/AIML projects/financial-analyst-cli/tests/test_modeler.py): Unit tests for DCF modeling, WACC calculation, and intrinsic valuation.
+  - [tests/test_query.py](file:///f:/AIML projects/financial-analyst-cli/tests/test_query.py): Unit tests for database query parsing and execution.
+  - [tests/test_viewer.py](file:///f:/AIML projects/financial-analyst-cli/tests/test_viewer.py): Unit tests for local scenario server and viewer page routing.
   - [tests/data/golden_aapl_2024.json](file:///f:/AIML projects/financial-analyst-cli/tests/data/golden_aapl_2024.json): Golden evaluation baseline dataset for AAPL.
 
-
-
 ## Architectural Patterns & Guidelines
+
 - **Tooling**: Always use `uv` for Python-related tasks.
 - **Execution**: Run Python scripts/tools using `uv run`.
 - **Hybrid Build**: Compile the Rust extension module using `maturin develop` before running Python.
 - **Commands**: Preferred pattern is `uv run python <file>.py` or `uv run <command>`.
 - **OS/Shell**: Windows with PowerShell (`pwsh`).
+- **Test Focus:** always run E2E and backend tests for non-trivial modifications. We need to ensure tests pass before committing.

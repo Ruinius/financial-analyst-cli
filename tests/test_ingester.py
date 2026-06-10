@@ -132,3 +132,38 @@ def test_job_queue():
 
     assert calls == [5, 10]
     assert results == [10, 20]
+
+
+@patch("src.services.llm_client.load_config")
+@patch("src.pipeline.ingester.load_config")
+@patch("src.services.llm_client.LLMClient.generate")
+def test_ingestion_limit(
+    mock_llm, mock_load_config, mock_llm_load_config, mock_settings
+):
+    mock_load_config.return_value = mock_settings
+    mock_llm_load_config.return_value = mock_settings
+
+    mock_llm.side_effect = [
+        json.dumps(
+            {
+                "document_date": f"2023-09-2{i}",
+                "document_type": "annual_filing",
+                "fiscal_quarter": "FY",
+            }
+        )
+        for i in range(3)
+    ]
+
+    workspace = Path(mock_settings.active_workspace_path)
+    # Write 3 files
+    for i in range(3):
+        raw_file = workspace / "1_ingest_data" / f"filing_{i}.htm"
+        raw_file.write_text(f"<h1>Report {i}</h1>", encoding="utf-8")
+
+    ingester = Ingester()
+    # Process only 2 files
+    ingester.run_ingestion(limit=2)
+
+    # Verify that exactly 2 parsed files were created
+    parsed_files = list((workspace / "2_parsed_data").glob("*.md"))
+    assert len(parsed_files) == 2

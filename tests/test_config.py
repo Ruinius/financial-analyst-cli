@@ -1,5 +1,6 @@
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
 import pytest
 from typer.testing import CliRunner
 
@@ -29,7 +30,7 @@ def test_settings_model():
     )
     assert settings.full_name == "Alice"
     assert settings.email == "alice@example.com"
-    assert settings.text_model_id == "google/gemma-2-9b-it"
+    assert settings.text_model_id == "google/gemma-4-31b-it:free"
 
 
 def test_save_load_config(temp_config):
@@ -169,3 +170,83 @@ def test_pig_animation_custom_prompt():
     state = PigState()
     prompt_html = state.get_prompt("Enter something: ")
     assert "Enter something: " in str(prompt_html)
+
+
+def test_initialize_config_flow_default_workspace(monkeypatch, temp_config):
+    from pathlib import Path
+
+    # Mock PromptSession to avoid NoConsoleScreenBufferError in tests
+    class MockPromptSession:
+        pass
+
+    monkeypatch.setattr("src.cli.commands.config.PromptSession", MockPromptSession)
+
+    from src.cli.commands.config import initialize_config_flow
+
+    prompts = [
+        "Test User",  # Full Name
+        "test@example.com",  # Email
+        "Test_Project_2026",  # Project Name
+        "sk-abc123xyz",  # API Key
+        "",  # Text model (default)
+        "",  # Vision model (default)
+        "",  # Workspace Path (default)
+    ]
+    prompt_idx = 0
+
+    async def mock_get_input_with_pig(*args, **kwargs):
+        nonlocal prompt_idx
+        val = prompts[prompt_idx]
+        prompt_idx += 1
+        return val
+
+    monkeypatch.setattr(
+        "src.cli.commands.config.get_input_with_pig", mock_get_input_with_pig
+    )
+
+    settings = initialize_config_flow()
+
+    expected_ws = str(Path.home() / "Desktop" / "Test_Project_2026")
+    assert settings.project_name == "Test_Project_2026"
+    assert settings.base_workspace_dir == expected_ws
+
+
+def test_cli_run_edgar_no_active_ticker(temp_config):
+    # Initialize basic settings but no active ticker
+    settings = Settings(
+        full_name="Bob",
+        email="bob@example.com",
+        project_name="BobProj",
+        primary_llm_api_key="sk-secret-key-1234",
+        base_workspace_dir=str(temp_config.parent / "workspace"),
+        active_ticker=None,
+        active_workspace_path=None,
+    )
+    save_config(settings)
+
+    # Calling run edgar with no ticker should fail since no active ticker is selected
+    result = runner.invoke(app, ["run", "edgar"])
+    assert result.exit_code == 1
+    assert "No active ticker selected" in result.stdout
+
+
+@patch("src.services.edgar_client.EdgarClient.download_filings")
+def test_cli_run_edgar_uses_active_ticker(mock_download, temp_config):
+    mock_download.return_value = []
+    base_dir = temp_config.parent / "workspace"
+    settings = Settings(
+        full_name="Bob",
+        email="bob@example.com",
+        project_name="BobProj",
+        primary_llm_api_key="sk-secret-key-1234",
+        base_workspace_dir=str(base_dir),
+        active_ticker="AAPL",
+        active_workspace_path=str(base_dir / "AAPL"),
+    )
+    save_config(settings)
+
+    # Calling run edgar with no arguments should default to active ticker (AAPL)
+    result = runner.invoke(app, ["run", "edgar"])
+    assert result.exit_code == 0
+    assert "filings download for AAPL" in result.stdout
+    mock_download.assert_called_once_with("AAPL", 5)

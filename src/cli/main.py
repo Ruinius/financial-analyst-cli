@@ -1,7 +1,13 @@
 import sys
+
+if sys.platform.startswith("win"):
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+
 import typer
 
-from src.core.config import config_exists
+from pathlib import Path
+from src.core.config import config_exists, load_config
 from src.cli.commands import config as config_cmd
 from src.cli.commands import use as use_cmd
 from src.cli.commands import query as query_cmd
@@ -19,40 +25,53 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 
-# Register config commands
-app.add_typer(config_cmd.app, name="config")
-
-# Register use command
-# Note: Use `app.command("use")(use_cmd.main_use)` to register it as 'use'
+# 1. Register use command
 app.command("use")(use_cmd.main_use)
 
-
-# ==========================================
-# Future Phases Command Placeholders
-# ==========================================
-
+# 2. Register run command
 run_app = typer.Typer(help="Execute data pipeline stages.")
 app.add_typer(run_app, name="run")
 
 
 @run_app.command("edgar")
 def run_edgar(
-    ticker: str, years: int = typer.Option(5, "--years", "-y", help="Years to download")
+    ticker: str = typer.Argument(None, help="Company ticker symbol (e.g. AAPL)"),
+    years: int = typer.Option(5, "--years", "-y", help="Years to download"),
 ):
     """Download filings from SEC EDGAR."""
+    try:
+        settings = load_config()
+    except Exception as e:
+        formatting.print_error(f"Configuration error: {str(e)}")
+        raise typer.Exit(1)
+
+    if ticker:
+        use_cmd.main_use(ticker)
+        settings = load_config()
+
+    active_ticker = settings.active_ticker
+    if not active_ticker:
+        formatting.print_error(
+            "No active ticker selected. Please specify a ticker or run 'fa use <ticker>' first."
+        )
+        raise typer.Exit(1)
+
+    formatting.speak(
+        f"Ah, let us fetch the filings for [bold]{active_ticker}[/bold] from the SEC EDGAR archives, my dear fellow!"
+    )
     formatting.print_info(
-        f"Starting filings download for {ticker} (limit {years} years)..."
+        f"Starting filings download for {active_ticker} (limit {years} years)..."
     )
     try:
         client = EdgarClient()
-        paths = client.download_filings(ticker, years)
+        paths = client.download_filings(active_ticker, years)
         if paths:
             formatting.print_success(
-                f"Successfully downloaded {len(paths)} filings for {ticker} to 1_ingest_data/."
+                f"Successfully downloaded {len(paths)} filings for {active_ticker} to 1_ingest_data/."
             )
         else:
             formatting.print_warning(
-                f"No filings found or downloaded for {ticker} in the last {years} years."
+                f"No filings found or downloaded for {active_ticker} in the last {years} years."
             )
     except Exception as e:
         formatting.print_error(f"Failed to download filings: {str(e)}")
@@ -62,14 +81,53 @@ def run_edgar(
 @run_app.command("ingest")
 def run_ingest(ticker: str = typer.Option(None, "--ticker", "-t")):
     """Parse and ingest raw files."""
+    try:
+        settings = load_config()
+    except Exception as e:
+        formatting.print_error(f"Configuration error: {str(e)}")
+        raise typer.Exit(1)
+
+    if ticker:
+        use_cmd.main_use(ticker)
+        settings = load_config()
+
+    if not settings.active_workspace_path:
+        formatting.print_error(
+            "No active workspace is selected. Use 'fa use <ticker>' first."
+        )
+        raise typer.Exit(1)
+
+    ingest_dir = Path(settings.active_workspace_path) / "1_ingest_data"
+    raw_files = (
+        [p for p in ingest_dir.iterdir() if p.is_file()] if ingest_dir.exists() else []
+    )
+
+    if not raw_files:
+        formatting.speak(
+            "No raw files found to ingest in our workspace directory, my good sir!"
+        )
+        return
+
+    formatting.speak(
+        f"Splendid! I found [bold]{len(raw_files)}[/bold] raw file(s) ready for ingestion."
+    )
+
+    response = typer.prompt("How many files would you like to process?", default="all")
+    limit = None
+    if response.strip().lower() != "all":
+        try:
+            limit = int(response.strip())
+        except ValueError:
+            formatting.print_warning(
+                "Invalid number of files entered. Defaulting to processing all files."
+            )
+            limit = None
+
     formatting.print_info("Starting ingestion stage...")
     try:
         ingester = Ingester()
-        # Note: workspace context handles ticker, but we can log ticker filtering if passed
-        ingester.run_ingestion()
-        formatting.print_success(
-            "Successfully processed all raw files in 1_ingest_data/."
-        )
+        ingester.run_ingestion(limit=limit)
+        formatting.print_success("Successfully processed raw files.")
     except Exception as e:
         formatting.print_error(f"Ingestion failed: {str(e)}")
         raise typer.Exit(1)
@@ -78,12 +136,20 @@ def run_ingest(ticker: str = typer.Option(None, "--ticker", "-t")):
 @run_app.command("extract")
 def run_extract(ticker: str = typer.Option(None, "--ticker", "-t")):
     """Extract statements and metrics from parsed data."""
+    try:
+        load_config()
+    except Exception as e:
+        formatting.print_error(f"Configuration error: {str(e)}")
+        raise typer.Exit(1)
+
+    if ticker:
+        use_cmd.main_use(ticker)
+
+    formatting.speak(
+        "Excellent choice! We shall extract the financial statements and audit the numbers."
+    )
     formatting.print_info("Starting extraction stage...")
     try:
-        if ticker:
-            # Switch ticker if explicitly requested
-            use_cmd.main_use(ticker)
-
         extractor = Extractor()
         extractor.run_extraction()
         formatting.print_success(
@@ -97,11 +163,20 @@ def run_extract(ticker: str = typer.Option(None, "--ticker", "-t")):
 @run_app.command("historical")
 def run_historical(ticker: str = typer.Option(None, "--ticker", "-t")):
     """Synthesize longitudinal trends and analyst views."""
+    try:
+        load_config()
+    except Exception as e:
+        formatting.print_error(f"Configuration error: {str(e)}")
+        raise typer.Exit(1)
+
+    if ticker:
+        use_cmd.main_use(ticker)
+
+    formatting.speak(
+        "Let us synthesize the longitudinal financial trends and compile analyst views."
+    )
     formatting.print_info("Starting historical trend synthesis stage...")
     try:
-        if ticker:
-            use_cmd.main_use(ticker)
-
         from src.pipeline.analyzer import Analyzer
 
         analyzer = Analyzer()
@@ -117,23 +192,40 @@ def run_historical(ticker: str = typer.Option(None, "--ticker", "-t")):
 @run_app.command("model")
 def run_model(ticker: str = typer.Option(None, "--ticker", "-t")):
     """Propose assumptions and construct valuation models."""
+    try:
+        settings = load_config()
+    except Exception as e:
+        formatting.print_error(f"Configuration error: {str(e)}")
+        raise typer.Exit(1)
+
+    if ticker:
+        use_cmd.main_use(ticker)
+        settings = load_config()
+
+    formatting.speak(
+        "Time to construct our DCF valuation model and establish assumptions!"
+    )
     formatting.print_info("Starting financial modeling stage...")
     try:
         modeler = Modeler()
-        modeler.run_modeling(ticker)
+        modeler.run_modeling(settings.active_ticker)
         formatting.print_success("Successfully generated valuation models.")
     except Exception as e:
         formatting.print_error(f"Modeling failed: {str(e)}")
         raise typer.Exit(1)
 
 
-app.add_typer(query_cmd.app, name="query", help="Query parsed metrics and evaluations.")
-
-
+# 3. Register chat command
 app.command("chat")(chat_cmd.main_chat)
 
+# 4. Register query command
+app.add_typer(query_cmd.app, name="query", help="Query parsed metrics and evaluations.")
 
+# 5. Register viewer command
 app.command("viewer")(viewer_cmd.main_viewer)
+
+# 6. Register config commands
+app.add_typer(config_cmd.app, name="config")
 
 
 @app.callback()
@@ -148,6 +240,12 @@ def main():
     # Allow config init or help options without configuration
     is_help = "--help" in args or "-h" in args
     is_config_init = "config" in args and "init" in args
+
+    # Print welcome banner when launched with no arguments or --help
+    if not args or is_help:
+        formatting.speak(
+            "Greetings! I am Sir Pennyworth, your financial concierge. Ready to begin our financial trufflings?"
+        )
 
     if not config_exists() and not is_help and not is_config_init:
         try:

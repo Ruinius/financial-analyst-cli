@@ -39,7 +39,7 @@ class PigState:
         self.last_activity = time.time()
 
     def get_prompt(self, prompt_text: str = "You: "):
-        pig_color = "ansimagenta"  # Closest to pink
+        pig_color = "#FFB6C1"  # Pink/Rose for Sir Pennyworth
         quote_color = "ansiyellow"
 
         snout = PIG_FRAMES[self.frame_idx]
@@ -52,12 +52,12 @@ class PigState:
         snout_line = " " * left_pad + snout + " " * right_pad
 
         pig_art = f"""
-<{pig_color}>{ears}</{pig_color}>
-<{pig_color}>   ┌┴┴───────┴┴┐   </{pig_color}>
-<{pig_color}>   │  $     $  │   </{pig_color}>
-<{pig_color}>   │  {snout_line} │   </{pig_color}>
-<{pig_color}>   │   ╘═══╛   │   </{pig_color}>
-<{pig_color}>   └───────────┘   </{pig_color}>
+<style fg="{pig_color}">{ears}</style>
+<style fg="{pig_color}">   ┌┴┴───────┴┴┐   </style>
+<style fg="{pig_color}">   │  $     $  │   </style>
+<style fg="{pig_color}">   │  {snout_line} │   </style>
+<style fg="{pig_color}">   │   ╘═══╛   │   </style>
+<style fg="{pig_color}">   └───────────┘   </style>
 """
         res = pig_art
         if self.quote:
@@ -122,6 +122,14 @@ async def get_input_with_pig(
             lambda: pig_state.get_prompt(prompt_text), is_password=is_password
         )
         pig_state.last_activity = time.time()
+
+        if sys.stdin.isatty():
+            lines_to_go_up = 8 + (1 if pig_state.quote else 0)
+            display_ans = "*" * len(ans) if is_password else ans
+            sys.stdout.write(f"\r\x1b[{lines_to_go_up}A\x1b[J")
+            sys.stdout.write(f"\x1b[33m{prompt_text}\x1b[0m{display_ans}\n")
+            sys.stdout.flush()
+
         return ans
     except EOFError:
         return "exit"

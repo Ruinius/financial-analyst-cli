@@ -48,7 +48,7 @@ The CLI prompts for:
 2. **API Credentials**:
    - Primary LLM API Key (supports OpenRouter, OpenAI, Anthropic, Gemini, Fireworks AI, etc.).
 3. **Model Selection**:
-   - Text-to-Text Model ID (e.g., `google/gemma-2-9b-it`).
+   - Text-to-Text Model ID (e.g., `google/gemma-4-31b-it:free`).
    - Vision-to-Text Model ID (for PDF charts and tables).
    - *Alternative*: Option to select a unified multimodal model (e.g., **Gemma**) natively handling both tasks.
 4. **Workspace Path**:
