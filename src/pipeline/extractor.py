@@ -79,6 +79,24 @@ class Extractor:
     def __init__(self):
         self.settings = load_config()
         self.llm = LLMClient()
+        self._extract_context_cache = None
+
+    def _get_extract_context(self) -> str:
+        if self._extract_context_cache is None:
+            context_path = (
+                Path(self.settings.active_workspace_path)
+                / "6_company_context"
+                / "extract_context.md"
+            )
+            if context_path.exists():
+                try:
+                    with open(context_path, "r", encoding="utf-8") as f:
+                        self._extract_context_cache = f.read()
+                except Exception:
+                    self._extract_context_cache = ""
+            else:
+                self._extract_context_cache = ""
+        return self._extract_context_cache
 
     def get_extracted_registry_path(self) -> Path:
         workspace = Path(self.settings.active_workspace_path)
@@ -168,25 +186,16 @@ class Extractor:
                 pass
 
         # 2. Workspace extract_context.md check
-        context_path = (
-            Path(self.settings.active_workspace_path)
-            / "6_company_context"
-            / "extract_context.md"
-        )
-        if context_path.exists():
-            try:
-                with open(context_path, "r", encoding="utf-8") as f:
-                    content = f.read()
-                # Simple regex check for custom classification
-                rule_match = re.search(
-                    rf"-\s*{line_name}\s*:\s*(operating|non-operating)",
-                    content,
-                    re.IGNORECASE,
-                )
-                if rule_match:
-                    return rule_match.group(1).lower() == "operating"
-            except Exception:
-                pass
+        content = self._get_extract_context()
+        if content:
+            # Simple regex check for custom classification
+            rule_match = re.search(
+                rf"-\s*{re.escape(line_name)}\s*:\s*(operating|non-operating)",
+                content,
+                re.IGNORECASE,
+            )
+            if rule_match:
+                return rule_match.group(1).lower() == "operating"
 
         # 3. Web Search & LLM Judgment fallback
         web_info = search_investopedia(line_name)
@@ -222,16 +231,19 @@ Is this line item 'operating' or 'non-operating'? Return ONLY one word.
         op_str = "operating" if line_item.operating else "non-operating"
         line_rule = f"- {line_item.line_name}: {op_str}\n"
 
+        existing = self._get_extract_context()
+
         if not context_file.exists():
             header = f"# Extraction Context: {self.settings.active_ticker or 'UNK'}\n\n## Custom Line Item Classifications\n"
+            full_content = header + line_rule
             with open(context_file, "w", encoding="utf-8") as f:
-                f.write(header + line_rule)
+                f.write(full_content)
+            self._extract_context_cache = full_content
         else:
-            with open(context_file, "r", encoding="utf-8") as f:
-                existing = f.read()
             if line_item.line_name not in existing:
                 with open(context_file, "a", encoding="utf-8") as f:
                     f.write(line_rule)
+                self._extract_context_cache = existing + line_rule
 
     def extract_single_file(self, file_path: Path) -> None:
         logger.info(f"Extracting financials from: {file_path.name}")

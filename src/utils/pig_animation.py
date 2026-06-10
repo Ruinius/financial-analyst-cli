@@ -103,7 +103,9 @@ async def bg_task():
             pass
 
 
-async def get_input_with_pig(session: PromptSession = None, prompt_text: str = "You: ", is_password: bool = False) -> str:
+async def get_input_with_pig(
+    session: PromptSession = None, prompt_text: str = "You: ", is_password: bool = False
+) -> str:
     """Gets user input while Sir Pennyworth animates in the background."""
     # If not a TTY (e.g., in some CI or test environments), fallback to standard input
     if not sys.stdin.isatty():
@@ -116,7 +118,9 @@ async def get_input_with_pig(session: PromptSession = None, prompt_text: str = "
     task = asyncio.create_task(bg_task())
     try:
         pig_state.last_activity = time.time()
-        ans = await session.prompt_async(lambda: pig_state.get_prompt(prompt_text), is_password=is_password)
+        ans = await session.prompt_async(
+            lambda: pig_state.get_prompt(prompt_text), is_password=is_password
+        )
         pig_state.last_activity = time.time()
         return ans
     except EOFError:
