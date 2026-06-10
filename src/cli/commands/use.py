@@ -55,7 +55,12 @@ def main_use(
         target_path = Path(settings.base_workspace_dir) / ticker
 
         # Initialize workspace folders
-        initialize_workspace(target_path, ticker)
+        if not target_path.exists():
+            formatting.print_info(f"Workspace for {ticker} not found. Creating it now...")
+            initialize_workspace(target_path, ticker)
+            msg = f"Indubitably! I have created and switched our workspace to [bold]{ticker}[/bold].\nAll 8 folders are initialized at: {target_path}"
+        else:
+            msg = f"Indubitably! I have switched our workspace to [bold]{ticker}[/bold].\nActive workspace path: {target_path}"
 
         # Update settings
         settings.active_ticker = ticker
@@ -63,8 +68,7 @@ def main_use(
         save_config(settings)
 
         formatting.speak(
-            f"Indubitably! I have switched our workspace to [bold]{ticker}[/bold].\n"
-            f"All 8 folders are initialized at: {target_path}",
+            msg,
             title="Sir Pennyworth",
         )
     except Exception as e:

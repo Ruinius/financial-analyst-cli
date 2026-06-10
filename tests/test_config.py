@@ -14,7 +14,7 @@ runner = CliRunner()
 def temp_config(monkeypatch):
     """Fixture to isolate configuration file tests."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        fake_config_path = Path(tmpdir) / ".financial_analyst_cli.json"
+        fake_config_path = Path(tmpdir) / ".env"
         monkeypatch.setattr("src.core.config.CONFIG_FILE_PATH", fake_config_path)
         yield fake_config_path
 
@@ -118,3 +118,51 @@ def test_cli_use_command(temp_config):
     updated = load_config()
     assert updated.active_ticker == "AAPL"
     assert updated.active_workspace_path == str(target_path)
+
+def test_cli_use_command_lowercase_ticker(temp_config):
+    base_dir = temp_config.parent / "workspace"
+    settings = Settings(
+        full_name="Bob",
+        email="bob@example.com",
+        project_name="BobProj",
+        primary_llm_api_key="sk-secret-key-1234",
+        base_workspace_dir=str(base_dir),
+    )
+    save_config(settings)
+
+    result = runner.invoke(app, ["use", "msft"])
+    assert result.exit_code == 0
+    assert "MSFT" in result.stdout
+
+    target_path = base_dir / "MSFT"
+    assert target_path.exists()
+
+    updated = load_config()
+    assert updated.active_ticker == "MSFT"
+    assert updated.active_workspace_path == str(target_path)
+
+def test_startup_config_auto_detection(monkeypatch, temp_config):
+    # Test that auto-init is triggered if config is missing
+    from src.cli.main import main
+    import sys
+
+    assert not config_exists()
+
+    def mock_init():
+        print("Mock initializing config flow")
+        raise Exception("Mock init exception")
+
+    monkeypatch.setattr("src.cli.main.config_cmd.initialize_config_flow", mock_init)
+
+    monkeypatch.setattr("sys.argv", ["fa"])
+
+    try:
+        main()
+    except SystemExit as e:
+        assert e.code == 1
+
+def test_pig_animation_custom_prompt():
+    from src.utils.pig_animation import PigState
+    state = PigState()
+    prompt_html = state.get_prompt("Enter something: ")
+    assert "Enter something: " in str(prompt_html)

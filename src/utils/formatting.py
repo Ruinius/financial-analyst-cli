@@ -54,3 +54,8 @@ def print_error(message: str) -> None:
 def print_warning(message: str) -> None:
     """Print a warning message with gold styling."""
     console.print(f"[bold {COLOR_WARN}]⚠ Warning:[/bold {COLOR_WARN}] {message}")
+
+
+def print_info(message: str) -> None:
+    """Print an info message with cyan styling."""
+    console.print(f"[bold cyan]ℹ Info:[/bold cyan] {message}")

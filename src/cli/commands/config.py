@@ -1,28 +1,37 @@
+import asyncio
+from pathlib import Path
+
 import typer
 from rich.table import Table
+from prompt_toolkit import PromptSession
 
 from src.core.config import Settings, save_config, load_config, mask_key
 from src.utils import formatting
+from src.utils.pig_animation import get_input_with_pig
 
 app = typer.Typer(help="Manage Sir Pennyworth's configuration settings.")
 
 
-def initialize_config_flow() -> Settings:
-    """Interactively guides the user to set up configuration and returns the Settings object."""
-    formatting.speak(
-        "Greetings! I am Sir Pennyworth, your financial concierge. "
-        "Before we begin our financial trufflings, we must establish our settings."
-    )
+async def _initialize_config_flow_async() -> Settings:
+    session = PromptSession()
 
-    full_name = typer.prompt("Full Name (e.g. Jane Doe)")
-    email = typer.prompt("Email Address (e.g. jane.doe@example.com)")
-    project_name = typer.prompt("Project Name (e.g. Value_Investing_2026)")
-    api_key = typer.prompt("Primary LLM API Key", hide_input=True)
-    text_model = typer.prompt("Text-to-Text Model ID", default="google/gemma-2-9b-it")
-    vision_model = typer.prompt(
-        "Vision-to-Text Model ID", default="google/gemma-2-9b-it"
-    )
-    base_ws_dir = typer.prompt("Workspace Path (Base folder for company workspaces)")
+    full_name = await get_input_with_pig(session, prompt_text="Full Name (e.g. Jane Doe): ")
+    email = await get_input_with_pig(session, prompt_text="Email Address (e.g. jane.doe@example.com): ")
+    project_name = await get_input_with_pig(session, prompt_text="Project Name (e.g. Value_Investing_2026): ")
+    api_key = await get_input_with_pig(session, prompt_text="Primary LLM API Key: ", is_password=True)
+
+    text_model = await get_input_with_pig(session, prompt_text="Text-to-Text Model ID [google/gemma-2-9b-it]: ")
+    if not text_model.strip():
+        text_model = "google/gemma-2-9b-it"
+
+    vision_model = await get_input_with_pig(session, prompt_text="Vision-to-Text Model ID [google/gemma-2-9b-it]: ")
+    if not vision_model.strip():
+        vision_model = "google/gemma-2-9b-it"
+
+    default_ws = str(Path.home() / "Desktop")
+    base_ws_dir = await get_input_with_pig(session, prompt_text=f"Workspace Path (Base folder for company workspaces) [{default_ws}]: ")
+    if not base_ws_dir.strip():
+        base_ws_dir = default_ws
 
     settings = Settings(
         full_name=full_name,
@@ -36,6 +45,15 @@ def initialize_config_flow() -> Settings:
     save_config(settings)
     formatting.print_success("Configuration initialized successfully!")
     return settings
+
+
+def initialize_config_flow() -> Settings:
+    """Interactively guides the user to set up configuration and returns the Settings object."""
+    formatting.speak(
+        "Greetings! I am Sir Pennyworth, your financial concierge. "
+        "Before we begin our financial trufflings, we must establish our settings."
+    )
+    return asyncio.run(_initialize_config_flow_async())
 
 
 @app.command("init")

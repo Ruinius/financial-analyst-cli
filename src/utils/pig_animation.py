@@ -38,7 +38,7 @@ class PigState:
         self.quote = ""
         self.last_activity = time.time()
 
-    def get_prompt(self):
+    def get_prompt(self, prompt_text: str = "You: "):
         pig_color = "ansimagenta"  # Closest to pink
         quote_color = "ansiyellow"
 
@@ -62,7 +62,7 @@ class PigState:
         res = pig_art
         if self.quote:
             res += f"<{quote_color}>[Sir Pennyworth]: {self.quote}</{quote_color}>\n"
-        res += "<ansiyellow><b>You: </b></ansiyellow>"
+        res += f"<ansiyellow><b>{prompt_text}</b></ansiyellow>"
         return HTML(res)
 
 
@@ -103,11 +103,11 @@ async def bg_task():
             pass
 
 
-async def get_input_with_pig(session: PromptSession = None) -> str:
+async def get_input_with_pig(session: PromptSession = None, prompt_text: str = "You: ", is_password: bool = False) -> str:
     """Gets user input while Sir Pennyworth animates in the background."""
     # If not a TTY (e.g., in some CI or test environments), fallback to standard input
     if not sys.stdin.isatty():
-        print("You: ", end="", flush=True)
+        print(prompt_text, end="", flush=True)
         return sys.stdin.readline().strip("\n")
 
     if session is None:
@@ -116,7 +116,7 @@ async def get_input_with_pig(session: PromptSession = None) -> str:
     task = asyncio.create_task(bg_task())
     try:
         pig_state.last_activity = time.time()
-        ans = await session.prompt_async(pig_state.get_prompt)
+        ans = await session.prompt_async(lambda: pig_state.get_prompt(prompt_text), is_password=is_password)
         pig_state.last_activity = time.time()
         return ans
     except EOFError:
