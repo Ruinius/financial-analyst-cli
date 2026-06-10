@@ -259,6 +259,28 @@ def test_baseline_golden_evaluation():
         assert k in extracted_metrics, f"Metric {k} not present in extracted metrics"
         extracted_val = extracted_metrics[k]
         diff = abs(extracted_val - ground_truth_val) / ground_truth_val
-        assert diff <= tolerance, (
-            f"Metric {k} diff {diff:.4f} exceeds tolerance of {tolerance}"
-        )
+        assert (
+            diff <= tolerance
+        ), f"Metric {k} diff {diff:.4f} exceeds tolerance of {tolerance}"
+
+
+@patch("src.pipeline.analyzer.load_config")
+def test_historical_synthesis_limit(mock_load_config, mock_workspace):
+    """Test run_analysis with limit parameter."""
+    mock_settings = MagicMock()
+    mock_settings.active_workspace_path = str(mock_workspace)
+    mock_settings.active_ticker = "AAPL"
+    mock_load_config.return_value = mock_settings
+
+    analyzer = Analyzer()
+    # Let's run with limit=2 (should only process the first 2 chronological documents: Q1 and Q2)
+    analyzer.run_analysis(limit=2)
+
+    hist_dir = mock_workspace / "5_historical_analysis"
+    assert (hist_dir / "financials_quarter.md").exists()
+
+    q_content = (hist_dir / "financials_quarter.md").read_text(encoding="utf-8")
+    assert "2024-Q1" in q_content
+    assert "2024-Q2" in q_content
+    assert "2024-Q3" not in q_content
+    assert "2024-Q4" not in q_content

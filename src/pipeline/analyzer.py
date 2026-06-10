@@ -11,7 +11,7 @@ class Analyzer:
     def __init__(self):
         self.settings = load_config()
 
-    def run_analysis(self) -> None:
+    def run_analysis(self, limit: int = None) -> None:
         """Scan extracted files and compile longitudinal trends and views."""
         if not self.settings.active_workspace_path:
             raise ValueError(
@@ -58,6 +58,12 @@ class Analyzer:
             return meta.get("document_date", "0000-00-00")
 
         extracted_files.sort(key=get_doc_date)
+
+        if limit is not None:
+            skipped_files = extracted_files[limit:]
+            extracted_files = extracted_files[:limit]
+            for f in skipped_files:
+                formatting.print_info(f"Skipped due to limit: {f}")
 
         # Storage for structured data
         analyst_views_entries = []

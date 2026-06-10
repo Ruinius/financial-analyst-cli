@@ -91,3 +91,62 @@ def test_classifier(mock_search, mock_llm_class, mock_load_config, tmp_path):
     # Test classification using LLM / Search fallback
     res = extractor.classify_line_item("Research and Development", "income_statement")
     assert res is True
+
+
+@patch("src.pipeline.extractor.load_config")
+@patch("src.pipeline.extractor.Extractor.extract_single_file")
+def test_extractor_limit(mock_extract, mock_load_config, tmp_path):
+    workspace = tmp_path / "AAPL"
+    workspace.mkdir()
+    (workspace / "2_parsed_data").mkdir()
+    (workspace / "4_extracted_data").mkdir()
+
+    mock_settings = MagicMock()
+    mock_settings.active_workspace_path = str(workspace)
+    mock_load_config.return_value = mock_settings
+
+    # Create 3 parsed files
+    parsed_dir = workspace / "2_parsed_data"
+    for i in range(3):
+        f = parsed_dir / f"2023092{i}_annual_filing.md"
+        f.write_text("dummy", encoding="utf-8")
+
+    extractor = Extractor()
+
+    mock_extract.__name__ = "extract_single_file"
+
+    # Run with limit=2
+    extractor.run_extraction(limit=2)
+
+    # Verify extract_single_file was called exactly 2 times
+    assert mock_extract.call_count == 2
+
+
+@patch("src.pipeline.extractor.load_config")
+@patch("src.pipeline.extractor.Extractor.extract_single_file")
+def test_extractor_ignores_readme_and_hidden(mock_extract, mock_load_config, tmp_path):
+    workspace = tmp_path / "AAPL"
+    workspace.mkdir()
+    (workspace / "2_parsed_data").mkdir()
+    (workspace / "4_extracted_data").mkdir()
+
+    mock_settings = MagicMock()
+    mock_settings.active_workspace_path = str(workspace)
+    mock_load_config.return_value = mock_settings
+
+    parsed_dir = workspace / "2_parsed_data"
+    (parsed_dir / "20230920_annual_filing.md").write_text("dummy", encoding="utf-8")
+    (parsed_dir / "README.md").write_text("readme", encoding="utf-8")
+    (parsed_dir / ".hidden_file").write_text("hidden", encoding="utf-8")
+    (parsed_dir / "parsed_data.csv").write_text(
+        "source_file,extracted_at\n", encoding="utf-8"
+    )
+
+    extractor = Extractor()
+    mock_extract.__name__ = "extract_single_file"
+
+    extractor.run_extraction()
+
+    assert mock_extract.call_count == 1
+    args, kwargs = mock_extract.call_args
+    assert args[0].name == "20230920_annual_filing.md"

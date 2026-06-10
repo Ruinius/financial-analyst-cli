@@ -61,7 +61,11 @@ def query_valuation(ticker: str = typer.Argument(..., help="Company ticker symbo
         formatting.print_warning(f"Model directory not found: {model_dir}")
         return
 
-    models = list(model_dir.glob("*.md"))
+    models = [
+        p
+        for p in model_dir.glob("*.md")
+        if p.name.lower() != "readme.md" and not p.name.startswith(".")
+    ]
     if not models:
         formatting.print_warning(f"No valuation models found in {model_dir}")
         return

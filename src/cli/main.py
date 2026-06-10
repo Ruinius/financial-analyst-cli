@@ -4,6 +4,7 @@ if sys.platform.startswith("win"):
     sys.stdout.reconfigure(encoding="utf-8")
     sys.stderr.reconfigure(encoding="utf-8")
 
+import csv
 import typer
 
 from pathlib import Path
@@ -99,7 +100,15 @@ def run_ingest(ticker: str = typer.Option(None, "--ticker", "-t")):
 
     ingest_dir = Path(settings.active_workspace_path) / "1_ingest_data"
     raw_files = (
-        [p for p in ingest_dir.iterdir() if p.is_file()] if ingest_dir.exists() else []
+        [
+            p
+            for p in ingest_dir.iterdir()
+            if p.is_file()
+            and p.name.lower() != "readme.md"
+            and not p.name.startswith(".")
+        ]
+        if ingest_dir.exists()
+        else []
     )
 
     if not raw_files:
@@ -137,21 +146,61 @@ def run_ingest(ticker: str = typer.Option(None, "--ticker", "-t")):
 def run_extract(ticker: str = typer.Option(None, "--ticker", "-t")):
     """Extract statements and metrics from parsed data."""
     try:
-        load_config()
+        settings = load_config()
     except Exception as e:
         formatting.print_error(f"Configuration error: {str(e)}")
         raise typer.Exit(1)
 
     if ticker:
         use_cmd.main_use(ticker)
+        settings = load_config()
+
+    if not settings.active_workspace_path:
+        formatting.print_error(
+            "No active workspace is selected. Use 'fa use <ticker>' first."
+        )
+        raise typer.Exit(1)
+
+    parsed_dir = Path(settings.active_workspace_path) / "2_parsed_data"
+    parsed_files = (
+        [
+            p
+            for p in parsed_dir.iterdir()
+            if p.is_file()
+            and p.suffix.lower() == ".md"
+            and p.name.lower() != "readme.md"
+            and not p.name.startswith(".")
+            and p.name != "parsed_data.csv"
+        ]
+        if parsed_dir.exists()
+        else []
+    )
+
+    if not parsed_files:
+        formatting.speak(
+            "No parsed files found to extract in our workspace directory, my good sir!"
+        )
+        return
 
     formatting.speak(
-        "Excellent choice! We shall extract the financial statements and audit the numbers."
+        f"Splendid! I found [bold]{len(parsed_files)}[/bold] parsed file(s) ready for extraction."
     )
+
+    response = typer.prompt("How many files would you like to process?", default="all")
+    limit = None
+    if response.strip().lower() != "all":
+        try:
+            limit = int(response.strip())
+        except ValueError:
+            formatting.print_warning(
+                "Invalid number of files entered. Defaulting to processing all files."
+            )
+            limit = None
+
     formatting.print_info("Starting extraction stage...")
     try:
         extractor = Extractor()
-        extractor.run_extraction()
+        extractor.run_extraction(limit=limit)
         formatting.print_success(
             "Successfully extracted financial data and calculated metrics."
         )
@@ -164,23 +213,61 @@ def run_extract(ticker: str = typer.Option(None, "--ticker", "-t")):
 def run_historical(ticker: str = typer.Option(None, "--ticker", "-t")):
     """Synthesize longitudinal trends and analyst views."""
     try:
-        load_config()
+        settings = load_config()
     except Exception as e:
         formatting.print_error(f"Configuration error: {str(e)}")
         raise typer.Exit(1)
 
     if ticker:
         use_cmd.main_use(ticker)
+        settings = load_config()
+
+    if not settings.active_workspace_path:
+        formatting.print_error(
+            "No active workspace is selected. Use 'fa use <ticker>' first."
+        )
+        raise typer.Exit(1)
+
+    extracted_dir = Path(settings.active_workspace_path) / "4_extracted_data"
+    extracted_csv = extracted_dir / "extracted_data.csv"
+    extracted_files_count = 0
+    if extracted_csv.exists():
+        try:
+            with open(extracted_csv, "r", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                extracted_files_count = sum(
+                    1 for row in reader if row.get("source_file")
+                )
+        except Exception:
+            pass
+
+    if extracted_files_count == 0:
+        formatting.speak(
+            "No extracted files found to synthesize in our workspace directory, my good sir!"
+        )
+        return
 
     formatting.speak(
-        "Let us synthesize the longitudinal financial trends and compile analyst views."
+        f"Let us synthesize the longitudinal financial trends! I found [bold]{extracted_files_count}[/bold] extracted file(s) ready for analysis."
     )
+
+    response = typer.prompt("How many files would you like to process?", default="all")
+    limit = None
+    if response.strip().lower() != "all":
+        try:
+            limit = int(response.strip())
+        except ValueError:
+            formatting.print_warning(
+                "Invalid number of files entered. Defaulting to processing all files."
+            )
+            limit = None
+
     formatting.print_info("Starting historical trend synthesis stage...")
     try:
         from src.pipeline.analyzer import Analyzer
 
         analyzer = Analyzer()
-        analyzer.run_analysis()
+        analyzer.run_analysis(limit=limit)
         formatting.print_success(
             "Successfully synthesized all longitudinal financial trends and views."
         )

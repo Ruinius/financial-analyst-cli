@@ -109,7 +109,7 @@ sequenceDiagram
     CLI->>Queue: Feed files
     Queue->>Ingest: Process sequentially
     Ingest->>Ingest: Check duplicates (hash check)
-    Ingest->>Ingest: Convert formatting-preserved Markdown
+    Ingest->>Ingest: Parse HTML (BeautifulSoup) or PDF (PyMuPDF layout mode) to Markdown
     Ingest->>Ingest: Save to 2_parsed_data, raw to 3_archived_data
     Ingest->>Ingest: Chunk (5000 chars) & prepend table
     Ingest->>User: LLM identifies date/type, renames files & updates CSV
@@ -155,6 +155,9 @@ sequenceDiagram
    All metrics in the data lake (down to individual cells) must contain strict metadata properties tracking their provenance (`source_file`, `chunk_id`, `exact_snippet`). This ensures all calculated valuations can be verified in a single query, preventing model hallucination.
 7. **Interactive Shell with Sandboxed Execution**:
    To move beyond static pipelines, `fa chat` implements a stateful conversational loop. It exposes a math solver tool (`math_solver.py`) that executes mathematical Python code in a safe sandbox to perform ad-hoc quantitative operations over extracted data.
+8. **Formatting-Preserving PDF/HTML Parsing**:
+   To ensure that unstructured documents like financial reports, earnings announcements, and SEC filings are digested accurately without losing structural relationships, the ingestion engine employs custom parsing. HTML filings are converted to Markdown with column-preserving tables via BeautifulSoup. PDF reports are parsed using PyMuPDF (`pymupdf`) in physical layout-preservation mode (`page.get_text("layout")`), which retains spacing, table grid relationships, and columnar flows, avoiding garbled outputs.
+
 
 ---
 

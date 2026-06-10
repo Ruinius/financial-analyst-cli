@@ -299,20 +299,37 @@ This file contains automatically detected company configuration parameters.
     ) -> None:
         """Process a single file: hash, parse, chunk, LLM identify, rename, archive, and log."""
         file_hash = compute_sha256(raw_path)
+        import src.utils.formatting as formatting
+
         if file_hash in registry:
             logger.info(f"Skipping duplicate file: {raw_path.name}")
+            formatting.print_info(f"Skipped duplicate file: {raw_path.name}")
             return
 
         logger.info(f"Ingesting file: {raw_path.name}")
+        formatting.print_info(f"Ingesting file: {raw_path.name}...")
 
         # Read file and convert to markdown
-        with open(raw_path, "r", encoding="utf-8", errors="ignore") as f:
-            raw_content = f.read()
-
-        if raw_path.suffix.lower() in [".html", ".htm"]:
+        suffix = raw_path.suffix.lower()
+        if suffix in [".html", ".htm"]:
+            with open(raw_path, "r", encoding="utf-8", errors="ignore") as f:
+                raw_content = f.read()
             markdown_body = html_to_markdown(raw_content)
+        elif suffix == ".pdf":
+            import fitz
+
+            doc = fitz.open(str(raw_path))
+            pages_text = []
+            for page in doc:
+                # Extract text preserving physical layout (columns, tables, spacing)
+                pages_text.append(page.get_text("layout"))
+            doc.close()
+            markdown_body = "\n\n--- PAGE BREAK ---\n\n".join(pages_text)
         else:
-            markdown_body = raw_content  # Treat txt or other files as raw markdown/text
+            with open(raw_path, "r", encoding="utf-8", errors="ignore") as f:
+                markdown_body = (
+                    f.read()
+                )  # Treat txt or other files as raw markdown/text
 
         # Create chunks
         chunks = chunk_text(markdown_body)
@@ -395,6 +412,9 @@ This file contains automatically detected company configuration parameters.
         self.create_or_update_ingest_context(
             self.settings.active_ticker or "UNK", doc_type, doc_date, fiscal_quarter
         )
+        formatting.print_success(
+            f"Ingested {raw_path.name} -> {out_markdown_path.name}"
+        )
 
     def run_ingestion(self, limit: int = None) -> None:
         """Scan 1_ingest_data/ and run jobs sequentially via the sequential JobQueue."""
@@ -408,13 +428,24 @@ This file contains automatically detected company configuration parameters.
             logger.warning(f"Ingestion directory {ingest_dir} does not exist.")
             return
 
-        raw_files = [p for p in ingest_dir.iterdir() if p.is_file()]
+        raw_files = [
+            p
+            for p in ingest_dir.iterdir()
+            if p.is_file()
+            and p.name.lower() != "readme.md"
+            and not p.name.startswith(".")
+        ]
         if not raw_files:
             logger.info("No raw files found to ingest.")
             return
 
+        import src.utils.formatting as formatting
+
         if limit is not None:
+            skipped_limit_files = raw_files[limit:]
             raw_files = raw_files[:limit]
+            for f in skipped_limit_files:
+                formatting.print_info(f"Skipped due to limit: {f.name}")
 
         registry = self.load_parsed_registry()
 

@@ -71,7 +71,7 @@ def clean_val(val: str) -> float:
         if "%" in cleaned:
             return float(cleaned.replace("%", "")) / 100.0
         return float(cleaned)
-    except ValueError, TypeError:
+    except (ValueError, TypeError):
         return 0.0
 
 
@@ -135,7 +135,7 @@ class Extractor:
                 }
             )
 
-    def run_extraction(self) -> None:
+    def run_extraction(self, limit: int = None) -> None:
         """Scan 2_parsed_data/ and run extraction on unextracted documents sequentially."""
         if not self.settings.active_workspace_path:
             raise ValueError(
@@ -150,18 +150,38 @@ class Extractor:
         parsed_files = [
             p
             for p in parsed_dir.iterdir()
-            if p.is_file() and p.suffix.lower() == ".md" and p.name != "parsed_data.csv"
+            if p.is_file()
+            and p.suffix.lower() == ".md"
+            and p.name.lower() != "readme.md"
+            and not p.name.startswith(".")
+            and p.name != "parsed_data.csv"
         ]
         if not parsed_files:
             logger.info("No parsed files found to extract.")
             return
 
+        import src.utils.formatting as formatting
+
         extracted_registry = self.load_extracted_registry()
 
-        queue = JobQueue(retries=2, initial_delay=1.0)
+        # Filter out files that are already extracted first
+        unextracted_files = [
+            p for p in parsed_files if p.name not in extracted_registry
+        ]
+
         for p_file in parsed_files:
-            if p_file.name not in extracted_registry:
-                queue.add_job(self.extract_single_file, p_file)
+            if p_file.name in extracted_registry:
+                formatting.print_info(f"Skipped already extracted: {p_file.name}")
+
+        if limit is not None:
+            skipped_limit_files = unextracted_files[limit:]
+            unextracted_files = unextracted_files[:limit]
+            for f in skipped_limit_files:
+                formatting.print_info(f"Skipped due to limit: {f.name}")
+
+        queue = JobQueue(retries=2, initial_delay=1.0)
+        for p_file in unextracted_files:
+            queue.add_job(self.extract_single_file, p_file)
 
         queue.run()
 
@@ -247,6 +267,9 @@ Is this line item 'operating' or 'non-operating'? Return ONLY one word.
 
     def extract_single_file(self, file_path: Path) -> None:
         logger.info(f"Extracting financials from: {file_path.name}")
+        import src.utils.formatting as formatting
+
+        formatting.print_info(f"Extracting financials from: {file_path.name}...")
         with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
 
@@ -357,7 +380,9 @@ Return a valid JSON object matching this structure:
 }}
 """
             try:
-                ex_resp = self.llm.generate(extract_prompt, system_prompt=extract_sys)
+                ex_resp = self.llm.generate(
+                    extract_prompt, system_prompt=extract_sys, stream_thinking=True
+                )
                 json_match = re.search(r"\{.*\}", ex_resp, re.DOTALL)
                 if json_match:
                     ex_data = json.loads(json_match.group(0))
@@ -629,3 +654,4 @@ Return a valid JSON object matching this structure:
 
         # Save registry
         self.save_extracted_registry(file_path.name)
+        formatting.print_success(f"Extracted: {file_path.name} -> {out_file_path.name}")

@@ -51,7 +51,7 @@ Config      Ingestion   Extraction  History     Modeling    Interactive
 - **2.2 Ingestion Engine (`fa run ingest`)**:
   - [x] Build a deterministic sequential queue manager to execute ingestion jobs.
   - [x] Compute SHA-256 hashes of incoming files, check against `parsed_data.csv`, and skip duplicates.
-  - [x] Build a formatting-preserving parser (PDF/HTML to Markdown) that maintains layout integrity.
+  - [x] Build a formatting-preserving parser that maintains layout integrity, using BeautifulSoup for HTML files and PyMuPDF (`pymupdf`'s layout mode) for PDF files to preserve text alignment and table spacing.
 - **2.3 Chunker & Metadata Identification**:
   - [x] Implement the 5,000-character chunking algorithm and prepend `chunk_id=0` indices.
   - [x] Integrate LLM to detect true document dates, quarters, and types.
@@ -146,3 +146,7 @@ Config      Ingestion   Extraction  History     Modeling    Interactive
   - [x] Enable command-specific welcoming messages using the static version of the pig art.
   - [x] Enhance `fa run ingest` to show the count of raw files and prompt the user for the number of files to process (defaulting to all).
   - [x] Standardize configuration text/vision LLM models to `google/gemma-4-31b-it:free`.
+  - [x] In `fa run ingest`, add logs to show which files are ingested and which ones are not (skipped as duplicates or due to limit).
+  - [x] In `fa run extract`, show the count of parsed files and prompt the user for the number of files to process (defaulting to all).
+  - [x] In `fa run historical`, show the count of extracted files and prompt the user for the number of files to process (defaulting to all).
+  - [x] In `fa run extract`, add logs to show the verbose chain of thought/pondering text from the LLM while suppressing verbose structured JSON payloads, keeping the CLI output clean and streaming.

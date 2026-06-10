@@ -1,7 +1,7 @@
 import csv
 import json
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 import pytest
 
 from src.core.config import Settings
@@ -167,3 +167,85 @@ def test_ingestion_limit(
     # Verify that exactly 2 parsed files were created
     parsed_files = list((workspace / "2_parsed_data").glob("*.md"))
     assert len(parsed_files) == 2
+
+
+@patch("src.services.llm_client.load_config")
+@patch("src.pipeline.ingester.load_config")
+@patch("src.services.llm_client.LLMClient.generate")
+def test_ingestion_ignores_readme_and_hidden(
+    mock_llm, mock_load_config, mock_llm_load_config, mock_settings
+):
+    mock_load_config.return_value = mock_settings
+    mock_llm_load_config.return_value = mock_settings
+
+    mock_llm.return_value = json.dumps(
+        {
+            "document_date": "2023-09-30",
+            "document_type": "annual_filing",
+            "fiscal_quarter": "FY",
+        }
+    )
+
+    workspace = Path(mock_settings.active_workspace_path)
+    (workspace / "1_ingest_data" / "README.md").write_text(
+        "# Readme content", encoding="utf-8"
+    )
+    (workspace / "1_ingest_data" / ".hidden_file").write_text(
+        "hidden", encoding="utf-8"
+    )
+    (workspace / "1_ingest_data" / "filing.htm").write_text(
+        "<h1>Report</h1>", encoding="utf-8"
+    )
+
+    ingester = Ingester()
+    ingester.run_ingestion()
+
+    # Verify only the normal file was ingested/parsed
+    parsed_files = list((workspace / "2_parsed_data").glob("*.md"))
+    assert len(parsed_files) == 1
+    assert parsed_files[0].name == "20230930_annual_filing.md"
+
+
+@patch("src.services.llm_client.load_config")
+@patch("src.pipeline.ingester.load_config")
+@patch("src.services.llm_client.LLMClient.generate")
+@patch("fitz.open")
+def test_ingestion_pdf(
+    mock_fitz_open, mock_llm, mock_load_config, mock_llm_load_config, mock_settings
+):
+    mock_load_config.return_value = mock_settings
+    mock_llm_load_config.return_value = mock_settings
+
+    # Mock PyMuPDF Document and Page
+    mock_page = MagicMock()
+    mock_page.get_text.return_value = (
+        "Row 1 Col 1    Row 1 Col 2\nRow 2 Col 1    Row 2 Col 2"
+    )
+    mock_doc = MagicMock()
+    mock_doc.__iter__.return_value = [mock_page]
+    mock_fitz_open.return_value = mock_doc
+
+    mock_llm.return_value = json.dumps(
+        {
+            "document_date": "2023-09-30",
+            "document_type": "annual_filing",
+            "fiscal_quarter": "FY",
+        }
+    )
+
+    workspace = Path(mock_settings.active_workspace_path)
+    raw_file = workspace / "1_ingest_data" / "filing.pdf"
+    raw_file.write_bytes(b"dummy pdf bytes")
+
+    ingester = Ingester()
+    ingester.run_ingestion()
+
+    # Verify document is parsed, renamed, and archived
+    parsed_file = workspace / "2_parsed_data" / "20230930_annual_filing.md"
+    assert parsed_file.exists()
+    content = parsed_file.read_text(encoding="utf-8")
+    assert "Row 1 Col 1    Row 1 Col 2" in content
+
+    archived_file = workspace / "3_archived_data" / "20230930_annual_filing.pdf"
+    assert archived_file.exists()
+    assert not raw_file.exists()
