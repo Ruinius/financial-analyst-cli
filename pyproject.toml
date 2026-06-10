@@ -19,11 +19,12 @@ dependencies = [
 ]
 
 [project.scripts]
-fa = "main:main"
+fa = "src.cli.main:main"
 
 [tool.maturin]
 features = ["pyo3/extension-module"]
-module-name = "financial_analyst_cli._rust"
+module-name = "src.rust_core._rust"
+python-source = "."
 
 [tool.uv]
 package = true

@@ -1,5 +1,5 @@
 try:
-    import financial_analyst_cli
+    from . import _rust as financial_analyst_cli
 except ImportError:
     from . import fallback as financial_analyst_cli
 
