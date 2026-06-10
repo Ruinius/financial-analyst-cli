@@ -12,6 +12,7 @@ dependencies = [
     "beautifulsoup4>=4.15.0",
     "duckduckgo-search>=8.1.1",
     "httpx>=0.28.1",
+    "prompt-toolkit>=3.0.52",
     "pydantic>=2.13.4",
     "rich>=15.0.0",
     "typer>=0.26.7",

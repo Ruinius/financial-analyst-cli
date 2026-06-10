@@ -344,22 +344,22 @@ def calculate_modeling(ticker, md_path):
 
 | Field | Value |
 |-------|-------|
-| Risk-Free Rate | {rf*100:.2f}% |
-| Equity Risk Premium | {erp*100:.2f}% |
+| Risk-Free Rate | {rf * 100:.2f}% |
+| Equity Risk Premium | {erp * 100:.2f}% |
 | Country Risk Premium | 0.00% |
 | Raw Levered Beta | {raw_beta:.3f} |
 | Unlevered Beta | {unlevered_beta:.4f} |
 | Adjusted Beta (Blume's) | {adj_beta:.4f} |
-| Cost of Equity | {cost_equity*100:.2f}% |
+| Cost of Equity | {cost_equity * 100:.2f}% |
 | Total Debt | ${debt:,.0f}{U} |
 | Interest Expense (Ann.) | ${interest:,.0f}{U} |
-| Cost of Debt | {cost_debt*100:.2f}% |
+| Cost of Debt | {cost_debt * 100:.2f}% |
 | Market Cap | ${market_cap:,} |
-| Weight of Equity | {w_e*100:.2f}% |
-| Weight of Debt | {w_d*100:.2f}% |
-| Tax Rate (Statutory) | {tax_stat*100:.2f}% |
-| Calculated WACC | {wacc_raw*100:.2f}% |
-| **WACC (Bounded)** | **{wacc*100:.2f}%** |
+| Weight of Equity | {w_e * 100:.2f}% |
+| Weight of Debt | {w_d * 100:.2f}% |
+| Tax Rate (Statutory) | {tax_stat * 100:.2f}% |
+| Calculated WACC | {wacc_raw * 100:.2f}% |
+| **WACC (Bounded)** | **{wacc * 100:.2f}%** |
 | Calculation Date | {today} |
 """
 
@@ -367,22 +367,22 @@ def calculate_modeling(ticker, md_path):
 
 | Parameter | Stage 1 (Yr 1-5) | Stage 2 (Yr 6-10) | Terminal |
 |-----------|-------------------|--------------------|----------|
-| Revenue Growth | {target_growth_yr5*100:.2f}% | {terminal_growth*100:.2f}% | {terminal_growth*100:.2f}% |
-| EBITA Margin | {target_margin_yr5*100:.2f}% | {target_margin_yr5*100:.2f}% | {target_margin_yr5*100:.2f}% |
+| Revenue Growth | {target_growth_yr5 * 100:.2f}% | {terminal_growth * 100:.2f}% | {terminal_growth * 100:.2f}% |
+| EBITA Margin | {target_margin_yr5 * 100:.2f}% | {target_margin_yr5 * 100:.2f}% | {target_margin_yr5 * 100:.2f}% |
 | Marginal Capital Turnover | {mct}x | {mct}x | {mct}x |
 
 | Parameter | Value |
 |-----------|-------|
-| Adjusted Tax Rate | {l4q_tax*100:.2f}% |
-| WACC | {wacc*100:.2f}% |
+| Adjusted Tax Rate | {l4q_tax * 100:.2f}% |
+| WACC | {wacc * 100:.2f}% |
 | Base Revenue (Annualized) | ${base_rev:,.0f}{U} |
 | Base Invested Capital | ${base_ic:,.0f}{U} |
 | Calculation Date | {today} |
 
 ### Assumption Rationale
 
-- **Revenue Growth**: L4Q organic growth averages {l4q_growth*100:.1f}%. Qualitative outlook: {growth_magnitude*100:+.1f} pp, target yr5 {target_growth_yr5*100:.1f}%. {moat} moat supports terminal {terminal_growth*100:.1f}%.
-- **EBITA Margin**: L4Q margin {base_margin*100:.1f}%. Qualitative outlook: {margin_magnitude*100:+.1f} pp, target yr5 {target_margin_yr5*100:.1f}%.
+- **Revenue Growth**: L4Q organic growth averages {l4q_growth * 100:.1f}%. Qualitative outlook: {growth_magnitude * 100:+.1f} pp, target yr5 {target_growth_yr5 * 100:.1f}%. {moat} moat supports terminal {terminal_growth * 100:.1f}%.
+- **EBITA Margin**: L4Q margin {base_margin * 100:.1f}%. Qualitative outlook: {margin_magnitude * 100:+.1f} pp, target yr5 {target_margin_yr5 * 100:.1f}%.
 - **Capital Turnover**: {mct_rationale}
 """
 
@@ -397,22 +397,22 @@ def calculate_modeling(ticker, md_path):
     rev_row = (
         f"| Revenue | {base_rev:,.0f} | "
         + " | ".join([f"{p['revenue']:,.0f}" for p in projections])
-        + f" | {rev*(1+terminal_growth):,.0f} |"
+        + f" | {rev * (1 + terminal_growth):,.0f} |"
     )
     growth_row = (
         "| Growth | -- | "
-        + " | ".join([f"{p['growth']*100:.2f}%" for p in projections])
-        + f" | {terminal_growth*100:.2f}% |"
+        + " | ".join([f"{p['growth'] * 100:.2f}%" for p in projections])
+        + f" | {terminal_growth * 100:.2f}% |"
     )
     ebita_row = (
         f"| EBITA | {l4q_ebita:,.0f} | "
         + " | ".join([f"{p['ebita']:,.0f}" for p in projections])
-        + f" | {rev*(1+terminal_growth)*target_margin_yr5:,.0f} |"
+        + f" | {rev * (1 + terminal_growth) * target_margin_yr5:,.0f} |"
     )
     nopat_row = (
-        f"| NOPAT | {l4q_ebita*(1-l4q_tax):,.0f} | "
+        f"| NOPAT | {l4q_ebita * (1 - l4q_tax):,.0f} | "
         + " | ".join([f"{p['nopat']:,.0f}" for p in projections])
-        + f" | {rev*(1+terminal_growth)*target_margin_yr5*(1-l4q_tax):,.0f} |"
+        + f" | {rev * (1 + terminal_growth) * target_margin_yr5 * (1 - l4q_tax):,.0f} |"
     )
     ic_row = (
         f"| Invested Capital | {base_ic:,.0f} | "
@@ -420,8 +420,8 @@ def calculate_modeling(ticker, md_path):
         + " | -- |"
     )
     roic_row = (
-        f"| ROIC | {base_roic*100:.1f}% | "
-        + " | ".join([f"{p['roic']*100:.1f}%" for p in projections])
+        f"| ROIC | {base_roic * 100:.1f}% | "
+        + " | ".join([f"{p['roic'] * 100:.1f}%" for p in projections])
         + " | -- |"
     )
     fcf_row = (
@@ -458,7 +458,7 @@ def calculate_modeling(ticker, md_path):
 | PV of Terminal Value | ${pv_tv:,.0f}{U} |
 | Terminal Value (undiscounted) | ${terminal_val:,.0f}{U} |
 | **Enterprise Value** | **${enterprise_val:,.0f}{U}** |
-| TV as % of EV | {pv_tv/enterprise_val*100:.1f}% |
+| TV as % of EV | {pv_tv / enterprise_val * 100:.1f}% |
 | Calculation Date | {today} |
 """
 
@@ -476,7 +476,7 @@ def calculate_modeling(ticker, md_path):
 | FX Rate Applied | {fx_rate:.4f} |
 | ADR Ratio Applied | {adr_ratio:.1f} |
 | Current Market Price | ${share_price:.2f} |
-| **Upside/Downside** | **{(ivps/share_price - 1)*100:+.1f}%** |
+| **Upside/Downside** | **{(ivps / share_price - 1) * 100:+.1f}%** |
 | Calculation Date | {today} |
 """
 
@@ -501,7 +501,7 @@ def calculate_modeling(ticker, md_path):
         f.write(new_content)
 
     print(f"--- Financial Modeling Complete for {ticker} ---")
-    print(f"New IVPS: {ivps:.2f} (Upside: {(ivps/share_price - 1)*100:+.1f}%)")
+    print(f"New IVPS: {ivps:.2f} (Upside: {(ivps / share_price - 1) * 100:+.1f}%)")
 
 
 if __name__ == "__main__":

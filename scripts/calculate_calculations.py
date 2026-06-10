@@ -259,9 +259,9 @@ def calculate_tax(content, is_items, ebita):
 
         tax_effect = val * marginal_rate
         total_tax_adj += tax_effect
-        rate_str = f"{int(marginal_rate*100)}%"
+        rate_str = f"{int(marginal_rate * 100)}%"
         adj_out.append(
-            f"| {len(adj_out)+1} | {item.get('Line Name')} | {val} | {tax_effect:.2f} | {source} | {rate_str} |"
+            f"| {len(adj_out) + 1} | {item.get('Line Name')} | {val} | {tax_effect:.2f} | {source} | {rate_str} |"
         )
 
     adjusted_tax = income_tax_expense + total_tax_adj
@@ -272,8 +272,8 @@ def calculate_tax(content, is_items, ebita):
     out += f"| Income Before Taxes | {income_before_taxes} |\n"
     out += f"| Income Tax Expense | {income_tax_expense} |\n"
     out += f"| Net Income | {net_income} |\n"
-    out += f"| Effective Tax Rate | {effective_rate*100:.2f}% |\n"
-    out += f"| Adjusted Tax Rate | {adjusted_rate*100:.2f}% |\n"
+    out += f"| Effective Tax Rate | {effective_rate * 100:.2f}% |\n"
+    out += f"| Adjusted Tax Rate | {adjusted_rate * 100:.2f}% |\n"
     out += f"| Calculation Date | {date_iso} |\n\n"
 
     out += "### Adjusted Tax Rate Breakdown\n\n| # | Line Name | Value | Tax Effect | Source | Marginal Rate |\n|---|-----------|-------|------------|--------|---------------|\n"
@@ -337,8 +337,8 @@ def calculate_summary(
     out += f"| **Revenue** | {revenue} | |\n"
     out += f"| **EBITA** | {ebita} | |\n"
     out += f"| **EBITA Margin** | {ebita_margin:.2f}% | |\n"
-    out += f"| **Effective Tax Rate** | {effective_rate*100:.2f}% | |\n"
-    out += f"| **Adjusted Tax Rate** | {adjusted_rate*100:.2f}% | |\n"
+    out += f"| **Effective Tax Rate** | {effective_rate * 100:.2f}% | |\n"
+    out += f"| **Adjusted Tax Rate** | {adjusted_rate * 100:.2f}% | |\n"
     out += f"| **NOPAT** | {nopat:.2f} | Using {tax_label} |\n"
     out += f"| **Net Working Capital** | {nwc} | |\n"
     out += f"| **Net Long-Term Operating Assets** | {nltoa} | |\n"
@@ -417,7 +417,7 @@ def run_all(md_path):
     # Step 3: Tax Rates (depends on EBITA adjustments in file)
     tax_out, effective_rate, adjusted_rate = calculate_tax(content, is_items, ebita)
     print(
-        f"  [3/4] Effective Tax Rate: {effective_rate*100:.2f}%, Adjusted: {adjusted_rate*100:.2f}%"
+        f"  [3/4] Effective Tax Rate: {effective_rate * 100:.2f}%, Adjusted: {adjusted_rate * 100:.2f}%"
     )
 
     # Step 4: Summary Table (depends on all prior)

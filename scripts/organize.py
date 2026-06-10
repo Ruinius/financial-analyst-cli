@@ -658,9 +658,9 @@ def run(md_path):
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     today_iso = datetime.now().strftime("%Y-%m-%d")
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  Document Organization — {os.path.basename(md_path)}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     # Read source document
     with open(md_path, "r", encoding="utf-8") as f:
@@ -732,7 +732,7 @@ def run(md_path):
 
     # Final report
     final_name = md_basename.replace("_temp", "")
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     if all_pass:
         print("  [OK] Document organized:")
         print(f"     {final_name} -> output_data/{ticker}/")
@@ -749,7 +749,7 @@ def run(md_path):
             print("     Unit harmonization: No conversions needed")
     else:
         print("  [FAIL] Organization completed with errors — check output above")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
 
 if __name__ == "__main__":
