@@ -140,7 +140,7 @@ pub fn calculate_roic(
 
 /// A Python module implemented in Rust.
 #[pymodule]
-fn financial_analyst_cli(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn _rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(calculate_dcf, m)?)?;
     m.add_function(wrap_pyfunction!(calculate_ebita, m)?)?;
     m.add_function(wrap_pyfunction!(calculate_invested_capital, m)?)?;
