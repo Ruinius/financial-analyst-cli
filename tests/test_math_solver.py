@@ -30,3 +30,14 @@ def test_solve_math_invalid_expressions():
 
     with pytest.raises(ValueError):
         solve_math("1 = 1")
+
+def test_solve_math_unsupported_operators():
+    with pytest.raises(ValueError, match="Unsupported binary operator"):
+        solve_math("1 ^ 1")
+
+    with pytest.raises(ValueError, match="Unsupported unary operator"):
+        solve_math("~1")
+
+def test_solve_math_unsupported_node():
+    with pytest.raises(ValueError, match="Unsupported expression node"):
+        solve_math("[1, 2]")
