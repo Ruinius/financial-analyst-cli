@@ -1,5 +1,6 @@
 import http.server
 import json
+import re
 import urllib.parse
 from pathlib import Path
 from src.core.config import load_config
@@ -89,7 +90,10 @@ class DCFViewerHandler(http.server.SimpleHTTPRequestHandler):
 
             try:
                 data = json.loads(body)
-                ticker = data.get("ticker", "UNKNOWN")
+                ticker_raw = str(data.get("ticker", "UNKNOWN"))
+                ticker = re.sub(r"[^a-zA-Z0-9_-]", "", ticker_raw)
+                if not ticker:
+                    ticker = "UNKNOWN"
 
                 models_dir = self.get_models_dir()
                 models_dir.mkdir(parents=True, exist_ok=True)
