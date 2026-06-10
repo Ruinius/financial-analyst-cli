@@ -1,8 +1,9 @@
+import asyncio
 import typer
 from rich.console import Console
-from rich.prompt import Prompt
 
 from src.utils import formatting
+from src.utils.pig_animation import get_input_with_pig
 from src.services.llm_client import LLMClient
 from src.services.math_solver import solve_math
 
@@ -30,10 +31,13 @@ def main_chat(ticker: str = typer.Argument(..., help="Company ticker symbol")):
         "and make subtle wealth/pig puns. You are concise and focus on metrics."
     )
 
+    from prompt_toolkit import PromptSession
+
+    session = PromptSession()
+
     while True:
         try:
-            # Using rich prompt for better input handling
-            user_input = Prompt.ask("[bold gold1]You[/bold gold1]")
+            user_input = asyncio.run(get_input_with_pig(session))
 
             if not user_input or user_input.strip().lower() in ["exit", "quit", "q"]:
                 formatting.speak(

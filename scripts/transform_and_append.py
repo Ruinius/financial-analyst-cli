@@ -83,7 +83,7 @@ def main():
             calc = "Yes" if trans.get("is_calculated") else "No"
             op = "Yes" if trans.get("is_operating") else "No"
             out_md.append(
-                f"| {i+1} | {orig['line_name']} | {val} | {orig['line_category']} | {trans['standardized_name']} | {calc} | {op} |"
+                f"| {i + 1} | {orig['line_name']} | {val} | {orig['line_category']} | {trans['standardized_name']} | {calc} | {op} |"
             )
 
     # Income Statement
@@ -113,7 +113,7 @@ def main():
             op = "Yes" if trans.get("is_operating") else "No"
             exp = "Yes" if trans.get("is_expense") else "No"
             out_md.append(
-                f"| {i+1} | {orig['line_name']} | {val} | {trans['standardized_name']} | {calc} | {op} | {exp} |"
+                f"| {i + 1} | {orig['line_name']} | {val} | {trans['standardized_name']} | {calc} | {op} | {exp} |"
             )
 
         out_md.append("\n---")
@@ -181,7 +181,7 @@ def main():
         out_md.append("| --- | --- | --- | --- | --- |")
         for i, item in enumerate(gaap["line_items"]):
             out_md.append(
-                f"| {i+1} | {item['line_name']} | {item['line_value']} | {item['line_category']} | {item.get('is_operating', '—')} |"
+                f"| {i + 1} | {item['line_name']} | {item['line_value']} | {item['line_category']} | {item.get('is_operating', '—')} |"
             )
 
     # Append
