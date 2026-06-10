@@ -321,8 +321,8 @@ This file contains automatically detected company configuration parameters.
             doc = fitz.open(str(raw_path))
             pages_text = []
             for page in doc:
-                # Extract text preserving physical layout (columns, tables, spacing)
-                pages_text.append(page.get_text("layout"))
+                # Extract text sorting blocks by coordinates to preserve table layout and columns
+                pages_text.append(page.get_text("text", sort=True))
             doc.close()
             markdown_body = "\n\n--- PAGE BREAK ---\n\n".join(pages_text)
         else:

@@ -150,3 +150,8 @@ Config      Ingestion   Extraction  History     Modeling    Interactive
   - [x] In `fa run extract`, show the count of parsed files and prompt the user for the number of files to process (defaulting to all).
   - [x] In `fa run historical`, show the count of extracted files and prompt the user for the number of files to process (defaulting to all).
   - [x] In `fa run extract`, add logs to show the verbose chain of thought/pondering text from the LLM while suppressing verbose structured JSON payloads, keeping the CLI output clean and streaming.
+
+Next steps:
+
+- add the ability to select which API provider in config.
+- add the ability to add API keys for each API provider in config
