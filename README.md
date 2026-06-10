@@ -76,16 +76,22 @@ Clone this repository and run the following in your shell:
 # Create a virtual environment and sync dependencies
 uv venv
 .venv\Scripts\activate
-
-# Build the Rust extension module using Maturin
-uv pip install maturin
-uv run maturin develop
+uv sync
 
 # Setup pre-commit linting and checks
 uv run pre-commit install
 
 # Run the project entry point
 uv run python main.py
+```
+
+#### Optional: High-Performance Rust Engine
+The CLI ships with a pure Python fallback. However, for maximum calculation performance, you can optionally build the Rust extension module:
+
+```powershell
+# Ensure you have Rust installed via rustup.rs
+uv pip install maturin
+uv run maturin develop
 ```
 
 ---
