@@ -71,3 +71,4 @@ Desktop.ini
 
 # Rust
 target/
+*.pdb
