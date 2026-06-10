@@ -15,21 +15,36 @@ app = typer.Typer(help="Manage Sir Pennyworth's configuration settings.")
 async def _initialize_config_flow_async() -> Settings:
     session = PromptSession()
 
-    full_name = await get_input_with_pig(session, prompt_text="Full Name (e.g. Jane Doe): ")
-    email = await get_input_with_pig(session, prompt_text="Email Address (e.g. jane.doe@example.com): ")
-    project_name = await get_input_with_pig(session, prompt_text="Project Name (e.g. Value_Investing_2026): ")
-    api_key = await get_input_with_pig(session, prompt_text="Primary LLM API Key: ", is_password=True)
+    full_name = await get_input_with_pig(
+        session, prompt_text="Full Name (e.g. Jane Doe): "
+    )
+    email = await get_input_with_pig(
+        session, prompt_text="Email Address (e.g. jane.doe@example.com): "
+    )
+    project_name = await get_input_with_pig(
+        session, prompt_text="Project Name (e.g. Value_Investing_2026): "
+    )
+    api_key = await get_input_with_pig(
+        session, prompt_text="Primary LLM API Key: ", is_password=True
+    )
 
-    text_model = await get_input_with_pig(session, prompt_text="Text-to-Text Model ID [google/gemma-2-9b-it]: ")
+    text_model = await get_input_with_pig(
+        session, prompt_text="Text-to-Text Model ID [google/gemma-2-9b-it]: "
+    )
     if not text_model.strip():
         text_model = "google/gemma-2-9b-it"
 
-    vision_model = await get_input_with_pig(session, prompt_text="Vision-to-Text Model ID [google/gemma-2-9b-it]: ")
+    vision_model = await get_input_with_pig(
+        session, prompt_text="Vision-to-Text Model ID [google/gemma-2-9b-it]: "
+    )
     if not vision_model.strip():
         vision_model = "google/gemma-2-9b-it"
 
     default_ws = str(Path.home() / "Desktop")
-    base_ws_dir = await get_input_with_pig(session, prompt_text=f"Workspace Path (Base folder for company workspaces) [{default_ws}]: ")
+    base_ws_dir = await get_input_with_pig(
+        session,
+        prompt_text=f"Workspace Path (Base folder for company workspaces) [{default_ws}]: ",
+    )
     if not base_ws_dir.strip():
         base_ws_dir = default_ws
 

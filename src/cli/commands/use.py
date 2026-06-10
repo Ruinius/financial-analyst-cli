@@ -56,7 +56,9 @@ def main_use(
 
         # Initialize workspace folders
         if not target_path.exists():
-            formatting.print_info(f"Workspace for {ticker} not found. Creating it now...")
+            formatting.print_info(
+                f"Workspace for {ticker} not found. Creating it now..."
+            )
             initialize_workspace(target_path, ticker)
             msg = f"Indubitably! I have created and switched our workspace to [bold]{ticker}[/bold].\nAll 8 folders are initialized at: {target_path}"
         else:

@@ -1,0 +1,3 @@
+## 2024-03-24 - File I/O Bottleneck in Financial Line Item Extraction
+**Learning:** In pipelines extracting large amounts of structured data (like line items in financial reports), reading context from disk *per item* results in an O(N) disk read bottleneck that scales poorly as document size grows.
+**Action:** Always verify if a context or metadata file needs to be read dynamically per item. If the context is stable for the life cycle of the process or can be managed in memory, lazily load it into an instance-level cache (e.g. `self._extract_context_cache`). When updating the context, append to the cached string and write to disk, avoiding full re-reads.

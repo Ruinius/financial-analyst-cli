@@ -119,6 +119,7 @@ def test_cli_use_command(temp_config):
     assert updated.active_ticker == "AAPL"
     assert updated.active_workspace_path == str(target_path)
 
+
 def test_cli_use_command_lowercase_ticker(temp_config):
     base_dir = temp_config.parent / "workspace"
     settings = Settings(
@@ -141,10 +142,10 @@ def test_cli_use_command_lowercase_ticker(temp_config):
     assert updated.active_ticker == "MSFT"
     assert updated.active_workspace_path == str(target_path)
 
+
 def test_startup_config_auto_detection(monkeypatch, temp_config):
     # Test that auto-init is triggered if config is missing
     from src.cli.main import main
-    import sys
 
     assert not config_exists()
 
@@ -161,8 +162,10 @@ def test_startup_config_auto_detection(monkeypatch, temp_config):
     except SystemExit as e:
         assert e.code == 1
 
+
 def test_pig_animation_custom_prompt():
     from src.utils.pig_animation import PigState
+
     state = PigState()
     prompt_html = state.get_prompt("Enter something: ")
     assert "Enter something: " in str(prompt_html)
