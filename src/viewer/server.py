@@ -47,8 +47,18 @@ class DCFViewerHandler(http.server.SimpleHTTPRequestHandler):
             filename = path.replace("/api/models/", "")
             try:
                 models_dir = self.get_models_dir()
-                file_path = models_dir / filename
-                if file_path.exists():
+
+                # Prevent path traversal vulnerabilities
+                filename = urllib.parse.unquote(filename)
+                file_path = (models_dir / filename).resolve()
+
+                # Ensure the resolved path is within the models_dir
+                if not file_path.is_relative_to(models_dir.resolve()):
+                    self.send_response(403)
+                    self.end_headers()
+                    return
+
+                if file_path.exists() and file_path.is_file():
                     with open(file_path, "r", encoding="utf-8") as f:
                         data = json.load(f)
                     self.send_response(200)
