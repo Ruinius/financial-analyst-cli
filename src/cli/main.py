@@ -138,29 +138,27 @@ app.command("viewer")(viewer_cmd.main_viewer)
 
 @app.callback()
 def main_callback(ctx: typer.Context):
-    """Global callback to verify configuration existence."""
-    # Check if we are running 'config init' or requesting help to avoid blocking
+    """Global callback."""
+    pass
+
+
+def main():
     args = sys.argv[1:]
 
     # Allow config init or help options without configuration
-    if "config" in args and "init" in args:
-        return
-    if "--help" in args or "-h" in args:
-        return
+    is_help = "--help" in args or "-h" in args
+    is_config_init = "config" in args and "init" in args
 
-    # Auto-initialize if config file does not exist
-    if not config_exists():
+    if not config_exists() and not is_help and not is_config_init:
         try:
             config_cmd.initialize_config_flow()
         except typer.Abort:
             formatting.print_error("Configuration flow was aborted.")
-            raise typer.Exit(1)
+            sys.exit(1)
         except Exception as e:
             formatting.print_error(f"Failed to auto-initialize settings: {str(e)}")
-            raise typer.Exit(1)
+            sys.exit(1)
 
-
-def main():
     app()
 
 
