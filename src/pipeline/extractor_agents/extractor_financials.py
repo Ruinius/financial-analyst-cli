@@ -132,18 +132,9 @@ def calculate_deterministic_metrics(
     starting_name = "Operating Income"
     for item in extracted_line_items:
         n = item.line_name.lower()
-        if (
-            "operating_income" in n or "operating income" in n or "ebit" in n
-        ) and not item.calculated:
+        if "operating_income" in n or "operating income" in n or "ebit" in n:
             starting_val = item.value
             break
-    else:
-        for item in extracted_line_items:
-            n = item.line_name.lower()
-            if "income before tax" in n or "income_before_taxes" in n:
-                starting_val = item.value
-                starting_name = "Income Before Taxes"
-                break
 
     # Invested Capital
     oca_items = [
@@ -182,7 +173,7 @@ def calculate_deterministic_metrics(
     income_tax_expense = 0.0
     for item in extracted_line_items:
         n = item.line_name.lower()
-        if "income before tax" in n or "income_before_taxes" in n:
+        if "income before" in n or "income_before_taxes" in n:
             income_before_taxes = item.value
         elif "tax provision" in n or "income tax provision" in n or "tax expense" in n:
             income_tax_expense = item.value

@@ -73,6 +73,7 @@ Welcome to the `financial-analyst-cli` project.
   - tests/test_extractor_orchestrator.py: Unit tests for Pydantic validation schemas, classification, arithmetic schedules, and audit trail lineage.
   - tests/test_formatting.py: Unit tests for terminal formatting, rich output rendering, and animations.
   - tests/test_ingester.py: Unit tests for layout-preserving parsing, file hashing, chunking, and metadata identification.
+  - tests/test_markdown_table_validator.py: Unit tests for markdown table syntax validation.
   - tests/test_math_solver.py: Unit tests for the AST-sandboxed mathematical equation solver.
   - tests/test_modeler.py: Unit tests for DCF modeling, WACC calculation, and intrinsic valuation.
   - tests/test_query.py: Unit tests for database query parsing and execution.

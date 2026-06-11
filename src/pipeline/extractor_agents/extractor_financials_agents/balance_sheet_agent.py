@@ -14,6 +14,13 @@ def check_balance_sheet_quality(filepath: str, extractor) -> str:
     except Exception as e:
         return f"Error reading file: {e}"
 
+    # Programmatic check for markdown table formatting syntax
+    from src.utils.tools import validate_markdown_table_syntax
+
+    syntax_error = validate_markdown_table_syntax(content)
+    if syntax_error:
+        return syntax_error
+
     sys_prompt = (
         "You are a senior financial auditor. Perform a quality check on the following extracted Balance Sheet. "
         "Verify that Assets = Liabilities + Equity. Return 'PASSED' if everything is correct. "
@@ -54,8 +61,8 @@ def run_balance_sheet_agent(
         "Rules:\n"
         "1. You start with only file name and chunk IDs. You must find relevant chunks using keywords first.\n"
         "2. Fetch chunk content using get_chunk_by_id.\n"
-        "3. Append statements to the output file using append_markdown.\n"
-        "4. Always call check_balance_sheet_quality before finalizing. If it returns errors, use edit_markdown to fix them.\n"
+        "3. Append statements to the output file using append_markdown. The statement MUST be written as a valid, well-formed markdown table. Ensure that the table has a header row, followed immediately by a separator row (e.g., '| --- | --- | ...'), and all subsequent rows have the exact same number of columns.\n"
+        "4. Always call check_balance_sheet_quality before finalizing. If it returns errors (including markdown table syntax formatting errors), use edit_markdown to fix them.\n"
         "5. When everything is correct and quality check passes, call the tool 'finalize' to exit."
     )
     run_extraction_agent(

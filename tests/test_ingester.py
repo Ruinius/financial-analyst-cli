@@ -150,8 +150,10 @@ def test_ingestion_limit(
     mock_load_config.return_value = mock_settings
     mock_llm_load_config.return_value = mock_settings
 
-    mock_llm.side_effect = [
-        json.dumps(
+    # Each file processed makes 2 LLM calls (initial identification + quality check)
+    side_effects = []
+    for i in range(3):
+        val = json.dumps(
             {
                 "document_date": f"2023-09-2{i}",
                 "period_end_date": f"2023-09-2{i}",
@@ -159,8 +161,8 @@ def test_ingestion_limit(
                 "fiscal_quarter": "FY",
             }
         )
-        for i in range(3)
-    ]
+        side_effects.extend([val, val])
+    mock_llm.side_effect = side_effects
 
     workspace = Path(mock_settings.active_workspace_path)
     # Write 3 files
@@ -175,6 +177,87 @@ def test_ingestion_limit(
     # Verify that exactly 2 parsed files were created
     parsed_files = list((workspace / "2_parsed_data").glob("*.md"))
     assert len(parsed_files) == 2
+
+
+@patch("src.services.llm_client.load_config")
+@patch("src.pipeline.ingester.load_config")
+@patch("src.services.llm_client.LLMClient.generate")
+def test_ingestion_quality_check_correction(
+    mock_llm, mock_load_config, mock_llm_load_config, mock_settings
+):
+    mock_load_config.return_value = mock_settings
+    mock_llm_load_config.return_value = mock_settings
+
+    # First turn: invalid type; second turn: corrected type
+    mock_llm.side_effect = [
+        json.dumps(
+            {
+                "document_date": "2023-09-30",
+                "period_end_date": "2023-09-30",
+                "document_type": "annual_report",  # Invalid
+                "fiscal_quarter": "FY",
+            }
+        ),
+        json.dumps(
+            {
+                "document_date": "2023-09-30",
+                "period_end_date": "2023-09-30",
+                "document_type": "annual_filing",  # Corrected
+                "fiscal_quarter": "FY",
+            }
+        ),
+    ]
+
+    workspace = Path(mock_settings.active_workspace_path)
+    raw_file = workspace / "1_ingest_data" / "filing.htm"
+    raw_file.write_text("<h1>Annual Report</h1>", encoding="utf-8")
+
+    ingester = Ingester()
+    ingester.run_ingestion()
+
+    parsed_file = workspace / "2_parsed_data" / "20230930_annual_filing.md"
+    assert parsed_file.exists()
+
+
+@patch("src.services.llm_client.load_config")
+@patch("src.pipeline.ingester.load_config")
+@patch("src.services.llm_client.LLMClient.generate")
+def test_ingestion_quality_check_fallback(
+    mock_llm, mock_load_config, mock_llm_load_config, mock_settings
+):
+    mock_load_config.return_value = mock_settings
+    mock_llm_load_config.return_value = mock_settings
+
+    # Both turns return invalid document types
+    mock_llm.side_effect = [
+        json.dumps(
+            {
+                "document_date": "2023-09-30",
+                "period_end_date": "2023-09-30",
+                "document_type": "annual_report",
+                "fiscal_quarter": "FY",
+            }
+        ),
+        json.dumps(
+            {
+                "document_date": "2023-09-30",
+                "period_end_date": "2023-09-30",
+                "document_type": "invalid_doc_type",
+                "fiscal_quarter": "FY",
+            }
+        ),
+    ]
+
+    workspace = Path(mock_settings.active_workspace_path)
+    raw_file = workspace / "1_ingest_data" / "filing.htm"
+    raw_file.write_text("<h1>Annual Report</h1>", encoding="utf-8")
+
+    ingester = Ingester()
+    ingester.run_ingestion()
+
+    # Should fallback to 'other'
+    parsed_file = workspace / "2_parsed_data" / "20230930_other.md"
+    assert parsed_file.exists()
 
 
 @patch("src.services.llm_client.load_config")

@@ -16,17 +16,9 @@ def run_ebita_and_tax_agent(
     operating_income = 0.0
     for item in extracted_line_items:
         n = item.line_name.lower()
-        if (
-            "operating_income" in n or "operating income" in n or "ebit" in n
-        ) and not item.calculated:
+        if "operating_income" in n or "operating income" in n or "ebit" in n:
             operating_income = item.value
             break
-    else:
-        for item in extracted_line_items:
-            n = item.line_name.lower()
-            if "income before tax" in n or "income_before_taxes" in n:
-                operating_income = item.value
-                break
 
     reported_tax = 0.0
     income_before_taxes = 0.0
@@ -35,7 +27,7 @@ def run_ebita_and_tax_agent(
         n = item.line_name.lower()
         if "provision" in n or "tax expense" in n or "tax provision" in n:
             reported_tax = item.value
-        elif "income before tax" in n or "income_before_taxes" in n:
+        elif "income before" in n or "income_before_taxes" in n:
             income_before_taxes = item.value
         elif "net income" in n or "net_income" in n:
             net_income = item.value

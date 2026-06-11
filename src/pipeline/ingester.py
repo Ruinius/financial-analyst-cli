@@ -242,21 +242,64 @@ Please return a valid JSON object matching this structure:
   "fiscal_quarter": "Q1 | Q2 | Q3 | Q4 | FY | N/A"
 }}
 """
-        response_text = self.llm.generate(prompt, system_prompt=system_prompt)
+        response_text_first = self.llm.generate(prompt, system_prompt=system_prompt)
 
-        # Extract JSON block
-        json_match = re.search(r"\{.*\}", response_text, re.DOTALL)
-        if json_match:
+        # Parse document types keys for validation
+        doc_types_keys = []
+        if doc_types_path.exists():
             try:
-                meta = json.loads(json_match.group(0))
-                return (
-                    meta.get("document_date", "YYYY-MM-DD"),
-                    meta.get("document_type", "other"),
-                    meta.get("fiscal_quarter", "N/A"),
-                    meta.get("period_end_date", "N/A"),
-                )
+                with open(doc_types_path, "r", encoding="utf-8") as f:
+                    doc_types_data = json.load(f)
+                    doc_types_keys = list(
+                        doc_types_data.get("document_types", {}).keys()
+                    )
             except Exception:
                 pass
+        if not doc_types_keys:
+            doc_types_keys = [
+                "earnings_announcement",
+                "quarterly_filing",
+                "annual_filing",
+                "press_release",
+                "analyst_report",
+                "news_article",
+                "transcript",
+                "other",
+            ]
+
+        # Second turn: Quality check on the document_type
+        quality_prompt = f"""
+You previously analyzed the document and proposed the following metadata:
+{response_text_first}
+
+Please run a quality check on this result. In particular, verify that the 'document_type' field is exactly one of the valid document types:
+{json.dumps(doc_types_keys)}
+
+If it is not, or if you believe the document type should be corrected based on the document type definitions, please update it.
+Return ONLY a valid JSON object matching the requested structure.
+"""
+        logger.info("Performing quality check on extracted metadata...")
+        response_text_second = self.llm.generate(
+            quality_prompt, system_prompt=system_prompt
+        )
+
+        # Extract and parse response (preferring second turn, fallback to first)
+        for response_text in [response_text_second, response_text_first]:
+            json_match = re.search(r"\{.*\}", response_text, re.DOTALL)
+            if json_match:
+                try:
+                    meta = json.loads(json_match.group(0))
+                    doc_type = meta.get("document_type", "other")
+                    if doc_type not in doc_types_keys:
+                        doc_type = "other"
+                    return (
+                        meta.get("document_date", "YYYY-MM-DD"),
+                        doc_type,
+                        meta.get("fiscal_quarter", "N/A"),
+                        meta.get("period_end_date", "N/A"),
+                    )
+                except Exception:
+                    pass
 
         return ("YYYY-MM-DD", "other", "N/A", "N/A")
 
