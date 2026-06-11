@@ -12,3 +12,8 @@ We learned that all strings taken from untrusted inputs that will be interpolate
 
 **Prevention:**
 Enforce strict validation (like a regex match) or sanitization (like `re.sub(r"[^a-zA-Z0-9_-]", "", ticker)`) for all user-controlled data before it interacts with the file system. Use `resolve()` and ensure that the resulting path falls within the intended directory hierarchy before performing file operations.
+
+## 2024-06-11 - Exposed Sensitive Data in Server Error Messages
+**Vulnerability:** A critical vulnerability was found in `src/viewer/server.py` where exceptions were caught broadly and their raw string representation `str(e)` was returned directly to users in the JSON response of HTTP requests. This could leak internal absolute file paths, configuration details, or other sensitive runtime data to whoever queries the endpoints.
+**Learning:** Returning raw exception messages to clients is a common source of information leakage. We learned that generic error handling blocks must decouple internal logging from external responses.
+**Prevention:** Always log the actual exception details internally using `logger.error(e)` or similar, but return a sanitized, generic message (like `"An internal error occurred."`) in the API response.

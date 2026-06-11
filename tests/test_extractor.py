@@ -94,8 +94,9 @@ def test_classifier(mock_search, mock_llm_class, mock_load_config, tmp_path):
 
 
 @patch("src.pipeline.extractor.load_config")
+@patch("src.pipeline.extractor.LLMClient")
 @patch("src.pipeline.extractor.Extractor.extract_single_file")
-def test_extractor_limit(mock_extract, mock_load_config, tmp_path):
+def test_extractor_limit(mock_extract, mock_llm_client, mock_load_config, tmp_path):
     workspace = tmp_path / "AAPL"
     workspace.mkdir()
     (workspace / "2_parsed_data").mkdir()
@@ -123,8 +124,11 @@ def test_extractor_limit(mock_extract, mock_load_config, tmp_path):
 
 
 @patch("src.pipeline.extractor.load_config")
+@patch("src.pipeline.extractor.LLMClient")
 @patch("src.pipeline.extractor.Extractor.extract_single_file")
-def test_extractor_ignores_readme_and_hidden(mock_extract, mock_load_config, tmp_path):
+def test_extractor_ignores_readme_and_hidden(
+    mock_extract, mock_llm_client, mock_load_config, tmp_path
+):
     workspace = tmp_path / "AAPL"
     workspace.mkdir()
     (workspace / "2_parsed_data").mkdir()
