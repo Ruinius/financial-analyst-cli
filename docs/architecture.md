@@ -41,7 +41,6 @@ financial-analyst-cli/
 │   ├── cli_spec.md
 │   ├── requirements.md
 │   └── roadmap.md
-├── scripts/                        # Legacy reference scripts (DO NOT use as-is)
 ├── tmp/                            # Temporary logs, scratchpads, and scripts
 ├── src/                            # Application source code
 │   ├── __init__.py
@@ -58,12 +57,14 @@ financial-analyst-cli/
 │   │   ├── __init__.py
 │   │   ├── edgar_client.py         # SEC EDGAR download API client
 │   │   ├── llm_client.py           # Unified client for text & vision LLMs
+│   │   ├── market_data.py          # Yahoo Finance market data and ticker checker
 │   │   ├── web_search.py           # Fallback search for accounting classifications
 │   │   └── math_solver.py          # Sandboxed Python execution for custom calculations
 │   ├── pipeline/                   # Sequential pipeline orchestration
 │   │   ├── __init__.py
 │   │   ├── queue.py                # Safe job queue & retry manager
 │   │   ├── ingester.py             # File ingestion, hashing & chunking
+│   │   ├── document_types.json     # Mapping definitions for supported report types
 │   │   ├── extractor_orchestrator.py # Routing extraction jobs to sub-extractors
 │   │   └── extractor_agents/        # Folder containing specialized extractors and agents
 │   │       ├── extractor_financials.py # Specialized coordinator for 10K, 10Q, 20F, etc.

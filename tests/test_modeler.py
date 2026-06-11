@@ -37,18 +37,18 @@ def mock_workspace(tmp_path):
 
 
 @patch("src.pipeline.modeler.load_config")
-@patch("src.pipeline.modeler.subprocess.run")
-def test_calculate_default_assumptions(mock_run, mock_load_config, mock_workspace):
-    # Mock subprocess for market data
-    mock_run.return_value.returncode = 0
-    mock_run.return_value.stdout = json.dumps(
-        {
-            "share_price": 150.0,
-            "market_cap": 1500000000,
-            "beta": 1.2,
-            "shares_outstanding": 10000000,
-        }
-    )
+@patch("src.services.market_data.get_market_profile")
+def test_calculate_default_assumptions(
+    mock_get_profile, mock_load_config, mock_workspace
+):
+    # Mock market profile lookup
+    mock_get_profile.return_value = {
+        "valid": True,
+        "share_price": 150.0,
+        "market_cap": 1500000000,
+        "beta": 1.2,
+        "shares_outstanding": 10000000,
+    }
 
     # Mock settings
     mock_settings = MagicMock()

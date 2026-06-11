@@ -329,8 +329,8 @@ def test_extract_financials_stages(mock_llm_class, mock_load_config, tmp_path):
 
     extractor = Extractor()
 
+    from src.utils.tools import find_keyword_contexts
     from src.pipeline.extractor_agents.extractor_financials import (
-        find_keyword_contexts,
         extract_financial_statements,
         run_diluted_shares_agent,
         run_organic_growth_agent,

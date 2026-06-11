@@ -1,7 +1,5 @@
 import json
 import re
-import sys
-import subprocess
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, List, Optional
@@ -132,22 +130,17 @@ class Modeler:
         analysis_dir = workspace / "5_historical_analysis"
 
         # 1. Fetch Latest Market Data
-        profile_cmd = [
-            sys.executable,
-            str(Path("scripts/market_data.py").absolute()),
-            "profile",
-            ticker,
-        ]
+        from src.services.market_data import get_market_profile
 
         market_data = {}
         try:
-            res = subprocess.run(profile_cmd, capture_output=True, text=True)
-            if res.returncode == 0:
-                market_data = json.loads(res.stdout)
-            else:
-                formatting.print_warning(f"Error fetching market data: {res.stderr}")
+            market_data = get_market_profile(ticker)
+            if not market_data.get("valid"):
+                formatting.print_warning(
+                    f"Error fetching market data: {market_data.get('error')}"
+                )
         except Exception as e:
-            formatting.print_warning(f"Error parsing market data JSON: {e}")
+            formatting.print_warning(f"Error fetching/parsing market data: {e}")
 
         share_price = market_data.get("share_price") or 0
         market_cap = market_data.get("market_cap") or 0

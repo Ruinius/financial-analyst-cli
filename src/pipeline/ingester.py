@@ -195,7 +195,7 @@ class Ingester:
     ) -> Tuple[str, str, str, str]:
         """Use LLM to identify document_date, document_type, fiscal_quarter, and period_end_date."""
         # Load document types spec
-        doc_types_path = Path("scripts/document_types.json")
+        doc_types_path = Path(__file__).parent / "document_types.json"
         doc_types_str = ""
         if doc_types_path.exists():
             with open(doc_types_path, "r", encoding="utf-8") as f:
