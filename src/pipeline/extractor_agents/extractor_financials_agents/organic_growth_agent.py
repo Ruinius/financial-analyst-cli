@@ -24,7 +24,7 @@ def run_organic_growth_agent(
         "1. Search the document for organic growth, constant currency adjustments, acquisitions, and revenue growth using find_keyword_contexts.\n"
         "2. If organic growth or constant currency growth is explicitly reported, extract it. Check if there are M&A contributions that should be backed out.\n"
         "3. If organic growth is NOT explicitly reported, compute it: e.g. Organic Growth = Constant Currency Growth (if reported, otherwise simple growth) - (Acquisition revenue / Total revenue).\n"
-        "4. Call 'finalize' with your final extracted/calculated growth percentages."
+        "4. Call 'finalize' with your final extracted/calculated growth rates. You must express the values as percentage float strings (e.g., '18.25%' for 18.25% growth, '8.00%' for 8% growth, or '0.50%' for 0.5% growth). Format the percentage with two decimal places."
     )
 
     user_content = f"Find simple and organic revenue growth. The reported revenue is {revenue}. You have up to 4 turns."
@@ -77,10 +77,11 @@ def run_organic_growth_agent(
         if tool == "finalize":
 
             def clean_growth_val(val: str) -> float:
-                parsed = clean_val(val)
-                if abs(parsed) > 1.0:
+                val_str = str(val).strip()
+                parsed = clean_val(val_str)
+                if "%" not in val_str and abs(parsed) > 1.0:
                     parsed /= 100.0
-                return parsed
+                return round(parsed, 4)
 
             simple_growth = clean_growth_val(str(args.get("simple_growth", "0")))
             organic_growth = clean_growth_val(str(args.get("organic_growth", "0")))

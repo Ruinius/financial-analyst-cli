@@ -224,7 +224,7 @@ def run_edgar(
         raise typer.Exit(1)
 
     formatting.speak(
-        f"Ah, let us fetch the filings for [bold]{active_ticker}[/bold] from the SEC EDGAR archives, my dear fellow!"
+        f"Ah, let us fetch the filings for {active_ticker} from the SEC EDGAR archives, my dear fellow!"
     )
     formatting.print_info(
         f"Starting filings download for {active_ticker} (limit {years} years)..."
@@ -284,7 +284,7 @@ def run_ingest(ticker: str = typer.Option(None, "--ticker", "-t")):
         return
 
     formatting.speak(
-        f"Splendid! I found [bold]{len(raw_files)}[/bold] raw file(s) ready for ingestion."
+        f"Splendid! I found {len(raw_files)} raw file(s) ready for ingestion."
     )
 
     response = typer.prompt("How many files would you like to process?", default="all")
@@ -349,7 +349,7 @@ def run_extract(ticker: str = typer.Option(None, "--ticker", "-t")):
         return
 
     formatting.speak(
-        f"Splendid! I found [bold]{len(parsed_files)}[/bold] parsed file(s) ready for extraction."
+        f"Splendid! I found {len(parsed_files)} parsed file(s) ready for extraction."
     )
 
     response = typer.prompt("How many files would you like to process?", default="all")
@@ -414,7 +414,7 @@ def run_historical(ticker: str = typer.Option(None, "--ticker", "-t")):
         return
 
     formatting.speak(
-        f"Let us synthesize the longitudinal financial trends! I found [bold]{extracted_files_count}[/bold] extracted file(s) ready for analysis."
+        f"Let us synthesize the longitudinal financial trends! I found {extracted_files_count} extracted file(s) ready for analysis."
     )
 
     response = typer.prompt("How many files would you like to process?", default="all")

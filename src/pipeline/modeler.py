@@ -12,24 +12,33 @@ from src.rust_core.fallback import calculate_dcf
 def clean_value(val_str: Any) -> float:
     if val_str is None:
         return 0.0
-    s = (
-        str(val_str)
+    val_str_cleaned = str(val_str).strip()
+    if val_str_cleaned == "N/A" or val_str_cleaned == "--" or not val_str_cleaned:
+        return 0.0
+    cleaned = (
+        val_str_cleaned.replace(",", "")
+        .replace("$", "")
         .replace("x", "")
         .replace("X", "")
-        .replace("M", "")
-        .replace("B", "")
-        .replace("K", "")
-        .replace("$", "")
-        .replace(" ", "")
-        .replace("%", "")
-        .replace(",", "")
+        .strip()
     )
-    if s == "N/A" or s == "--" or not s:
-        return 0.0
-    try:
-        return float(s)
-    except ValueError:
-        return 0.0
+    is_negative = False
+    if cleaned.startswith("("):
+        is_negative = True
+        cleaned = cleaned.strip("()")
+
+    cleaned = cleaned.replace("%", "")
+
+    match = re.search(r"(-?\d+\.?\d*)", cleaned)
+    if match:
+        try:
+            num = float(match.group(1))
+            if is_negative:
+                num = -num
+            return num
+        except ValueError:
+            return 0.0
+    return 0.0
 
 
 def parse_markdown_table(

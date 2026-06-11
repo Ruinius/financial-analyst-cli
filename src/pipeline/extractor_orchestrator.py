@@ -71,17 +71,38 @@ def get_chunk_by_id(content: str, chunk_id: int) -> str:
 
 def clean_val(val: str) -> float:
     """Clean string number to float."""
-    if not val or val.strip() == "N/A" or val.strip() == "--":
+    if not val:
         return 0.0
-    cleaned = val.replace(",", "").replace("$", "").strip()
+    val_str = str(val).strip()
+    if val_str == "N/A" or val_str == "--" or not val_str:
+        return 0.0
+    cleaned = val_str.replace(",", "").replace("$", "").strip()
+    is_negative = False
     if cleaned.startswith("("):
-        cleaned = "-" + cleaned.strip("()")
-    try:
-        if "%" in cleaned:
-            return float(cleaned.replace("%", "")) / 100.0
-        return float(cleaned)
-    except (ValueError, TypeError):
-        return 0.0
+        is_negative = True
+        cleaned = cleaned.strip("()")
+
+    if "%" in cleaned:
+        pct_match = re.search(r"(-?\d+\.?\d*)", cleaned)
+        if pct_match:
+            try:
+                num = float(pct_match.group(1))
+                if is_negative:
+                    num = -num
+                return num / 100.0
+            except ValueError:
+                pass
+
+    match = re.search(r"(-?\d+\.?\d*)", cleaned)
+    if match:
+        try:
+            num = float(match.group(1))
+            if is_negative:
+                num = -num
+            return num
+        except ValueError:
+            return 0.0
+    return 0.0
 
 
 class Extractor:

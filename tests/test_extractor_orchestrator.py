@@ -73,6 +73,11 @@ def test_clean_val():
     assert clean_val("N/A") == 0.0
     assert clean_val(" -- ") == 0.0
     assert clean_val("10%") == 0.10
+    assert clean_val("280 million") == 280.0
+    assert clean_val("283 million shares") == 283.0
+    assert clean_val("280M") == 280.0
+    assert clean_val("280.5M") == 280.5
+    assert clean_val("(15.5 million)") == -15.5
 
 
 def test_calculations_logic():

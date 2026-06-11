@@ -29,7 +29,7 @@ def query_summary(ticker: str = typer.Argument(..., help="Company ticker symbol"
     quarterly_path = workspace / "5_historical_analysis" / "financials_quarter.md"
 
     formatting.speak(
-        f"Here is a summary of historical financial tables for [bold]{ticker}[/bold], my dear fellow:"
+        f"Here is a summary of historical financial tables for {ticker}, my dear fellow:"
     )
     read_markdown_file(annual_path)
     read_markdown_file(quarterly_path)
@@ -44,7 +44,7 @@ def query_assessment(ticker: str = typer.Argument(..., help="Company ticker symb
     views_path = workspace / "5_historical_analysis" / "analyst_views.md"
 
     formatting.speak(
-        f"Here is the qualitative moat and margin assessment report for [bold]{ticker}[/bold]:"
+        f"Here is the qualitative moat and margin assessment report for {ticker}:"
     )
     read_markdown_file(views_path)
 
@@ -74,7 +74,7 @@ def query_valuation(ticker: str = typer.Argument(..., help="Company ticker symbo
     latest_model = max(models, key=lambda p: p.stat().st_mtime)
 
     formatting.speak(
-        f"Behold the cost of capital and DCF intrinsic valuation models for [bold]{ticker}[/bold]:"
+        f"Behold the cost of capital and DCF intrinsic valuation models for {ticker}:"
     )
     read_markdown_file(latest_model)
 
@@ -102,7 +102,7 @@ def query_trace(
         return
 
     formatting.speak(
-        f"Tracing the audit trail and provenance for [bold]'{metric}'[/bold] in [bold]{period}[/bold]:"
+        f"Tracing the audit trail and provenance for '{metric}' in {period}:"
     )
     found = False
 

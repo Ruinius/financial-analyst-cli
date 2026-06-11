@@ -28,7 +28,7 @@ def run_diluted_shares_agent(
         "}\n\n"
         "Rules:\n"
         "1. You have a maximum of 4 turns. Search for keyword contexts first.\n"
-        "2. When you find the values, call 'finalize' with the basic and diluted shares."
+        "2. When you find the values, call 'finalize' with the basic and diluted shares. You must express the values as float strings in millions of shares, formatted with two decimal places (e.g., '280.00' for 280 million shares, or '283.13' for 283,125,000 shares). Do not write 'million' or include commas in the values."
     )
 
     user_content = "Start searching for basic and diluted shares outstanding. Remember, you have up to 4 turns."

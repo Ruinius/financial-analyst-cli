@@ -106,9 +106,9 @@ def main_use(
                 f"Workspace for {ticker} not found. Creating it now..."
             )
             initialize_workspace(target_path, ticker)
-            msg = f"Indubitably! I have created and switched our workspace to [bold]{ticker}[/bold].\nAll 7 folders are initialized at: {target_path}"
+            msg = f"Indubitably! I have created and switched our workspace to {ticker}.\nAll 7 folders are initialized at: {target_path}"
         else:
-            msg = f"Indubitably! I have switched our workspace to [bold]{ticker}[/bold].\nActive workspace path: {target_path}"
+            msg = f"Indubitably! I have switched our workspace to {ticker}.\nActive workspace path: {target_path}"
 
         # Update settings
         settings.active_ticker = ticker
