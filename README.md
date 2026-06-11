@@ -14,7 +14,12 @@ The interface is hosted by **Sir Pennyworth**, a greedy financial analyst pig wi
    └───────────┘
 ```
 
-![Sir Pennyworth Help Screen](assets/cli_help.png)
+<p align="center">
+  <img src="assets/cli_help.png" alt="Sir Pennyworth Help Screen" width="800" />
+  <br>
+  <em>Screenshot 1: The Sir Pennyworth interactive CLI help screen showing global options and available subcommands.</em>
+</p>
+
 
 ---
 
@@ -160,7 +165,12 @@ uv run fa run historical
 uv run fa run model
 ```
 
-![Pipeline Execution](assets/pipeline_run.png)
+<p align="center">
+  <img src="assets/pipeline_run.png" alt="Pipeline Execution" width="800" />
+  <br>
+  <em>Screenshot 2: Step-by-step pipeline execution output showing ingest, extraction, and mathematical modeling tasks.</em>
+</p>
+
 
 ### 2. `fa chat` (Interactive Analyst Shell)
 
