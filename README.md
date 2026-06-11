@@ -84,8 +84,8 @@ This project uses a hybrid architecture consisting of a Python CLI and a compile
 
 ### Prerequisites
 
-1. **Python**: Python >= 3.12 (recommend managing via `uv`).
-2. **uv**: This project uses `uv` for package management. Install it via `pip install uv` or follow instructions on [astral.sh/uv](https://astral.sh/uv).
+1. **Python**: Python >= 3.14 (recommend managing via `uv`).
+2. **uv**: This project uses `uv` for package management. Install it via instructions on [astral.sh/uv](https://astral.sh/uv).
 3. **Rust Toolchain**: To compile the Rust core modules, you must have Rust and `cargo` installed (via [rustup.rs](https://rustup.rs/)).
 
 ### Environment Initialization
@@ -109,8 +109,7 @@ uv run python main.py
 The CLI ships with a pure Python fallback. However, for maximum calculation performance, you can optionally build the Rust extension module:
 
 ```powershell
-# Ensure you have Rust installed via rustup.rs
-uv pip install maturin
+# Compile the Rust extension module using maturin
 uv run maturin develop
 ```
 
@@ -118,11 +117,11 @@ uv run maturin develop
 
 ## First-Time Configuration
 
-When you execute `fa` for the first time, Sir Pennyworth guides you through an interactive configuration setup:
+When you execute `fa` for the first time, Sir Pennyworth guides you through an interactive configuration setup. The configuration settings are saved locally to a `.env` file in the project root:
 
 1. **User Identity**: Full name, email, and project name (crucial for declaring SEC EDGAR user-agent headers).
-2. **LLM API Credentials**: Setup OpenRouter, Gemini, OpenAI, or other keys.
-3. **Model Selection**: Select your preferred text and vision LLMs.
+2. **LLM API Credentials**: Select your API provider (`openrouter`, `gemini`, or `deepseek`) and input the corresponding API key.
+3. **Model Selection**: Select your preferred Text-to-Text Model ID (e.g., `google/gemma-4-31b-it:free`, `gemini-2.5-flash`, or `deepseek-v4-flash`).
 4. **Workspace Path**: Specify a directory where company analyses will be run.
 
 ---
@@ -131,7 +130,7 @@ When you execute `fa` for the first time, Sir Pennyworth guides you through an i
 
 Setting up a workspace for a company ticker (e.g., `AAPL` or `MSFT`) initializes the following directory structure:
 
-- **`1_ingest_data/`**: Raw documents (10-Ks, 10-Qs, earnings transcripts, analyst reports, press releases, etc.) and `edgar_downloads.csv`.
+- **`1_ingest_data/`**: Raw documents (10-Ks, 10-Qs, earnings transcripts, analyst reports, press releases, etc.).
 - **`2_parsed_data/`**: Markdown conversions of raw files (`YYYYMMDD_filetype.md`) and a `parsed_data.csv` index.
 - **`3_archived_data/`**: Archived original files.
 - **`4_extracted_data/`**: Parsed metrics, statement summaries, and audit trail metadata.
@@ -236,6 +235,8 @@ The codebase is organized as a hybrid Python-Rust application:
 * **`scripts/`**: Contains legacy reference scripts from the old `financial-analyst-skills` repository. **Note:** Do not run these as-is; they serve strictly as inspiration/reference.
 * **`tmp/`**: Dedicated local directory for temporary developer logs, scratchpads, and execution scripts.
 * **`docs/`**: Full project specification, requirements, and design documents.
+* **`tests/`**: Complete unit, E2E, and regression evaluation suite.
+* **`.jules/`**: Vulnerability post-mortems and performance learnings (e.g., file I/O bottleneck and local viewer path traversal prevention).
 
 For deeper details on modular clients, Pydantic validation structures, the central dictionary, and core design decisions, refer to the [System Architecture Document](docs/architecture.md) and the agent guidelines in [AGENTS.md](AGENTS.md).
 
