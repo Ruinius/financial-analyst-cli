@@ -12,6 +12,7 @@ Welcome to the `financial-analyst-cli` project.
   - [.jules/sentinel.md](file:///f:/AIML projects/financial-analyst-cli/.jules/sentinel.md): Learnings and preventions from path traversal vulnerabilities in local viewer server.
 - [Cargo.toml](file:///f:/AIML projects/financial-analyst-cli/Cargo.toml): Cargo configuration for the Rust Core calculation engine.
 - [docs/architecture.md](file:///f:/AIML projects/financial-analyst-cli/docs/architecture.md): System architecture, folder structure, and software design decisions.
+- [docs/agentic_refactor.md](file:///f:/AIML projects/financial-analyst-cli/docs/agentic_refactor.md): Plan and agent specification for transitioning to the multi-agent financial extraction system.
 - [docs/cli_spec.md](file:///f:/AIML projects/financial-analyst-cli/docs/cli_spec.md): CLI command hierarchy, options, parameters, and user experience specification.
 - [docs/requirements.md](file:///f:/AIML projects/financial-analyst-cli/docs/requirements.md): Scope of capabilities and product requirements translated from financial-analyst-skills.
 - [docs/roadmap.md](file:///f:/AIML projects/financial-analyst-cli/docs/roadmap.md): Six-phase development plan for implementing the Financial Analyst CLI.
@@ -33,7 +34,7 @@ Welcome to the `financial-analyst-cli` project.
 - [src/](file:///f:/AIML projects/financial-analyst-cli/src): Application source package.
   - [src/cli/](file:///f:/AIML projects/financial-analyst-cli/src/cli): Sub-commands and main CLI definitions.
     - [src/cli/main.py](file:///f:/AIML projects/financial-analyst-cli/src/cli/main.py): Primary Typer entry point and command router.
-    - [src/cli/commands/config.py](file:///f:/AIML projects/financial-analyst-cli/src/cli/commands/config.py): Commands for config initialization (`init`) and masked printing (`show`).
+    - [src/cli/commands/config.py](file:///f:/AIML projects/financial-analyst-cli/src/cli/commands/config.py): Commands for config initialization (`init`), masked printing (`show`), and direct parameter updating (`set`).
     - [src/cli/commands/use.py](file:///f:/AIML projects/financial-analyst-cli/src/cli/commands/use.py): Workspace switcher command that updates active ticker and initializes 8 folders.
   - [src/core/](file:///f:/AIML projects/financial-analyst-cli/src/core): Settings, custom exception classes, and Pydantic schemas.
     - [src/core/config.py](file:///f:/AIML projects/financial-analyst-cli/src/core/config.py): Settings model definition, loading/saving utilities, and API key masking.
@@ -41,7 +42,13 @@ Welcome to the `financial-analyst-cli` project.
   - [src/pipeline/](file:///f:/AIML projects/financial-analyst-cli/src/pipeline): Execution runner stages (ingest, extract, historical, model).
     - [src/pipeline/queue.py](file:///f:/AIML projects/financial-analyst-cli/src/pipeline/queue.py): Safe job queue and exponential back-off retry manager.
     - [src/pipeline/ingester.py](file:///f:/AIML projects/financial-analyst-cli/src/pipeline/ingester.py): File parsing, deduplication, chunking, and LLM metadata identification.
+    - [src/pipeline/extractor_orchestrator.py](file:///f:/AIML projects/financial-analyst-cli/src/pipeline/extractor_orchestrator.py): Orchestrates document parsing, metadata processing, and routing of extraction jobs to document-type sub-extractors.
+    - [src/pipeline/extractor_financials.py](file:///f:/AIML projects/financial-analyst-cli/src/pipeline/extractor_financials.py): Sub-extractor specialized for 10-K, 10-Q, 20-F, and earnings announcements.
+    - [src/pipeline/extractor_analyst_report.py](file:///f:/AIML projects/financial-analyst-cli/src/pipeline/extractor_analyst_report.py): Sub-extractor specialized for analyst reports.
+    - [src/pipeline/extractor_transcript.py](file:///f:/AIML projects/financial-analyst-cli/src/pipeline/extractor_transcript.py): Sub-extractor specialized for transcripts.
+    - [src/pipeline/extractor_other.py](file:///f:/AIML projects/financial-analyst-cli/src/pipeline/extractor_other.py): Sub-extractor specialized for all other document types.
     - [src/pipeline/analyzer.py](file:///f:/AIML projects/financial-analyst-cli/src/pipeline/analyzer.py): Longitudinal trend synthesis, analyst view compiling, and Q4 deduction engine.
+
   - [src/services/](file:///f:/AIML projects/financial-analyst-cli/src/services): SEC client, LLM wrapper, web search, and AST-sandboxed math solver.
     - [src/services/edgar_client.py](file:///f:/AIML projects/financial-analyst-cli/src/services/edgar_client.py): SEC EDGAR download API client.
     - [src/services/llm_client.py](file:///f:/AIML projects/financial-analyst-cli/src/services/llm_client.py): Unified client for text & vision LLMs.
@@ -50,18 +57,18 @@ Welcome to the `financial-analyst-cli` project.
   - [src/rust_core/__init__.py](file:///f:/AIML projects/financial-analyst-cli/src/rust_core/**init**.py): Hybrid import loader for calculation engine.
   - [src/viewer/index.html](file:///f:/AIML projects/financial-analyst-cli/src/viewer/index.html): Interactive zero-dependency web viewer template.
   - [src/resources/dictionary/](file:///f:/AIML projects/financial-analyst-cli/src/resources/dictionary): Central accounting glossary and classification dictionary containing definition markdowns and valuation treatment guidelines.
-    - [index.md](file:///f:/AIML projects/financial-analyst-cli/src/resources/dictionary/index.md): Index registry of all tracked accounting items.
-    - [revenue.md](file:///f:/AIML projects/financial-analyst-cli/src/resources/dictionary/revenue.md): Revenue definitions and treatment.
-    - [operating_income.md](file:///f:/AIML projects/financial-analyst-cli/src/resources/dictionary/operating_income.md): Operating income definitions and treatment.
-    - [cash.md](file:///f:/AIML projects/financial-analyst-cli/src/resources/dictionary/cash.md): Cash and equivalents definitions and treatment.
+    - [income_statement.md](file:///f:/AIML projects/financial-analyst-cli/src/resources/dictionary/income_statement.md): Table mapping of typical income statement line items.
+    - [balance_sheet.md](file:///f:/AIML projects/financial-analyst-cli/src/resources/dictionary/balance_sheet.md): Table mapping of typical balance sheet line items.
   - [src/utils/](file:///f:/AIML projects/financial-analyst-cli/src/utils): CLI output formatting and filesystem helpers.
     - [src/utils/formatting.py](file:///f:/AIML projects/financial-analyst-cli/src/utils/formatting.py): Rich terminal formatting helpers and Sir Pennyworth speech bubbles.
+    - [src/utils/tools.py](file:///f:/AIML projects/financial-analyst-cli/src/utils/tools.py): Universal utility tools (keyword context finding, markdown appenders, editors).
+
 - [tests/](file:///f:/AIML projects/financial-analyst-cli/tests): Test suite folder.
   - [tests/test_analyzer.py](file:///f:/AIML projects/financial-analyst-cli/tests/test_analyzer.py): Unit tests for qualitative views compiling, longitudinal financial trends, and Q4 deduction logic.
   - [tests/test_chat.py](file:///f:/AIML projects/financial-analyst-cli/tests/test_chat.py): Unit tests for interactive chat and assistant behavior.
   - [tests/test_config.py](file:///f:/AIML projects/financial-analyst-cli/tests/test_config.py): Unit and integration tests for CLI commands, key masking, settings logic, and folder initialization.
   - [tests/test_edgar.py](file:///f:/AIML projects/financial-analyst-cli/tests/test_edgar.py): Unit tests for the SEC EDGAR client and submissions retrieval.
-  - [tests/test_extractor.py](file:///f:/AIML projects/financial-analyst-cli/tests/test_extractor.py): Unit tests for Pydantic validation schemas, classification, arithmetic schedules, and audit trail lineage.
+  - [tests/test_extractor_orchestrator.py](file:///f:/AIML projects/financial-analyst-cli/tests/test_extractor_orchestrator.py): Unit tests for Pydantic validation schemas, classification, arithmetic schedules, and audit trail lineage.
   - [tests/test_formatting.py](file:///f:/AIML projects/financial-analyst-cli/tests/test_formatting.py): Unit tests for terminal formatting, rich output rendering, and animations.
   - [tests/test_ingester.py](file:///f:/AIML projects/financial-analyst-cli/tests/test_ingester.py): Unit tests for layout-preserving parsing, file hashing, chunking, and metadata identification.
   - [tests/test_math_solver.py](file:///f:/AIML projects/financial-analyst-cli/tests/test_math_solver.py): Unit tests for the AST-sandboxed mathematical equation solver.

@@ -17,7 +17,7 @@ from src.cli.commands import viewer as viewer_cmd
 from src.utils import formatting
 from src.services.edgar_client import EdgarClient
 from src.pipeline.ingester import Ingester
-from src.pipeline.extractor import Extractor
+from src.pipeline.extractor_orchestrator import Extractor
 from src.pipeline.modeler import Modeler
 
 app = typer.Typer(

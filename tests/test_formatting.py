@@ -66,7 +66,10 @@ def test_print_success(monkeypatch):
     print_success("Operation completed")
 
     assert len(prints) == 1
-    assert prints[0] == f"[bold {COLOR_SUCCESS}]✓ Success:[/bold {COLOR_SUCCESS}] Operation completed"
+    assert (
+        prints[0]
+        == f"[bold {COLOR_SUCCESS}]✓ Success:[/bold {COLOR_SUCCESS}] Operation completed"
+    )
 
 
 def test_print_error(monkeypatch):

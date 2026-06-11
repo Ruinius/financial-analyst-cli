@@ -348,46 +348,61 @@ This file contains automatically detected company configuration parameters.
         # Build new filename
         new_basename = f"{clean_date}_{doc_type}"
 
-        # Build chunk inventory table (chunk_id=0)
-        chunk_lines = []
-        chunk_lines.append("# Document Metadata & Chunk Inventory (chunk_id=0)\n")
-        chunk_lines.append("| Metadata Key | Value |")
-        chunk_lines.append("| --- | --- |")
-        chunk_lines.append(f"| Original Filename | {raw_path.name} |")
-        chunk_lines.append(f"| Document Date | {doc_date} |")
-        chunk_lines.append(f"| Document Type | {doc_type} |")
-        chunk_lines.append(f"| Fiscal Quarter | {fiscal_quarter} |")
-        chunk_lines.append(f"| File Hash | {file_hash} |\n")
+        # Compile body with chunk comments, tracking their exact positions in the final file
+        offsets = [(0, 0) for _ in chunks]
+        full_output = ""
+        for _ in range(3):
+            chunk_lines = []
+            chunk_lines.append("# Document Metadata & Chunk Inventory (chunk_id=0)\n")
+            chunk_lines.append("| Metadata Key | Value |")
+            chunk_lines.append("| --- | --- |")
+            chunk_lines.append(f"| Original Filename | {raw_path.name} |")
+            chunk_lines.append(f"| Document Date | {doc_date} |")
+            chunk_lines.append(f"| Document Type | {doc_type} |")
+            chunk_lines.append(f"| Fiscal Quarter | {fiscal_quarter} |")
+            chunk_lines.append(f"| File Hash | {file_hash} |\n")
 
-        chunk_lines.append("## Chunk Index Table")
-        chunk_lines.append(
-            "| Chunk ID | Character Range | Numbers Frequency | Symbols Frequency |"
-        )
-        chunk_lines.append("| --- | --- | --- | --- |")
-
-        # Compile body with chunk comments
-        body_with_chunks = []
-        char_idx = 0
-        for idx, chunk in enumerate(chunks, 1):
-            num_freq = len(re.findall(r"\d", chunk))
-            sym_freq = len(re.findall(r"[!@#$%^&*()_+\-=\[\]{}|;':\",./<>?]", chunk))
-            end_idx = char_idx + len(chunk)
-
+            chunk_lines.append("## Chunk Index Table")
             chunk_lines.append(
-                f"| {idx} | char {char_idx} to {end_idx} | {num_freq} | {sym_freq} |"
+                "| Chunk ID | Character Range | Numbers Frequency | Symbols Frequency |"
             )
+            chunk_lines.append("| --- | --- | --- | --- |")
 
-            body_with_chunks.append(
-                f"\n---\n<!-- CHUNK_START: {idx} -->\n{chunk}\n<!-- CHUNK_END: {idx} -->\n---"
-            )
-            char_idx = end_idx
+            for idx, chunk in enumerate(chunks, 1):
+                num_freq = len(re.findall(r"\d", chunk))
+                sym_freq = len(
+                    re.findall(r"[!@#$%^&*()_+\-=\[\]{}|;':\",./<>?]", chunk)
+                )
+                start_c, end_c = offsets[idx - 1]
+                chunk_lines.append(
+                    f"| {idx} | char {start_c} to {end_c} | {num_freq} | {sym_freq} |"
+                )
+
+            header_part = "\n".join(chunk_lines) + "\n"
+            current_output = header_part
+            new_offsets = []
+
+            for idx, chunk in enumerate(chunks, 1):
+                if idx > 1:
+                    current_output += "\n"
+                prefix = f"\n---\n<!-- CHUNK_START: {idx} -->\n"
+                current_output += prefix
+                start_pos = len(current_output)
+                current_output += chunk
+                end_pos = len(current_output)
+                suffix = f"\n<!-- CHUNK_END: {idx} -->\n---"
+                current_output += suffix
+
+                new_offsets.append((start_pos, end_pos))
+
+            offsets = new_offsets
+            full_output = current_output
 
         # Write output markdown
         parsed_dir = Path(self.settings.active_workspace_path) / "2_parsed_data"
         parsed_dir.mkdir(parents=True, exist_ok=True)
         out_markdown_path = parsed_dir / f"{new_basename}.md"
 
-        full_output = "\n".join(chunk_lines) + "\n" + "\n".join(body_with_chunks)
         with open(out_markdown_path, "w", encoding="utf-8") as f:
             f.write(full_output)
 

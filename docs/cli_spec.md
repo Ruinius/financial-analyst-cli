@@ -161,6 +161,8 @@ Views or mutates settings.
   - Interactively initializes credentials, directories, and LLM providers.
 - **`fa config show`**
   - Displays current config with sensitive API keys masked (e.g. `sk-...abcd`).
+- **`fa config set [--provider PROVIDER] [--openrouter-key KEY] [--gemini-key KEY]`**
+  - Directly updates configuration parameters such as the active API provider, OpenRouter API key, or Gemini API key without running the interactive wizard.
 
 ---
 

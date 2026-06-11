@@ -187,9 +187,9 @@ def test_initialize_config_flow_default_workspace(monkeypatch, temp_config):
         "Test User",  # Full Name
         "test@example.com",  # Email
         "Test_Project_2026",  # Project Name
-        "sk-abc123xyz",  # API Key
+        "openrouter",  # API Provider Selection
+        "sk-abc123xyz",  # OpenRouter API Key
         "",  # Text model (default)
-        "",  # Vision model (default)
         "",  # Workspace Path (default)
     ]
     prompt_idx = 0
@@ -250,3 +250,132 @@ def test_cli_run_edgar_uses_active_ticker(mock_download, temp_config):
     assert result.exit_code == 0
     assert "filings download for AAPL" in result.stdout
     mock_download.assert_called_once_with("AAPL", 5)
+
+
+def test_initialize_config_flow_gemini(monkeypatch, temp_config):
+    # Mock PromptSession to avoid NoConsoleScreenBufferError in tests
+    class MockPromptSession:
+        pass
+
+    monkeypatch.setattr("src.cli.commands.config.PromptSession", MockPromptSession)
+
+    from src.cli.commands.config import initialize_config_flow
+
+    prompts = [
+        "Test User Gemini",  # Full Name
+        "gemini@example.com",  # Email
+        "Gemini_Proj",  # Project Name
+        "gemini",  # API Provider Selection
+        "AIzaSy-geminiKey",  # Gemini API Key
+        "",  # Text model (default)
+        "",  # Workspace Path (default)
+    ]
+    prompt_idx = 0
+
+    async def mock_get_input_with_pig(*args, **kwargs):
+        nonlocal prompt_idx
+        val = prompts[prompt_idx]
+        prompt_idx += 1
+        return val
+
+    monkeypatch.setattr(
+        "src.cli.commands.config.get_input_with_pig", mock_get_input_with_pig
+    )
+
+    settings = initialize_config_flow()
+
+    assert settings.project_name == "Gemini_Proj"
+    assert settings.api_provider == "gemini"
+    assert settings.gemini_api_key == "AIzaSy-geminiKey"
+    assert settings.text_model_id == "gemini-2.5-flash"
+
+
+def test_cli_config_set(temp_config):
+    settings = Settings(
+        full_name="Bob",
+        email="bob@example.com",
+        project_name="BobProj",
+        primary_llm_api_key="sk-secret-key-1234",
+        base_workspace_dir=str(temp_config.parent / "workspace"),
+    )
+    save_config(settings)
+
+    # test setting provider and keys
+    result = runner.invoke(
+        app,
+        [
+            "config",
+            "set",
+            "--provider",
+            "gemini",
+            "--gemini-key",
+            "AIzaSy-new-gemini-key",
+        ],
+    )
+    assert result.exit_code == 0
+    assert "updated successfully" in result.stdout.lower()
+
+    updated = load_config()
+    assert updated.api_provider == "gemini"
+    assert updated.gemini_api_key == "AIzaSy-new-gemini-key"
+    assert updated.primary_llm_api_key == "AIzaSy-new-gemini-key"
+    assert updated.text_model_id == "gemini-2.5-flash"
+
+    # test setting provider to deepseek
+    result = runner.invoke(
+        app,
+        [
+            "config",
+            "set",
+            "--provider",
+            "deepseek",
+            "--deepseek-key",
+            "sk-ds-new-deepseek-key",
+        ],
+    )
+    assert result.exit_code == 0
+    assert "updated successfully" in result.stdout.lower()
+
+    updated = load_config()
+    assert updated.api_provider == "deepseek"
+    assert updated.deepseek_api_key == "sk-ds-new-deepseek-key"
+    assert updated.primary_llm_api_key == "sk-ds-new-deepseek-key"
+    assert updated.text_model_id == "deepseek-v4-flash"
+
+
+def test_initialize_config_flow_deepseek(monkeypatch, temp_config):
+    # Mock PromptSession to avoid NoConsoleScreenBufferError in tests
+    class MockPromptSession:
+        pass
+
+    monkeypatch.setattr("src.cli.commands.config.PromptSession", MockPromptSession)
+
+    from src.cli.commands.config import initialize_config_flow
+
+    prompts = [
+        "Test User DeepSeek",  # Full Name
+        "deepseek@example.com",  # Email
+        "DS_Proj",  # Project Name
+        "deepseek",  # API Provider Selection
+        "sk-ds-deepseekKey",  # DeepSeek API Key
+        "",  # Text model (default)
+        "",  # Workspace Path (default)
+    ]
+    prompt_idx = 0
+
+    async def mock_get_input_with_pig(*args, **kwargs):
+        nonlocal prompt_idx
+        val = prompts[prompt_idx]
+        prompt_idx += 1
+        return val
+
+    monkeypatch.setattr(
+        "src.cli.commands.config.get_input_with_pig", mock_get_input_with_pig
+    )
+
+    settings = initialize_config_flow()
+
+    assert settings.project_name == "DS_Proj"
+    assert settings.api_provider == "deepseek"
+    assert settings.deepseek_api_key == "sk-ds-deepseekKey"
+    assert settings.text_model_id == "deepseek-v4-flash"

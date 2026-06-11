@@ -64,7 +64,11 @@ financial-analyst-cli/
 │   │   ├── __init__.py
 │   │   ├── queue.py                # Safe job queue & retry manager
 │   │   ├── ingester.py             # File ingestion, hashing & chunking
-│   │   ├── extractor.py            # LLM data extraction & financial formatting
+│   │   ├── extractor_orchestrator.py # Routing extraction jobs to sub-extractors
+│   │   ├── extractor_financials.py  # Specialized extractor for 10K, 10Q, 20F, etc.
+│   │   ├── extractor_analyst_report.py # Specialized extractor for analyst reports
+│   │   ├── extractor_transcript.py  # Specialized extractor for transcripts
+│   │   ├── extractor_other.py       # Specialized extractor for other types
 │   │   ├── analyzer.py             # Historical synthesis & trend tracking
 │   │   └── modeler.py              # Assumption processing & model generation
 │   ├── rust_core/                  # Rust performance critical calculation engine
@@ -117,12 +121,11 @@ sequenceDiagram
     User->>CLI: fa run extract
     CLI->>Queue: Feed parsed files
     Queue->>Extract: Process sequentially
-    Extract->>Extract: Read chunk_id=0, fetch chunks one-by-one
-    Extract->>Extract: Extract qualitative statements / balance sheets
-    Extract->>Extract: Classify operating vs non-operating
-    Extract->>Extract: Compute ROIC, EBITA, NOPAT
+    Extract->>Extract: 1. Extract balance sheet/income statement using frequency-ranked chunks
+    Extract->>Extract: 2. Verify and interpret statements using Interpretation Agent (classification, subtotals, checks)
+    Extract->>Extract: 3. Extract shares and organic growth using Diluted Shares & Organic Growth Agents
+    Extract->>Extract: 4. Compute EBITA & tax adjustments using EBITA & Tax Agents and run deterministic computations (Invested Capital, NOPAT, ROIC)
     Extract->>User: Save outputs to 4_extracted_data & context to 6_company_context
-
     User->>CLI: fa run historical
     CLI->>Queue: Feed extracted data
     Queue->>Hist: Synthesize trends

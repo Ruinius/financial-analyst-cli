@@ -11,13 +11,21 @@ class Settings(BaseModel):
     full_name: str = Field(..., description="Full Name of the user")
     email: str = Field(..., description="Email address of the user")
     project_name: str = Field(..., description="Project name")
-    primary_llm_api_key: str = Field(..., description="Primary LLM API key")
+    primary_llm_api_key: Optional[str] = Field(
+        None, description="Primary LLM API key (legacy/fallback)"
+    )
+    api_provider: str = Field(
+        "openrouter",
+        description="Active API provider (openrouter, gemini, or deepseek)",
+    )
+    openrouter_api_key: Optional[str] = Field(None, description="OpenRouter API key")
+    gemini_api_key: Optional[str] = Field(None, description="Gemini API key")
+    deepseek_api_key: Optional[str] = Field(None, description="DeepSeek API key")
+
     text_model_id: str = Field(
         "google/gemma-4-31b-it:free", description="Text-to-Text Model ID"
     )
-    vision_model_id: str = Field(
-        "google/gemma-4-31b-it:free", description="Vision-to-Text Model ID"
-    )
+
     base_workspace_dir: str = Field(
         ..., description="Base directory containing workspaces"
     )
@@ -28,8 +36,24 @@ class Settings(BaseModel):
 
 
 def config_exists() -> bool:
-    """Check if the settings file exists."""
-    return CONFIG_FILE_PATH.exists()
+    """Check if the settings file exists and contains valid config settings."""
+    if not CONFIG_FILE_PATH.exists():
+        return False
+    try:
+        required_keys = {"full_name", "email"}
+        found_keys = set()
+        with open(CONFIG_FILE_PATH, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if "=" in line:
+                    key = line.split("=", 1)[0].strip().lower()
+                    if key in required_keys:
+                        found_keys.add(key)
+        return len(found_keys) == len(required_keys)
+    except Exception:
+        return False
 
 
 def load_config() -> Settings:

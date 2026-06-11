@@ -72,3 +72,6 @@ Desktop.ini
 # Rust
 target/
 *.pdb
+
+# Temp files
+tmp/

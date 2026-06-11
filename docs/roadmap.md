@@ -34,7 +34,7 @@ Config      Ingestion   Extraction  History     Modeling    Interactive
   - [x] **Dynamic Ticker Workspace Creation in `fa use <ticker>`**: Update the `fa use <ticker>` command. When switched to a ticker, check if a folder with that ticker name (force uppercase) exists in the configured base workspace. If it does not exist, automatically create the ticker directory and initialize the 8 standard workspace folders (from `1_ingest_data/` to `8_historical_model_json/`) inside it, then update the active workspace path.
   - [x] **Startup Config Auto-Detection**: Modify the CLI entrypoint (`main.py` or `src/cli/main.py`) to check `config_exists()` _before_ invoking the Typer application `app()`. If the configuration is missing, immediately run the `initialize_config_flow()` interactive setup instead of letting Typer exit with the help screen due to `no_args_is_help=True`.
   - [x] **Animated Setup Flow**: Integrate the dynamic Pig ASCII animation (snout wiggling and ear flapping via `prompt_toolkit`'s async prompt loop) directly into the interactive setup prompts in [config.py](file:///f:/AIML projects/financial-analyst-cli/src/cli/commands/config.py), ensuring Sir Pennyworth is fully animated during the first-time config wizard.
-  - [ ] **Verify dotenv content during startup**: Update startup check to verify if the `.env` file contains Sir Pennyworth's configuration settings (e.g. `FULL_NAME`, `EMAIL`), rather than just checking if the file `.env` exists, to determine if it's the user's first time.
+  - [x] **Verify dotenv content during startup**: Update startup check to verify if the `.env` file contains Sir Pennyworth's configuration settings (e.g. `FULL_NAME`, `EMAIL`), rather than just checking if the file `.env` exists, to determine if it's the user's first time.
 - **1.3 Testing & Verification**:
   - [x] Setup the `pytest` testing suite and configuration.
   - [x] Implement unit tests for configuration parsing, masking, CLI command calls, and directory structure initialization using mock parameters.
@@ -150,8 +150,4 @@ Config      Ingestion   Extraction  History     Modeling    Interactive
   - [x] In `fa run extract`, show the count of parsed files and prompt the user for the number of files to process (defaulting to all).
   - [x] In `fa run historical`, show the count of extracted files and prompt the user for the number of files to process (defaulting to all).
   - [x] In `fa run extract`, add logs to show the verbose chain of thought/pondering text from the LLM while suppressing verbose structured JSON payloads, keeping the CLI output clean and streaming.
-
-Next steps:
-
-- add the ability to select which API provider in config.
-- add the ability to add API keys for each API provider in config
+  - [x] **Add API provider selection and multi-provider keys**: Added ability to select API provider in config, store provider-specific keys, and dynamically route client requests to Gemini or OpenRouter.

@@ -51,5 +51,5 @@ def clean_value(val):
         if "%" in val:
             return float(val.replace("%", "")) / 100.0
         return float(val)
-    except ValueError, TypeError:
+    except (ValueError, TypeError):
         return 0

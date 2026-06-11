@@ -249,3 +249,58 @@ def test_ingestion_pdf(
     archived_file = workspace / "3_archived_data" / "20230930_annual_filing.pdf"
     assert archived_file.exists()
     assert not raw_file.exists()
+
+
+@patch("src.services.llm_client.load_config")
+@patch("src.pipeline.ingester.load_config")
+@patch("src.services.llm_client.LLMClient.generate")
+def test_ingester_offsets(
+    mock_llm, mock_load_config, mock_llm_load_config, mock_settings
+):
+    mock_load_config.return_value = mock_settings
+    mock_llm_load_config.return_value = mock_settings
+
+    mock_llm.return_value = json.dumps(
+        {
+            "document_date": "2023-09-30",
+            "document_type": "annual_filing",
+            "fiscal_quarter": "FY",
+        }
+    )
+
+    workspace = Path(mock_settings.active_workspace_path)
+    raw_file = workspace / "1_ingest_data" / "filing.htm"
+    raw_file.write_text(
+        "<h1>Annual Report</h1><p>Financial details part 1...</p><p>Financial details part 2...</p>",
+        encoding="utf-8",
+    )
+
+    # We patch chunk_text to return two small chunks
+    with patch("src.pipeline.ingester.chunk_text") as mock_chunk:
+        mock_chunk.return_value = [
+            "Financial details part 1...",
+            "Financial details part 2...",
+        ]
+        ingester = Ingester()
+        ingester.run_ingestion()
+
+    parsed_file = workspace / "2_parsed_data" / "20230930_annual_filing.md"
+    assert parsed_file.exists()
+    content = parsed_file.read_text(encoding="utf-8")
+
+    # Find character ranges from the table
+    # Format matches: | 1 | char <start> to <end> | ...
+    import re
+
+    matches = re.findall(r"\|\s*(\d+)\s*\|\s*char\s*(\d+)\s*to\s*(\d+)\s*\|", content)
+    assert len(matches) == 2
+
+    # Match 1
+    idx1, start1, end1 = matches[0]
+    start1, end1 = int(start1), int(end1)
+    assert content[start1:end1] == "Financial details part 1..."
+
+    # Match 2
+    idx2, start2, end2 = matches[1]
+    start2, end2 = int(start2), int(end2)
+    assert content[start2:end2] == "Financial details part 2..."
