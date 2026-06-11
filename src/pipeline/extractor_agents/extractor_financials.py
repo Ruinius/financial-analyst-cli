@@ -164,6 +164,7 @@ def calculate_deterministic_metrics(
         if item.category
         in ("current_assets", "current_asset", "noncurrent_assets", "noncurrent_asset")
         and not item.operating
+        and not item.calculated
     ]
     non_operating_liabilities = [
         item
@@ -176,6 +177,7 @@ def calculate_deterministic_metrics(
             "noncurrent_liability",
         )
         and not item.operating
+        and not item.calculated
     ]
 
     oca = sum(item.value for item in oca_items)
@@ -299,6 +301,7 @@ def calculate_deterministic_metrics(
     else:
         output_lines.append("None detected\n")
 
+    output_lines.append("\n---\n")
     output_lines.append("## Tax Rates\n")
     output_lines.append("| Component | Value | Description |")
     output_lines.append("|---|---|---|")
