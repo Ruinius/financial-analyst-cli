@@ -92,6 +92,22 @@ class DCFViewerHandler(http.server.SimpleHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
 
         if parsed.path == "/api/save-scenario":
+            # CSRF Protection: Ensure Content-Type is correct
+            content_type = self.headers.get("Content-Type", "")
+            if not content_type.startswith("application/json"):
+                self.send_response(400)
+                self.end_headers()
+                self.wfile.write(b'{"error": "Invalid Content-Type"}')
+                return
+
+            # CSRF Protection: Validate Origin
+            origin = self.headers.get("Origin")
+            if origin and not (origin.startswith("http://localhost:") or origin.startswith("http://127.0.0.1:")):
+                self.send_response(403)
+                self.end_headers()
+                self.wfile.write(b'{"error": "Forbidden Origin"}')
+                return
+
             content_length = int(self.headers.get("Content-Length", 0))
             body = self.rfile.read(content_length)
 
@@ -150,11 +166,16 @@ class DCFViewerHandler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
 
     def do_OPTIONS(self):
-        self.send_response(200)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
-        self.end_headers()
+        origin = self.headers.get("Origin")
+        if origin and (origin.startswith("http://localhost:") or origin.startswith("http://127.0.0.1:")):
+            self.send_response(200)
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type")
+            self.end_headers()
+        else:
+            self.send_response(403)
+            self.end_headers()
 
     def log_message(self, format, *args):
         # Mute simple HTTP logs to prevent clutter
