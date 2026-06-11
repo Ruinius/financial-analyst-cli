@@ -261,7 +261,7 @@ def calculate_deterministic_metrics(
         f"\n**Net Working Capital (NWC) = OCA - OCL = {oca} - {ocl} = {nwc}**\n"
     )
 
-    output_lines.append("\n#### Operating Non-Current Assets (ONCA)\n")
+    output_lines.append("#### Operating Non-Current Assets (ONCA)\n")
     output_lines.append("| Line Item | Value |")
     output_lines.append("|---|---|")
     for item in onca_items:
@@ -276,14 +276,14 @@ def calculate_deterministic_metrics(
     output_lines.append(f"| **Total ONCL** | **{oncl}** |")
 
     output_lines.append(
-        f"\n**Net Long-Term Operating Assets (NLTOA) = ONCA - ONCL = {onca} - {oncl} = {nltoa}**\n"
+        f"\n**Net Long-Term Operating Assets (NLTOA) = ONCA - ONCL = {onca} - {oncl} = {nltoa}**"
     )
     output_lines.append(
-        f"\n**Invested Capital = NWC + NLTOA = {nwc} + {nltoa} = {ic}**\n"
+        f"\n**Invested Capital = NWC + NLTOA = {nwc} + {nltoa} = {ic}**"
     )
     output_lines.append("\n---\n")
 
-    output_lines.append("\n#### Non-Operating Assets\n")
+    output_lines.append("#### Non-Operating Assets\n")
     if non_operating_assets:
         output_lines.append("| Line Item | Value |")
         output_lines.append("|---|---|")
@@ -341,15 +341,6 @@ def calculate_deterministic_metrics(
     output_lines.append(
         f"| **Organic Revenue Growth** | {organic_growth * 100:.2f}% | |"
     )
-    output_lines.append("\n---\n")
-
-    output_lines.append("## Shares Outstanding\n")
-    output_lines.append(f"Basic Shares Outstanding: **{basic_shares}**")
-    output_lines.append(f"Diluted Shares Outstanding: **{diluted_shares}**\n")
-
-    output_lines.append("## Organic Growth\n")
-    output_lines.append(f"Simple Growth (%): **{simple_growth * 100}**")
-    output_lines.append(f"Final Growth (%): **{organic_growth * 100}**\n")
 
     # Write output file to 4_extracted_data/
     extracted_dir = Path(extractor.settings.active_workspace_path) / "4_extracted_data"
