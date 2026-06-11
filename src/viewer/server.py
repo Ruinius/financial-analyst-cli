@@ -1,5 +1,6 @@
 import http.server
 import json
+import logging
 import re
 import urllib.parse
 from pathlib import Path
@@ -41,7 +42,10 @@ class DCFViewerHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_response(500)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
-                self.wfile.write(json.dumps({"error": str(e)}).encode())
+                logging.error(f"Viewer Server Error: {e}")
+                self.wfile.write(
+                    json.dumps({"error": "An internal error occurred."}).encode()
+                )
             return
 
         elif path.startswith("/api/models/"):
@@ -73,7 +77,10 @@ class DCFViewerHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_response(500)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
-                self.wfile.write(json.dumps({"error": str(e)}).encode())
+                logging.error(f"Viewer Server Error: {e}")
+                self.wfile.write(
+                    json.dumps({"error": "An internal error occurred."}).encode()
+                )
             return
 
         if path == "/" or path == "":
@@ -133,7 +140,10 @@ class DCFViewerHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_response(500)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
-                self.wfile.write(json.dumps({"error": str(e)}).encode())
+                logging.error(f"Viewer Server Error: {e}")
+                self.wfile.write(
+                    json.dumps({"error": "An internal error occurred."}).encode()
+                )
             return
 
         self.send_response(404)
