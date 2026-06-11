@@ -85,6 +85,7 @@ def test_ingestion_flow(
     mock_llm.return_value = json.dumps(
         {
             "document_date": "2023-09-30",
+            "period_end_date": "2023-09-30",
             "document_type": "annual_filing",
             "fiscal_quarter": "FY",
         }
@@ -147,6 +148,7 @@ def test_ingestion_limit(
         json.dumps(
             {
                 "document_date": f"2023-09-2{i}",
+                "period_end_date": f"2023-09-2{i}",
                 "document_type": "annual_filing",
                 "fiscal_quarter": "FY",
             }
@@ -181,6 +183,7 @@ def test_ingestion_ignores_readme_and_hidden(
     mock_llm.return_value = json.dumps(
         {
             "document_date": "2023-09-30",
+            "period_end_date": "2023-09-30",
             "document_type": "annual_filing",
             "fiscal_quarter": "FY",
         }
@@ -228,6 +231,7 @@ def test_ingestion_pdf(
     mock_llm.return_value = json.dumps(
         {
             "document_date": "2023-09-30",
+            "period_end_date": "2023-09-30",
             "document_type": "annual_filing",
             "fiscal_quarter": "FY",
         }
@@ -263,6 +267,7 @@ def test_ingester_offsets(
     mock_llm.return_value = json.dumps(
         {
             "document_date": "2023-09-30",
+            "period_end_date": "2023-09-30",
             "document_type": "annual_filing",
             "fiscal_quarter": "FY",
         }

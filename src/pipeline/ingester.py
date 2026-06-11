@@ -166,6 +166,8 @@ class Ingester:
                 reader = csv.DictReader(f)
                 for row in reader:
                     if "file_hash" in row:
+                        if "period_end_date" not in row:
+                            row["period_end_date"] = "N/A"
                         registry[row["file_hash"]] = row
         return registry
 
@@ -178,17 +180,20 @@ class Ingester:
             "document_type",
             "document_date",
             "fiscal_quarter",
+            "period_end_date",
         ]
         with open(csv_path, "w", encoding="utf-8", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             for row in registry.values():
-                writer.writerow(row)
+                clean_row = {fn: row.get(fn, "N/A") for fn in fieldnames}
+                clean_row["file_hash"] = row.get("file_hash", "")
+                writer.writerow(clean_row)
 
     def identify_metadata(
         self, first_chunk: str, original_filename: str
-    ) -> Tuple[str, str, str]:
-        """Use LLM to identify document_date, document_type, and fiscal_quarter."""
+    ) -> Tuple[str, str, str, str]:
+        """Use LLM to identify document_date, document_type, fiscal_quarter, and period_end_date."""
         # Load document types spec
         doc_types_path = Path("scripts/document_types.json")
         doc_types_str = ""
@@ -209,11 +214,12 @@ class Ingester:
         system_prompt = (
             "You are Sir Pennyworth, a sophisticated, precise financial analyst. "
             "Your task is to identify key metadata of a company report from its text. "
-            "You MUST return ONLY a JSON object with the keys 'document_date' (YYYY-MM-DD), "
-            "'document_type' (must match one of the keys in document_types.json), and "
-            "'fiscal_quarter' (Q1, Q2, Q3, Q4, FY, or N/A). "
-            "Be very careful: filing dates on SEC systems are usually later than the actual document/report date (period end date). "
-            "We want the actual document date/period end date. Format: YYYY-MM-DD."
+            "You MUST return ONLY a JSON object with the keys:\n"
+            "- 'document_date' (YYYY-MM-DD): The date the document was filed, published, or released.\n"
+            "- 'period_end_date' (YYYY-MM-DD or 'N/A'): The actual end date of the fiscal period covered by the report. "
+            "For annual/quarterly reports or earnings releases, this is the date the quarter or year ended. If not specified or not applicable, return 'N/A'.\n"
+            "- 'document_type' (must match one of the keys in document_types.json).\n"
+            "- 'fiscal_quarter' (Q1, Q2, Q3, Q4, FY, or N/A)."
         )
 
         prompt = f"""
@@ -232,6 +238,7 @@ First Chunk of Document:
 Please return a valid JSON object matching this structure:
 {{
   "document_date": "YYYY-MM-DD",
+  "period_end_date": "YYYY-MM-DD or N/A",
   "document_type": "quarterly_filing | annual_filing | earnings_announcement | press_release | analyst_report | news_article | transcript | other",
   "fiscal_quarter": "Q1 | Q2 | Q3 | Q4 | FY | N/A"
 }}
@@ -247,52 +254,133 @@ Please return a valid JSON object matching this structure:
                     meta.get("document_date", "YYYY-MM-DD"),
                     meta.get("document_type", "other"),
                     meta.get("fiscal_quarter", "N/A"),
+                    meta.get("period_end_date", "N/A"),
                 )
             except Exception:
                 pass
 
-        return ("YYYY-MM-DD", "other", "N/A")
+        return ("YYYY-MM-DD", "other", "N/A", "N/A")
 
-    def create_or_update_ingest_context(
-        self, ticker: str, doc_type: str, doc_date: str, fiscal_quarter: str
-    ) -> None:
-        """Create or update 6_company_context/ingest_context.md with company details."""
+    def heal_ingest_context(self, registry: Dict[str, Dict[str, str]] = None) -> None:
+        """Scan the parsed registry and update 6_company_context/ingest_context.md with correct fiscal mappings."""
+        ticker = self.settings.active_ticker or "UNK"
         context_dir = Path(self.settings.active_workspace_path) / "6_company_context"
         context_dir.mkdir(parents=True, exist_ok=True)
         context_file = context_dir / "ingest_context.md"
 
-        date_obj = None
-        try:
-            date_obj = datetime.datetime.strptime(doc_date, "%Y-%m-%d")
-        except ValueError:
-            pass
+        if registry is None:
+            registry = self.load_parsed_registry()
+        if not registry:
+            return
 
-        month_str = ""
-        if date_obj:
-            month_str = (
-                f"Month {date_obj.month} (extracted from document date {doc_date})"
+        quarter_months = {}
+        quarter_sources = {}
+
+        for row in registry.values():
+            doc_type = row.get("document_type", "")
+            doc_date = row.get("document_date", "")
+            fiscal_quarter = row.get("fiscal_quarter", "")
+            period_end = row.get("period_end_date", "N/A")
+
+            if fiscal_quarter == "N/A" or not fiscal_quarter:
+                continue
+
+            date_obj = None
+            if doc_date and doc_date != "YYYY-MM-DD":
+                try:
+                    date_obj = datetime.datetime.strptime(doc_date, "%Y-%m-%d")
+                except ValueError:
+                    pass
+
+            period_end_obj = None
+            source_info = ""
+            if period_end and period_end != "N/A" and period_end != "YYYY-MM-DD":
+                try:
+                    period_end_obj = datetime.datetime.strptime(period_end, "%Y-%m-%d")
+                    source_info = f"extracted period end date {period_end}"
+                except ValueError:
+                    pass
+
+            if not period_end_obj and date_obj:
+                if doc_type in [
+                    "quarterly_filing",
+                    "annual_filing",
+                    "earnings_announcement",
+                ]:
+                    period_end_obj = date_obj - datetime.timedelta(days=45)
+                    source_info = (
+                        f"estimated from document date {doc_date} minus 45 days"
+                    )
+                else:
+                    period_end_obj = date_obj
+                    source_info = f"extracted from document date {doc_date}"
+
+            if period_end_obj:
+                m = period_end_obj.month
+                quarter_months.setdefault(fiscal_quarter, []).append(m)
+                quarter_sources.setdefault(fiscal_quarter, {}).setdefault(m, []).append(
+                    source_info
+                )
+
+        final_quarter_mappings = {}
+        for q, months in quarter_months.items():
+            if not months:
+                continue
+            from collections import Counter
+
+            most_common_month, count = Counter(months).most_common(1)[0]
+            sources = quarter_sources[q][most_common_month]
+            unique_sources = list(set(sources))
+            source_desc = "; ".join(unique_sources)
+            final_quarter_mappings[q] = (most_common_month, source_desc)
+
+        fye_month = None
+        fye_desc = "Determined by Annual Filing dates."
+        if "FY" in final_quarter_mappings:
+            fye_month, fye_desc_src = final_quarter_mappings["FY"]
+            fye_desc = (
+                f"Month {fye_month} (determined from FY mappings: {fye_desc_src})"
+            )
+        elif "Q4" in final_quarter_mappings:
+            fye_month, fye_desc_src = final_quarter_mappings["Q4"]
+            fye_desc = (
+                f"Month {fye_month} (determined from Q4 mappings: {fye_desc_src})"
             )
 
-        if not context_file.exists():
-            content = f"""# Ingestion Context: {ticker}
+        lines = []
+        lines.append(f"# Ingestion Context: {ticker}\n")
+        lines.append(
+            "This file contains automatically detected company configuration parameters.\n"
+        )
+        lines.append("## Fiscal Schedule Mappings")
+        lines.append(f"- **Fiscal Year End**: {fye_desc}")
+        lines.append("- **Quarterly Mappings**:")
 
-This file contains automatically detected company configuration parameters.
+        quarter_order = {"Q1": 1, "Q2": 2, "Q3": 3, "Q4": 4, "FY": 5}
+        sorted_quarters = sorted(
+            final_quarter_mappings.keys(), key=lambda x: quarter_order.get(x, 10)
+        )
 
-## Fiscal Schedule Mappings
-- **Fiscal Year End**: Determined by Annual Filing dates.
-- **Quarterly Mappings**:
-  - {fiscal_quarter}: Ends around {month_str if month_str else "Unknown"}
-"""
-            with open(context_file, "w", encoding="utf-8") as f:
-                f.write(content)
-        else:
-            # Simple append if new mapping
-            with open(context_file, "r", encoding="utf-8") as f:
-                existing = f.read()
-            if fiscal_quarter not in existing and month_str:
-                updated = existing + f"  - {fiscal_quarter}: Ends around {month_str}\n"
-                with open(context_file, "w", encoding="utf-8") as f:
-                    f.write(updated)
+        for q in sorted_quarters:
+            m, src = final_quarter_mappings[q]
+            lines.append(f"  - {q}: Ends around Month {m} ({src})")
+
+        content = "\n".join(lines) + "\n"
+
+        with open(context_file, "w", encoding="utf-8") as f:
+            f.write(content)
+
+    def create_or_update_ingest_context(
+        self,
+        ticker: str,
+        doc_type: str,
+        doc_date: str,
+        fiscal_quarter: str,
+        period_end_date: str = "N/A",
+        registry: Dict[str, Dict[str, str]] = None,
+    ) -> None:
+        """Heal 6_company_context/ingest_context.md with correct mappings."""
+        self.heal_ingest_context(registry)
 
     def ingest_single_file(
         self, raw_path: Path, registry: Dict[str, Dict[str, str]]
@@ -336,7 +424,7 @@ This file contains automatically detected company configuration parameters.
 
         # Identify metadata using the first chunk
         first_chunk_text = chunks[0] if chunks else ""
-        doc_date, doc_type, fiscal_quarter = self.identify_metadata(
+        doc_date, doc_type, fiscal_quarter, period_end_date = self.identify_metadata(
             first_chunk_text, raw_path.name
         )
 
@@ -421,11 +509,17 @@ This file contains automatically detected company configuration parameters.
             "document_type": doc_type,
             "document_date": doc_date,
             "fiscal_quarter": fiscal_quarter,
+            "period_end_date": period_end_date,
         }
 
         # Update self-healing ingest context
         self.create_or_update_ingest_context(
-            self.settings.active_ticker or "UNK", doc_type, doc_date, fiscal_quarter
+            self.settings.active_ticker or "UNK",
+            doc_type,
+            doc_date,
+            fiscal_quarter,
+            period_end_date,
+            registry,
         )
         formatting.print_success(
             f"Ingested {raw_path.name} -> {out_markdown_path.name}"
@@ -474,3 +568,6 @@ This file contains automatically detected company configuration parameters.
 
         # Save updated registry
         self.save_parsed_registry(registry)
+
+        # Final healing check to ensure all mappings are validated and sorted correctly
+        self.heal_ingest_context(registry)

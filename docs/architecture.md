@@ -151,7 +151,7 @@ sequenceDiagram
 3. **Chunked LLM Processing**:
    To avoid context bloat and high API costs, files are split into 5,000-character chunks. The LLM only receives `chunk_id=0` (the character inventory index) and pulls subsequent chunks one-by-one as needed.
 4. **Self-Healing Company Context**:
-   The `6_company_context/` directory contains company-specific guidelines (`ingest_context.md`, `extract_context.md`, `model_context.md`) compiled automatically by the LLM during runs. These files capture fiscal mappings, statement layout preferences, and custom account classifications to ensure future runs align with the specific company.
+    The `6_company_context/` directory contains company-specific guidelines (`ingest_context.md`, `extract_context.md`, `model_context.md`). While `ingest_context.md` and `model_context.md` may be updated/compiled during runs, `extract_context.md` is reserved strictly for manual user feedback to record custom classifications and avoid reinforcing agent errors. These files capture fiscal mappings, statement layout preferences, and custom account classifications to ensure future runs align with the specific company.
 5. **Interactive Zero-Dependency HTML Viewer**:
    The viewer command (`fa viewer`) launches a local server hosting a self-contained HTML page. This app reads JSON data from `8_historical_model_json/`, runs DCF projections client-side, lets the user play with assumptions dynamically, and saves updated projections directly back to the workspace.
 6. **Auditable Traceability**:

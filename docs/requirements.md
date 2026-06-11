@@ -104,10 +104,8 @@ flowchart TD
   - Classify financial line items into **operating** and **non-operating** categories using LLM judgment (guided by `6_company_context/extract_context.md` and the central tool dictionary in `src/resources/dictionary/`).
   - Pass the classified statements as Pydantic-validated JSON structures to the **Rust Core Engine** to calculate key metrics: Invested Capital, EBITA, Adjusted Taxes, Net Operating Profit Less Adjusted Taxes (NOPAT), and Return on Invested Capital (ROIC) schedules. This enforces a strict math contract between Python and Rust.
   - All calculated metrics must preserve the audit linkage metadata back to their respective raw source numbers.
-- **Step 3D: Self-Healing Extraction Context**:
-  - Create/update `6_company_context/extract_context.md` detailing:
-    - How the company labels and organizes its statements (e.g., division revenue details, indentation patterns).
-    - Custom classifications for operating/non-operating items requested by the user.
+- **Step 3D: Manual User Extraction Context**:
+  - The file `6_company_context/extract_context.md` is reserved strictly for manual user feedback to override/configure custom classifications for operating/non-operating items. The agent reads this file but must never automatically write/update it, avoiding self-reinforcing errors.
 
 ### 3.4 Step 4: Historical Analysis (`fa run historical`)
 - **Queue**: Identify files in `4_extracted_data/` not yet integrated into `5_historical_analysis/`.

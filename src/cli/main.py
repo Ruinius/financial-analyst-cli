@@ -20,6 +20,172 @@ from src.pipeline.ingester import Ingester
 from src.pipeline.extractor_orchestrator import Extractor
 from src.pipeline.modeler import Modeler
 
+
+def patch_typer_help() -> None:
+    """Monkey-patch typer.rich_utils.rich_format_help to output Options below Commands."""
+    import typer.rich_utils
+    from collections import defaultdict
+
+    def custom_rich_format_help(
+        *,
+        obj,
+        ctx,
+        markup_mode,
+    ) -> None:
+        console = typer.rich_utils._get_rich_console()
+
+        # Print usage
+        console.print(
+            typer.rich_utils.Padding(
+                typer.rich_utils.highlighter(obj.get_usage(ctx)), 1
+            ),
+            style=typer.rich_utils.STYLE_USAGE_COMMAND,
+        )
+
+        # Print command / group help if we have some
+        if obj.help:
+            # Print with some padding
+            console.print(
+                typer.rich_utils.Padding(
+                    typer.rich_utils.Align(
+                        typer.rich_utils._get_help_text(
+                            obj=obj,
+                            markup_mode=markup_mode,
+                        ),
+                        pad=False,
+                    ),
+                    (0, 1, 1, 1),
+                )
+            )
+
+        panel_to_arguments = defaultdict(list)
+        panel_to_options = defaultdict(list)
+        for param in obj.get_params(ctx):
+            # Skip if option is hidden
+            if getattr(param, "hidden", False):
+                continue
+            if isinstance(param, typer.rich_utils.TyperArgument):
+                panel_name = (
+                    getattr(param, typer.rich_utils._RICH_HELP_PANEL_NAME, None)
+                    or typer.rich_utils.ARGUMENTS_PANEL_TITLE
+                )
+                panel_to_arguments[panel_name].append(param)
+            elif isinstance(param, typer.rich_utils.TyperOption):
+                panel_name = (
+                    getattr(param, typer.rich_utils._RICH_HELP_PANEL_NAME, None)
+                    or typer.rich_utils.OPTIONS_PANEL_TITLE
+                )
+                panel_to_options[panel_name].append(param)
+
+        # 1. Print Arguments Panel first (as in original)
+        default_arguments = panel_to_arguments.get(
+            typer.rich_utils.ARGUMENTS_PANEL_TITLE, []
+        )
+        typer.rich_utils._print_options_panel(
+            name=typer.rich_utils.ARGUMENTS_PANEL_TITLE,
+            params=default_arguments,
+            ctx=ctx,
+            markup_mode=markup_mode,
+            console=console,
+        )
+        for panel_name, arguments in panel_to_arguments.items():
+            if panel_name == typer.rich_utils.ARGUMENTS_PANEL_TITLE:
+                # Already printed above
+                continue
+            typer.rich_utils._print_options_panel(
+                name=panel_name,
+                params=arguments,
+                ctx=ctx,
+                markup_mode=markup_mode,
+                console=console,
+            )
+
+        # 2. Print Commands Panel (if it's a Group/TyperGroup)
+        if isinstance(obj, typer.rich_utils.TyperGroup):
+            panel_to_commands = defaultdict(list)
+            for command_name in obj.list_commands(ctx):
+                command = obj.get_command(ctx, command_name)
+                if command and not command.hidden:
+                    panel_name = (
+                        getattr(command, typer.rich_utils._RICH_HELP_PANEL_NAME, None)
+                        or typer.rich_utils.COMMANDS_PANEL_TITLE
+                    )
+                    panel_to_commands[panel_name].append(command)
+
+            # Identify the longest command name in all panels
+            max_cmd_len = max(
+                [
+                    len(command.name or "")
+                    for commands in panel_to_commands.values()
+                    for command in commands
+                ],
+                default=0,
+            )
+
+            # Print each command group panel
+            default_commands = panel_to_commands.get(
+                typer.rich_utils.COMMANDS_PANEL_TITLE, []
+            )
+            typer.rich_utils._print_commands_panel(
+                name=typer.rich_utils.COMMANDS_PANEL_TITLE,
+                commands=default_commands,
+                markup_mode=markup_mode,
+                console=console,
+                cmd_len=max_cmd_len,
+            )
+            for panel_name, commands in panel_to_commands.items():
+                if panel_name == typer.rich_utils.COMMANDS_PANEL_TITLE:
+                    # Already printed above
+                    continue
+                typer.rich_utils._print_commands_panel(
+                    name=panel_name,
+                    commands=commands,
+                    markup_mode=markup_mode,
+                    console=console,
+                    cmd_len=max_cmd_len,
+                )
+
+        # 3. Print Options Panel (originally printed before Commands)
+        default_options = panel_to_options.get(typer.rich_utils.OPTIONS_PANEL_TITLE, [])
+        typer.rich_utils._print_options_panel(
+            name=typer.rich_utils.OPTIONS_PANEL_TITLE,
+            params=default_options,
+            ctx=ctx,
+            markup_mode=markup_mode,
+            console=console,
+        )
+        for panel_name, options in panel_to_options.items():
+            if panel_name == typer.rich_utils.OPTIONS_PANEL_TITLE:
+                # Already printed above
+                continue
+            typer.rich_utils._print_options_panel(
+                name=panel_name,
+                params=options,
+                ctx=ctx,
+                markup_mode=markup_mode,
+                console=console,
+            )
+
+        # Epilogue if we have it
+        if obj.epilog:
+            # Remove single linebreaks, replace double with single
+            lines = obj.epilog.split("\n\n")
+            epilogue = "\n".join([x.replace("\n", " ").strip() for x in lines])
+            epilogue_text = typer.rich_utils._make_rich_text(
+                text=epilogue, markup_mode=markup_mode
+            )
+            console.print(
+                typer.rich_utils.Padding(
+                    typer.rich_utils.Align(epilogue_text, pad=False), 1
+                )
+            )
+
+    typer.rich_utils.rich_format_help = custom_rich_format_help
+
+
+# Apply the patch immediately upon import
+patch_typer_help()
+
 app = typer.Typer(
     name="fa",
     help="Sir Pennyworth's Financial Analyst CLI Assistant",
@@ -330,9 +496,27 @@ def main():
 
     # Print welcome banner when launched with no arguments or --help
     if not args or is_help:
-        formatting.speak(
-            "Greetings! I am Sir Pennyworth, your financial concierge. Ready to begin our financial trufflings?"
-        )
+        msg = "Greetings! I am Sir Pennyworth, your financial concierge. Ready to begin our financial trufflings?"
+        for arg in args:
+            if arg == "use":
+                msg = "Greetings! I am Sir Pennyworth, your financial concierge. Shall we switch our active workspace, my good sir?"
+                break
+            elif arg == "chat":
+                msg = "Greetings! I am Sir Pennyworth, your financial concierge. Shall we converse in our interactive REPL session, my good sir?"
+                break
+            elif arg == "viewer":
+                msg = "Greetings! I am Sir Pennyworth, your financial concierge. Shall we launch the local HTML valuation viewer, my good sir?"
+                break
+            elif arg == "run":
+                msg = "Greetings! I am Sir Pennyworth, your financial concierge. Shall we execute our data pipeline stages, my good sir?"
+                break
+            elif arg == "query":
+                msg = "Greetings! I am Sir Pennyworth, your financial concierge. Shall we query our parsed metrics and evaluations, my good sir?"
+                break
+            elif arg == "config":
+                msg = "Greetings! I am Sir Pennyworth, your financial concierge. Shall we manage our configuration settings, my good sir?"
+                break
+        formatting.speak(msg)
 
     if not config_exists() and not is_help and not is_config_init:
         try:

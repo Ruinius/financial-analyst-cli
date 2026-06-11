@@ -191,18 +191,33 @@ def parse_markdown_to_line_items(
 
     content = target_statement_path.read_text(encoding="utf-8")
 
+    dict_guidance = ""
+    if category_default == "income_statement":
+        is_dict_path = Path("src/resources/dictionary/income_statement.md")
+        if is_dict_path.exists():
+            dict_guidance = f"\n\nUse the following Income Statement Dictionary as a guide for classifications and expense/revenue sign mapping:\n{is_dict_path.read_text(encoding='utf-8')}\n"
+
     sys_prompt = (
         "You are Sir Pennyworth, a senior financial analyst. "
         "Extract all financial statement line items from the provided markdown statement. "
         "For every line item, record the exact_snippet (exact text match from the markdown statement) for audit trial. "
         "Ensure you extract standard items: revenue, operating income, cash_and_equivalents, debt, etc."
     )
+    if category_default == "income_statement":
+        sys_prompt += (
+            "\n\nStandardize positive/negative signs for the Income Statement:\n"
+            "- Any number that subtracts from the revenue is an expense, cost, or loss, and MUST be expressed as a negative number.\n"
+            "- Any number that effectively increases profit (e.g. revenue, interest income, tax benefits, gains) MUST be expressed as a positive number.\n"
+            "- If an item is an expense but listed as a positive number in the source markdown, you MUST convert it to a negative number.\n"
+            "- Be careful with ambiguous items like 'Net Interest Income' or 'Other Income/Expense Net'. Check their context: if they represent a net expense or loss, express them as negative. If they represent net income or gain, express them as positive."
+        )
+
     prompt = f"""
 Markdown statement content:
 \"\"\"
 {content}
 \"\"\"
-
+{dict_guidance}
 Extract all financial statement line items (Line Name, Value, Category (current_assets | current_liabilities | noncurrent_assets | noncurrent_liabilities | income_statement | other), exact_snippet).
 Return a valid JSON object matching this structure:
 {{
@@ -282,7 +297,8 @@ def extract_financial_statements(
         "2. Fetch chunk content using get_chunk_by_id.\n"
         "3. Append statements to the output file using append_markdown.\n"
         "4. Always call check_income_statement_quality before finalizing. If it returns errors, use edit_markdown to fix them.\n"
-        "5. When everything is correct and quality check passes, call the tool 'finalize' to exit."
+        "5. When everything is correct and quality check passes, call the tool 'finalize' to exit.\n"
+        "6. Sign standardization: Ensure the extracted statement structure and numbers are formatted so that any number that subtracts from the revenue is an expense (expressed as negative), and any number that increases profit (such as interest income) is expressed as positive. Access resources/dictionary/income_statement.md (if available) as a guide. Note that ambiguous items like net interest income may be positive or negative depending on context."
     )
     run_extraction_agent(
         agent_name="Income Statement",
@@ -577,7 +593,7 @@ def run_interpretation_agent(
                     rule_match.group(1).lower() == "operating"
                 )
 
-    # Serialize items for LLM
+    # Serialize items for LLM (omitting operating and calculated fields so the agent makes judgment calls without default bias)
     items_data = []
     for item in extracted_line_items:
         items_data.append(
@@ -585,8 +601,6 @@ def run_interpretation_agent(
                 "line_name": item.line_name,
                 "value": item.value,
                 "category": item.category,
-                "operating": item.operating,
-                "calculated": item.calculated,
             }
         )
 
@@ -599,10 +613,14 @@ def run_interpretation_agent(
         "   - Sometimes subtotals/totals are explicitly called out as such (e.g., 'Total Assets', 'Subtotal'). Other times, they are not explicitly labeled and must be inferred based on the surrounding numbers, line items, mathematical relationships, indentation, or placement.\n"
         "2. Classify each item as operating (true) or non-operating (false). Respect the provided local dictionary or company context rules if they exist.\n"
         "   - Operating items (operating = true) represent activities central to the core business operations (e.g., Revenues, Cost of Sales, R&D, SG&A, operating leases).\n"
-        "   - Non-operating items (operating = false) represent financing, investing, tax, or one-off activities not part of core operations (e.g., Interest Expense, Interest Income, investment gains/losses, tax provision, discontinued operations).\n"
+        "   - Non-operating items (operating = false) represent financing, investing, tax, or peripheral/one-off transactions not part of core operations (e.g., Interest Expense, Interest Income, investment gains/losses, tax provision, discontinued operations).\n"
         "   - This classification is used to calculate clean Operating EBITA and to isolate operating assets/liabilities for calculating Invested Capital and Return on Invested Capital (ROIC).\n"
         "3. Interpret any unnamed, generic (e.g. 'Other', 'Reconciliation adjustment') or ambiguous line items using their indentation, surrounding context, or placement.\n"
-        "4. Perform cross-statement mathematical checks. Verify that subtotals match the sum of constituent line items (e.g. total assets = current assets + non-current assets; assets = liabilities + equity; net income = operating income + non-operating income - tax provision). If there are discrepancies, make adjustments or flag them.\n\n"
+        "4. Perform cross-statement mathematical checks. Verify that subtotals match the sum of constituent line items (e.g. total assets = current assets + non-current assets; assets = liabilities + equity; net income = operating income + non-operating income - tax provision). If there are discrepancies, make adjustments or flag them.\n"
+        "5. Standardize positive/negative signs for the Income Statement:\n"
+        "   - Verify that any number that subtracts from the revenue is an expense, cost, or loss, and is expressed as a negative number.\n"
+        "   - Verify that any number that effectively increases profit (e.g. revenue, interest income, tax benefits, gains) is expressed as a positive number.\n"
+        "   - Pay special attention to ambiguous items (e.g., net interest income or other non-operating income/expense net): make sure their sign correctly reflects whether they are a net expense (negative) or net income (positive) in the context of the statements.\n\n"
         "Return a valid JSON object with the key 'line_items' containing the updated/verified line items."
     )
 
@@ -1193,26 +1211,9 @@ def extract_financials(
 
 def update_extract_context(extractor, line_item) -> None:
     """Append classification to 6_company_context/extract_context.md."""
-    context_dir = Path(extractor.settings.active_workspace_path) / "6_company_context"
-    context_dir.mkdir(parents=True, exist_ok=True)
-    context_file = context_dir / "extract_context.md"
-
-    op_str = "operating" if line_item.operating else "non-operating"
-    line_rule = f"- {line_item.line_name}: {op_str}\n"
-
-    existing = get_extract_context(extractor)
-
-    if not context_file.exists():
-        header = f"# Extraction Context: {extractor.settings.active_ticker or 'UNK'}\n\n## Custom Line Item Classifications\n"
-        full_content = header + line_rule
-        with open(context_file, "w", encoding="utf-8") as f:
-            f.write(full_content)
-        extractor._extract_context_cache = full_content
-    else:
-        if line_item.line_name not in existing:
-            with open(context_file, "a", encoding="utf-8") as f:
-                f.write(line_rule)
-            extractor._extract_context_cache = existing + line_rule
+    # Do not auto-update or write to extract_context.md.
+    # This file is reserved strictly for manual user feedback to prevent reinforcing agent errors.
+    pass
 
 
 def get_extract_context(extractor) -> str:
