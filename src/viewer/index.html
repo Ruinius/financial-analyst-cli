@@ -3,62 +3,521 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DCF Model Viewer</title>
+    <title>Sir Pennyworth's DCF Model Viewer</title>
+    <!-- Modern Premium Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: sans-serif; padding: 20px; }
-        .form-group { margin-bottom: 10px; }
-        label { display: inline-block; width: 150px; }
+        :root {
+            --bg-color: #080c14;
+            --card-bg: rgba(13, 20, 35, 0.5);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --accent-color: #6366f1;
+            --accent-glow: rgba(99, 102, 241, 0.15);
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --success: #10b981;
+            --success-glow: rgba(16, 185, 129, 0.15);
+            --warning: #f59e0b;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg-color);
+            background-image:
+                radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.08) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(16, 185, 129, 0.05) 0%, transparent 40%);
+            color: var(--text-primary);
+            padding: 40px 20px;
+            min-height: 100vh;
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* Header Style */
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 32px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-icon {
+            font-size: 2rem;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.8rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #fff 30%, #a5b4fc 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        header p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        /* Glassmorphic Cards */
+        .card {
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            margin-bottom: 24px;
+        }
+
+        .card:hover {
+            border-color: rgba(99, 102, 241, 0.25);
+            box-shadow: 0 12px 40px 0 var(--accent-glow);
+        }
+
+        .card-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #fff;
+        }
+
+        /* Grid Layouts */
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+
+        /* Select styling */
+        .select-wrapper {
+            position: relative;
+        }
+
+        select {
+            width: 100%;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--border-color);
+            color: #fff;
+            padding: 12px 16px;
+            border-radius: 10px;
+            font-family: inherit;
+            font-size: 1rem;
+            appearance: none;
+            outline: none;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        select:focus {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 2px var(--accent-glow);
+        }
+
+        /* Inputs & Sliders */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            font-weight: 500;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .input-row {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        input[type="range"] {
+            flex-grow: 1;
+            accent-color: var(--accent-color);
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            outline: none;
+        }
+
+        input[type="number"] {
+            width: 90px;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--border-color);
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 0.95rem;
+            text-align: right;
+            outline: none;
+            transition: all 0.2s;
+        }
+
+        input[type="number"]:focus {
+            border-color: var(--accent-color);
+        }
+
+        .read-only-val {
+            font-family: 'Outfit', sans-serif;
+            font-weight: 600;
+            color: #fff;
+            font-size: 1.05rem;
+        }
+
+        /* KPI Display */
+        .kpi-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .kpi-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+            transition: all 0.2s;
+        }
+
+        .kpi-card:hover {
+            background: rgba(255, 255, 255, 0.04);
+            transform: scale(1.02);
+        }
+
+        .kpi-label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            margin-bottom: 6px;
+            letter-spacing: 0.05em;
+        }
+
+        .kpi-value {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--success);
+            text-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
+        }
+
+        .kpi-value.secondary {
+            color: var(--text-primary);
+            text-shadow: none;
+        }
+
+        /* Dynamic SVG Chart styling */
+        .chart-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: rgba(10, 15, 28, 0.4);
+            border-radius: 12px;
+            padding: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.03);
+        }
+
+        .chart-bar {
+            transition: fill 0.2s;
+            cursor: pointer;
+        }
+
+        .chart-bar:hover {
+            fill: rgba(99, 102, 241, 0.65) !important;
+        }
+
+        /* Table Design */
+        .table-responsive {
+            overflow-x: auto;
+            width: 100%;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: right;
+            font-size: 0.9rem;
+        }
+
+        th, td {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            font-family: 'Outfit', sans-serif;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.05em;
+        }
+
+        th:first-child, td:first-child {
+            text-align: left;
+            font-weight: 600;
+        }
+
+        tbody tr {
+            transition: background 0.15s;
+        }
+
+        tbody tr:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .highlight-col {
+            color: var(--success);
+            font-weight: 500;
+        }
+
+        /* Action Buttons */
+        .actions-row {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 10px;
+        }
+
+        button {
+            font-family: 'Outfit', sans-serif;
+            background: linear-gradient(135deg, var(--accent-color) 0%, #4f46e5 100%);
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            padding: 14px 28px;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            box-shadow: 0 4px 14px 0 rgba(99, 102, 241, 0.3);
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px 0 rgba(99, 102, 241, 0.5);
+        }
+
+        button:active {
+            transform: translateY(1px);
+        }
+
+        /* Notifications & Messages */
+        #message {
+            margin-top: 16px;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            text-align: center;
+            opacity: 0;
+            transition: opacity 0.3s;
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            color: #34d399;
+        }
+
+        #message.error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            color: #f87171;
+        }
+
+        #message.show {
+            opacity: 1;
+        }
+
+        /* Animations */
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-6px); }
+        }
+
+        @media (max-width: 900px) {
+            .grid-3 {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
-    <h1>Financial Model Viewer</h1>
+    <div class="container">
+        <header>
+            <div class="logo-section">
+                <span class="logo-icon">🐷</span>
+                <div>
+                    <h1>Sir Pennyworth's DCF Viewer</h1>
+                    <p>Interactive valuation models & simulation engine</p>
+                </div>
+            </div>
+            <div>
+                <select id="modelSelect" onchange="loadModel()"></select>
+            </div>
+        </header>
 
-    <div class="form-group">
-        <label for="modelSelect">Select Model:</label>
-        <select id="modelSelect" onchange="loadModel()"></select>
+        <div id="modelEditor" style="display:none;">
+            <!-- Top Grid for Inputs, KPIs and Chart -->
+            <div class="grid-3">
+                <!-- Card 1: Core Scenario Assumptions -->
+                <div class="card">
+                    <h2 class="card-title">⚙️ Adjust Assumptions</h2>
+
+                    <div class="form-group">
+                        <label>Company Ticker</label>
+                        <div class="read-only-val" id="tickerDisplay" style="letter-spacing: 0.05em; color: var(--accent-color); font-size: 1.3rem;">-</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="wacc">Base WACC: <span id="waccValDisplay" style="color: #fff; font-weight: 600;">-</span>%</label>
+                        <div class="input-row">
+                            <input type="range" id="wacc" min="5" max="20" step="0.1" oninput="updateFromSlider('wacc')" />
+                            <input type="number" id="waccNum" min="5" max="20" step="0.1" oninput="updateFromNumber('wacc')" />
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="terminal_growth">Terminal Growth: <span id="tgValDisplay" style="color: #fff; font-weight: 600;">-</span>%</label>
+                        <div class="input-row">
+                            <input type="range" id="terminal_growth" min="0" max="8" step="0.1" oninput="updateFromSlider('terminal_growth')" />
+                            <input type="number" id="terminal_growthNum" min="0" max="8" step="0.1" oninput="updateFromNumber('terminal_growth')" />
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 2: Recalculated Valuation Results -->
+                <div class="card">
+                    <h2 class="card-title">💰 Valuation Output</h2>
+                    <div class="kpi-container" style="height: 100%; align-content: start;">
+                        <div class="kpi-card" style="grid-column: span 2;">
+                            <div class="kpi-label">Intrinsic Value Per Share</div>
+                            <div class="kpi-value" id="kpiIntrinsic" style="font-size: 2.2rem;">$0.00</div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="kpi-label">Enterprise Value</div>
+                            <div class="kpi-value secondary" id="kpiEV">$0</div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="kpi-label">Terminal Value</div>
+                            <div class="kpi-value secondary" id="kpiTV">$0</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 3: Visual Projections Trend -->
+                <div class="card">
+                    <h2 class="card-title">📊 Projections Chart (Rev vs FCF)</h2>
+                    <div class="chart-container">
+                        <svg id="projectionChart" viewBox="0 0 800 250" width="100%" height="210">
+                            <!-- SVG Content generated dynamically -->
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Lower Card: Detailed Projections Table -->
+            <div class="card">
+                <h2 class="card-title">📅 10-Year Projections Table</h2>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Year</th>
+                                <th>Revenue</th>
+                                <th>Growth (%)</th>
+                                <th>EBITA</th>
+                                <th>Margin (%)</th>
+                                <th>NOPAT</th>
+                                <th>Reinvestment</th>
+                                <th>Invested Cap</th>
+                                <th>ROIC (%)</th>
+                                <th class="highlight-col">FCF</th>
+                                <th>Discount Factor</th>
+                                <th>PV of FCF</th>
+                            </tr>
+                        </thead>
+                        <tbody id="projectionsBody">
+                            <!-- Table rows populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="actions-row" style="margin-top: 24px;">
+                    <button onclick="saveScenario()">💾 Save Scenario Options</button>
+                </div>
+                <div id="message"></div>
+            </div>
+        </div>
     </div>
-
-    <div id="modelEditor" style="display:none; margin-top:20px;">
-        <h2>Model Adjustments</h2>
-        <div class="form-group">
-            <label>Ticker:</label>
-            <input type="text" id="ticker" disabled />
-        </div>
-        <div class="form-group">
-            <label>Base WACC (%):</label>
-            <input type="number" id="wacc" step="0.1" />
-        </div>
-        <div class="form-group">
-            <label>Terminal Growth (%):</label>
-            <input type="number" id="terminal_growth" step="0.1" />
-        </div>
-        <button onclick="saveScenario()">Save Scenario</button>
-    </div>
-
-    <div id="message" style="margin-top: 10px; color: green; font-weight: bold;"></div>
 
     <script>
         let currentData = {};
 
+        // Cache parameters to run browser-side recalculations
+        let baseRevenue = 0;
+        let baseMargin = 0;
+        let marginYr5 = 0;
+        let revenueGrowthRate = 0;
+        let baseGrowthRate = 0;
+        let capitalTurnover = 1.0;
+        let adjustedTaxRate = 0.21;
+        let baseIc = 0;
+        let sharesOutstanding = 1.0;
+        let netDebt = 0;
+
         async function fetchModels() {
-            const res = await fetch('/api/models');
-            if (res.ok) {
-                const files = await res.json();
-                const select = document.getElementById('modelSelect');
-                select.innerHTML = '';
+            try {
+                const res = await fetch('/api/models');
+                if (res.ok) {
+                    const files = await res.json();
+                    const select = document.getElementById('modelSelect');
+                    select.innerHTML = '';
 
-                if (files.length === 0) {
-                    select.innerHTML = '<option value="">No models found</option>';
-                    return;
+                    if (files.length === 0) {
+                        select.innerHTML = '<option value="">No models found</option>';
+                        return;
+                    }
+
+                    files.forEach(file => {
+                        const opt = document.createElement('option');
+                        opt.value = file;
+                        opt.textContent = file;
+                        select.appendChild(opt);
+                    });
+                    loadModel();
                 }
-
-                files.forEach(file => {
-                    const opt = document.createElement('option');
-                    opt.value = file;
-                    opt.textContent = file;
-                    select.appendChild(opt);
-                });
-                loadModel();
+            } catch (err) {
+                console.error("Failed to fetch models", err);
             }
         }
 
@@ -67,39 +526,355 @@
             const file = select.value;
             if (!file) return;
 
-            const res = await fetch(`/api/models/${file}`);
-            if (res.ok) {
-                currentData = await res.json();
-                document.getElementById('ticker').value = currentData.ticker || '';
-                document.getElementById('wacc').value = (currentData.wacc || 0) * 100;
-                document.getElementById('terminal_growth').value = (currentData.terminal_growth || 0) * 100;
-                document.getElementById('modelEditor').style.display = 'block';
-                document.getElementById('message').textContent = '';
+            try {
+                const res = await fetch(`/api/models/${file}`);
+                if (res.ok) {
+                    currentData = await res.json();
+
+                    // Handle parameters inside nested assumptions or at root level
+                    const assumptions = currentData.assumptions || {};
+                    const waccVal = (assumptions.wacc !== undefined ? assumptions.wacc : currentData.wacc || 0) * 100;
+                    const tgVal = (assumptions.terminal_growth_rate !== undefined ? assumptions.terminal_growth_rate : currentData.terminal_growth || 0) * 100;
+
+                    // Cache inputs
+                    baseRevenue = assumptions.base_revenue || currentData.base_revenue || 0;
+                    baseMargin = assumptions.base_margin || currentData.base_margin || 0;
+                    marginYr5 = assumptions.margin_yr5 || currentData.margin_yr5 || 0;
+                    revenueGrowthRate = assumptions.revenue_growth_rate || currentData.revenue_growth_rate || 0;
+                    baseGrowthRate = assumptions.base_growth_rate || currentData.base_growth_rate || 0;
+                    capitalTurnover = assumptions.capital_turnover || currentData.capital_turnover || 1.0;
+                    adjustedTaxRate = assumptions.adjusted_tax_rate || currentData.adjusted_tax_rate || 0.21;
+                    baseIc = assumptions.base_ic || currentData.base_ic || 0;
+                    sharesOutstanding = assumptions.shares_outstanding || currentData.shares_outstanding || 1.0;
+                    netDebt = assumptions.net_debt !== undefined ? assumptions.net_debt : currentData.net_debt || 0;
+
+                    // Update UI Controls
+                    document.getElementById('tickerDisplay').textContent = currentData.ticker || 'UNKNOWN';
+
+                    document.getElementById('wacc').value = waccVal;
+                    document.getElementById('waccNum').value = waccVal.toFixed(1);
+                    document.getElementById('waccValDisplay').textContent = waccVal.toFixed(1);
+
+                    document.getElementById('terminal_growth').value = tgVal;
+                    document.getElementById('terminal_growthNum').value = tgVal.toFixed(1);
+                    document.getElementById('tgValDisplay').textContent = tgVal.toFixed(1);
+
+                    document.getElementById('modelEditor').style.display = 'block';
+
+                    const msgEl = document.getElementById('message');
+                    msgEl.textContent = '';
+                    msgEl.className = '';
+
+                    // Trigger initial rendering and recalculation
+                    recalculateModel();
+                }
+            } catch (err) {
+                console.error("Failed to load model", err);
             }
+        }
+
+        // Link Range Sliders and Number Inputs
+        function updateFromSlider(id) {
+            const val = parseFloat(document.getElementById(id).value);
+            document.getElementById(id + 'Num').value = val.toFixed(1);
+            document.getElementById(id + 'ValDisplay').textContent = val.toFixed(1);
+            recalculateModel();
+        }
+
+        function updateFromNumber(id) {
+            let val = parseFloat(document.getElementById(id + 'Num').value);
+            const min = parseFloat(document.getElementById(id).min);
+            const max = parseFloat(document.getElementById(id).max);
+
+            if (isNaN(val)) val = min;
+            if (val < min) val = min;
+            if (val > max) val = max;
+
+            document.getElementById(id).value = val;
+            document.getElementById(id + 'ValDisplay').textContent = val.toFixed(1);
+            recalculateModel();
+        }
+
+        // JS DCF Projection and Valuation Model
+        function recalculateModel() {
+            const wacc = parseFloat(document.getElementById('wacc').value) / 100;
+            const terminalGrowth = parseFloat(document.getElementById('terminal_growth').value) / 100;
+
+            let rev = baseRevenue;
+            let ic = baseIc;
+            let projections = [];
+            let growthRates = [];
+
+            for (let yr = 1; yr <= 10; yr++) {
+                let g, m;
+                if (yr <= 5) {
+                    g = baseGrowthRate + (revenueGrowthRate - baseGrowthRate) * (yr / 5.0);
+                    m = baseMargin + (marginYr5 - baseMargin) * (yr / 5.0);
+                } else {
+                    g = revenueGrowthRate + (terminalGrowth - revenueGrowthRate) * ((yr - 5) / 5.0);
+                    m = marginYr5;
+                }
+
+                growthRates.push(g);
+
+                let prevRev = rev;
+                rev = rev * (1 + g);
+                let ebita = rev * m;
+                let nopat = ebita * (1 - adjustedTaxRate);
+                let reinvestment = (rev - prevRev) / capitalTurnover;
+                let fcf = nopat - reinvestment;
+                ic = ic + reinvestment;
+                let roic = ic !== 0 ? (nopat / ic) * 100 : 0;
+                let df = 1 / Math.pow(1 + wacc, yr);
+                let pv = fcf * df;
+
+                projections.push({
+                    year: yr,
+                    revenue: rev,
+                    growth: g,
+                    ebita: ebita,
+                    margin: m,
+                    nopat: nopat,
+                    reinvestment: reinvestment,
+                    ic: ic,
+                    roic: roic,
+                    fcf: fcf,
+                    df: df,
+                    pv: pv
+                });
+            }
+
+            // DCF Valuation Formulas
+            const fcfBase = projections[0].fcf / (1 + growthRates[0]);
+
+            let projectedCashFlows = [];
+            let currentFCF = fcfBase;
+            let pvCashFlows = 0.0;
+
+            for (let i = 0; i < growthRates.length; i++) {
+                currentFCF *= (1.0 + growthRates[i]);
+                projectedCashFlows.push(currentFCF);
+
+                let df = Math.pow(1.0 + wacc, i + 1);
+                pvCashFlows += currentFCF / df;
+            }
+
+            const lastFCF = projectedCashFlows[projectedCashFlows.length - 1];
+
+            // Avoid division by zero/negative in denominator
+            let terminalValue = 0;
+            if (wacc > terminalGrowth) {
+                terminalValue = (lastFCF * (1.0 + terminalGrowth)) / (wacc - terminalGrowth);
+            }
+
+            const pvTerminalValue = terminalValue / Math.pow(1.0 + wacc, projectedCashFlows.length);
+            const enterpriseValue = pvCashFlows + pvTerminalValue;
+            const equityValue = enterpriseValue - netDebt;
+            const intrinsicValuePerShare = sharesOutstanding > 0 ? equityValue / sharesOutstanding : 0;
+
+            // Cache recalculated parameters back to currentData
+            currentData.wacc = wacc;
+            currentData.terminal_growth = terminalGrowth;
+            if (currentData.assumptions) {
+                currentData.assumptions.wacc = wacc;
+                currentData.assumptions.terminal_growth_rate = terminalGrowth;
+            }
+            currentData.projections = projections;
+            currentData.valuation = {
+                projected_cash_flows: projectedCashFlows,
+                terminal_value: terminalValue,
+                enterprise_value: enterpriseValue,
+                intrinsic_value_per_share: intrinsicValuePerShare
+            };
+
+            // Update KPIs
+            document.getElementById('kpiIntrinsic').textContent = `$${intrinsicValuePerShare.toFixed(2)}`;
+            document.getElementById('kpiEV').textContent = `$${enterpriseValue.toLocaleString(undefined, {maximumFractionDigits: 0})}`;
+            document.getElementById('kpiTV').textContent = `$${terminalValue.toLocaleString(undefined, {maximumFractionDigits: 0})}`;
+
+            // Render Table
+            renderTable(projections);
+
+            // Render SVG Chart
+            renderSVGChart(projections);
+        }
+
+        function renderTable(projections) {
+            const tbody = document.getElementById('projectionsBody');
+            tbody.innerHTML = '';
+
+            projections.forEach(p => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>Year ${p.year}</td>
+                    <td>$${p.revenue.toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
+                    <td>${(p.growth * 100).toFixed(1)}%</td>
+                    <td>$${p.ebita.toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
+                    <td>${(p.margin * 100).toFixed(1)}%</td>
+                    <td>$${p.nopat.toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
+                    <td>$${p.reinvestment.toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
+                    <td>$${p.ic.toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
+                    <td>${p.roic.toFixed(1)}%</td>
+                    <td class="highlight-col">$${p.fcf.toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
+                    <td>${p.df.toFixed(4)}</td>
+                    <td>$${p.pv.toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function renderSVGChart(projections) {
+            const svg = document.getElementById('projectionChart');
+            if (!svg) return;
+
+            svg.innerHTML = '';
+
+            const width = 800;
+            const height = 210;
+            const padding = { top: 20, right: 30, bottom: 35, left: 70 };
+
+            const maxRev = Math.max(...projections.map(p => p.revenue));
+            const minFCF = Math.min(...projections.map(p => p.fcf), 0);
+            const maxFCF = Math.max(...projections.map(p => p.fcf));
+            const maxVal = Math.max(maxRev, maxFCF) * 1.05;
+            const minVal = Math.min(0, minFCF) * 1.05;
+            const range = maxVal - minVal;
+
+            const getX = (idx) => padding.left + (idx * (width - padding.left - padding.right) / 9);
+            const getY = (val) => padding.top + ((maxVal - val) * (height - padding.top - padding.bottom) / range);
+
+            // Draw horizontal grid lines & Y labels
+            for (let i = 0; i <= 4; i++) {
+                const val = minVal + (i * range / 4);
+                const y = getY(val);
+
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', padding.left);
+                line.setAttribute('y1', y);
+                line.setAttribute('x2', width - padding.right);
+                line.setAttribute('y2', y);
+                line.setAttribute('stroke', 'rgba(255, 255, 255, 0.08)');
+                line.setAttribute('stroke-dasharray', '4 4');
+                svg.appendChild(line);
+
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('x', padding.left - 12);
+                text.setAttribute('y', y + 4);
+                text.setAttribute('fill', '#94a3b8');
+                text.setAttribute('font-size', '9px');
+                text.setAttribute('text-anchor', 'end');
+                text.textContent = '$' + (val >= 1e6 ? (val / 1e6).toFixed(1) + 'M' : val >= 1e3 ? (val / 1e3).toFixed(0) + 'K' : val.toFixed(0));
+                svg.appendChild(text);
+            }
+
+            // Draw Revenue Bars
+            projections.forEach((p, idx) => {
+                const x = getX(idx);
+                const yBase = getY(0);
+                const yVal = getY(p.revenue);
+                const barWidth = 28;
+
+                const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                rect.setAttribute('x', x - barWidth / 2);
+                rect.setAttribute('y', Math.min(yBase, yVal));
+                rect.setAttribute('width', barWidth);
+                rect.setAttribute('height', Math.abs(yBase - yVal));
+                rect.setAttribute('rx', '4');
+                rect.setAttribute('fill', 'rgba(99, 102, 241, 0.25)');
+                rect.setAttribute('stroke', 'rgba(99, 102, 241, 0.7)');
+                rect.setAttribute('stroke-width', '1.5');
+                rect.classList.add('chart-bar');
+
+                const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+                title.textContent = `Year ${p.year} Revenue: $${p.revenue.toLocaleString(undefined, {maximumFractionDigits: 0})}`;
+                rect.appendChild(title);
+
+                svg.appendChild(rect);
+
+                // X labels
+                const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                label.setAttribute('x', x);
+                label.setAttribute('y', height - 8);
+                label.setAttribute('fill', '#94a3b8');
+                label.setAttribute('font-size', '10px');
+                label.setAttribute('text-anchor', 'middle');
+                label.textContent = `Yr ${p.year}`;
+                svg.appendChild(label);
+            });
+
+            // Draw FCF Line path
+            let pathD = '';
+            projections.forEach((p, idx) => {
+                const x = getX(idx);
+                const y = getY(p.fcf);
+                if (idx === 0) pathD += `M ${x} ${y}`;
+                else pathD += ` L ${x} ${y}`;
+            });
+
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute('d', pathD);
+            path.setAttribute('fill', 'none');
+            path.setAttribute('stroke', '#10b981');
+            path.setAttribute('stroke-width', '3');
+            path.setAttribute('stroke-linecap', 'round');
+            path.setAttribute('stroke-linejoin', 'round');
+            path.setAttribute('filter', 'drop-shadow(0px 0px 3px rgba(16, 185, 129, 0.5))');
+            svg.appendChild(path);
+
+            // Draw FCF dots
+            projections.forEach((p, idx) => {
+                const x = getX(idx);
+                const y = getY(p.fcf);
+
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', x);
+                circle.setAttribute('cy', y);
+                circle.setAttribute('r', '4.5');
+                circle.setAttribute('fill', '#10b981');
+                circle.setAttribute('stroke', '#080c14');
+                circle.setAttribute('stroke-width', '1.5');
+
+                const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+                title.textContent = `Year ${p.year} FCF: $${p.fcf.toLocaleString(undefined, {maximumFractionDigits: 0})}`;
+                circle.appendChild(title);
+
+                svg.appendChild(circle);
+            });
         }
 
         async function saveScenario() {
-            const updatedData = { ...currentData };
-            updatedData.wacc = parseFloat(document.getElementById('wacc').value) / 100;
-            updatedData.terminal_growth = parseFloat(document.getElementById('terminal_growth').value) / 100;
+            const msgEl = document.getElementById('message');
+            msgEl.textContent = 'Saving scenario...';
+            msgEl.className = 'show';
 
-            const res = await fetch('/api/save-scenario', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updatedData)
-            });
+            try {
+                const res = await fetch('/api/save-scenario', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(currentData)
+                });
 
-            if (res.ok) {
-                const result = await res.json();
-                document.getElementById('message').textContent = `Saved as ${result.filename}!`;
-                await fetchModels(); // Refresh list to show new file
-            } else {
-                document.getElementById('message').textContent = 'Error saving scenario.';
-                document.getElementById('message').style.color = 'red';
+                if (res.ok) {
+                    const result = await res.json();
+                    msgEl.textContent = `Indubitably! Saved custom scenario successfully as ${result.filename}!`;
+                    msgEl.className = 'show';
+
+                    // Refresh models list and select the new file
+                    await fetchModels();
+                    document.getElementById('modelSelect').value = result.filename;
+                    await loadModel();
+                } else {
+                    const errData = await res.json();
+                    msgEl.textContent = `Error saving scenario: ${errData.error || 'Unknown error'}`;
+                    msgEl.className = 'show error';
+                }
+            } catch (err) {
+                msgEl.textContent = `Connection error: ${err.message}`;
+                msgEl.className = 'show error';
             }
         }
 
-        // Initialize
+        // Initialize on load
         fetchModels();
     </script>
 </body>
