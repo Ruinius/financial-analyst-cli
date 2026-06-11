@@ -345,7 +345,10 @@ Revenue of $1000. Cash of $500. Shares outstanding basic shares diluted shares o
     # 1. Test find_keyword_contexts
     snippets = find_keyword_contexts(content, ["shares", "revenue"], window=20)
     assert len(snippets) > 0
-    assert any("shares" in sn.lower() or "revenue" in sn.lower() for sn in snippets)
+    assert any(
+        "shares" in sn["snippet"].lower() or "revenue" in sn["snippet"].lower()
+        for sn in snippets
+    )
 
     # 2. Test extract_financial_statements
     summaries = []

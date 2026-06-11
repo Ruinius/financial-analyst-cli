@@ -1,10 +1,45 @@
+import re
 from pathlib import Path
 
 
 def find_keyword_contexts(content: str, keywords: list, window: int = 200) -> list:
-    """Find occurrences of keywords in content and return snippets of 200 chars before and after."""
+    """Find occurrences of keywords in content and return snippets of 200 chars before and after, along with the chunk ID they were found in."""
     if window < 100:
         window = 100
+
+    # Parse chunk spans
+    chunk_spans = []  # list of tuples: (chunk_id, start_idx, end_idx)
+    starts = {}
+    for m in re.finditer(r"<!--\s*CHUNK_START:\s*(\d+)\s*-->", content):
+        cid = int(m.group(1))
+        starts[cid] = m.end()
+
+    ends = {}
+    for m in re.finditer(r"<!--\s*CHUNK_END:\s*(\d+)\s*-->", content):
+        cid = int(m.group(1))
+        ends[cid] = m.start()
+
+    for cid, start in starts.items():
+        if cid in ends:
+            chunk_spans.append((cid, start, ends[cid]))
+
+    chunk_spans.sort(key=lambda x: x[1])
+
+    first_start = min(starts.values()) if starts else len(content)
+    chunk_spans.insert(0, (0, 0, first_start))
+
+    def get_chunk_for_pos(pos: int) -> int:
+        for cid, start, end in chunk_spans:
+            if start <= pos <= end:
+                return cid
+        best_cid = 0
+        for cid, start, end in chunk_spans:
+            if start <= pos:
+                best_cid = cid
+            else:
+                break
+        return best_cid
+
     snippets = []
     content_lower = content.lower()
     for kw in keywords:
@@ -17,8 +52,12 @@ def find_keyword_contexts(content: str, keywords: list, window: int = 200) -> li
             start_idx = max(0, pos - window)
             end_idx = min(len(content), pos + len(kw) + window)
             snippet = content[start_idx:end_idx].strip()
-            if snippet not in snippets:
-                snippets.append(snippet)
+
+            chunk_id = get_chunk_for_pos(pos)
+            snippet_item = {"chunk_id": chunk_id, "snippet": snippet}
+            if snippet_item not in snippets:
+                snippets.append(snippet_item)
+
             start = pos + len(kw)
             if start >= len(content):
                 break

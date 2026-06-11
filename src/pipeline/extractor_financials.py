@@ -76,7 +76,10 @@ def run_extraction_agent(
     history = []
     initial_prompt = (
         f"You are the {agent_name} Agent. Your goal is to extract the complete statement and save it to the target file. "
-        f"The source file name is '{file_path.name}'. The document is split into chunks with IDs: {sorted_chunk_ids}.\n\n"
+        f"The source file name is '{file_path.name}'. The document is split into chunks with IDs: {sorted_chunk_ids}.\n"
+        f"Note: The chunk IDs are sorted in descending order of number frequency (digit count). "
+        f"Since financial statements (tables) contain many digits, the chunks containing financial statements "
+        f"are highly likely to be near the beginning of this list.\n\n"
         f"You do not have the document content in your initial context. You MUST first call the tool `find_keyword_contexts` "
         f"to locate where the statement is, and then call `get_chunk_by_id` to inspect the contents. "
         f"Target output path to write to: '{target_output_path.as_posix()}'.\n"
@@ -755,7 +758,9 @@ def run_ebita_and_tax_agent(
         "tax adjustment",
     ]
     snippets = find_keyword_contexts(content, keywords, window=250)
-    snippets_text = "\n---\n".join(snippets)[:6000]
+    snippets_text = "\n---\n".join(
+        [f"Chunk {s['chunk_id']}: {s['snippet']}" for s in snippets]
+    )[:6000]
 
     sys_prompt = (
         "You are Sir Pennyworth, a senior financial analyst specializing in EBITA adjustments and tax provisions.\n"
