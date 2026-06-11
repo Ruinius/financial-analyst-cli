@@ -747,6 +747,12 @@ def run_ebita_and_tax_agent(
         elif "net income" in n or "net_income" in n:
             net_income = item.value
 
+    # Check local dictionary classifications to pass as guidance/override
+    is_dict_path = Path("src/resources/dictionary/income_statement.md")
+    local_dict_guidance = ""
+    if is_dict_path.exists():
+        local_dict_guidance += f"--- Income Statement Dictionary ---\n{is_dict_path.read_text(encoding='utf-8')}\n"
+
     keywords = [
         "restructuring",
         "amortization",
@@ -771,7 +777,13 @@ def run_ebita_and_tax_agent(
         "2. Back out the tax effect of non-operating adjustments at a statutory rate of 25% (21% federal, 4% state/local).\n"
         "3. Identify any non-recurring tax benefits/credits in the footnotes.\n"
         "4. Calculate clean Operating EBITA = Operating Income + Non-Operating/Non-recurring adjustments.\n"
-        "5. Calculate Adjusted Taxes = Reported Tax + Tax effect of adjustments - non-recurring tax benefits.\n\n"
+        "5. Calculate Adjusted Taxes = Reported Tax + Tax effect of adjustments - non-recurring tax benefits.\n"
+        "6. Standardize positive/negative signs for the calculations and outputs:\n"
+        "   - Verify that any number that subtracts from the revenue is an expense, cost, or loss, and is expressed as a negative number. This includes the Reported Tax Provision (expressed as negative if it is a tax expense, and positive only if it is a tax benefit/credit).\n"
+        "   - Verify that any number that effectively increases profit (e.g. revenue, interest income, tax benefits, gains) is expressed as a positive number.\n"
+        "   - Pay special attention to ambiguous items: make sure their sign correctly reflects whether they are a net expense (negative) or net income/benefit (positive) in the context of the statements.\n"
+        "   - For the tax effect of non-operating adjustments (tax_adjustments): a positive value indicates a tax benefit/credit or addition (reducing tax expense/provision), and a negative value indicates a tax expense (increasing tax provision).\n"
+        "   - Ensure that EBITA, Adjusted Taxes, and their components in the returned JSON have signs consistent with these rules so that math checks (e.g. Adjusted Taxes = Reported Tax + Tax effect of adjustments - non-recurring tax benefits) work correctly.\n\n"
         "Please identify adjustments and return a JSON object with:\n"
         "{\n"
         '  "operating_ebita": 150.0,\n'
@@ -796,6 +808,9 @@ Reported Net Income: {net_income}
         prompt += (
             f'\nExtracted Income Statement:\n"""\n{income_statement_content}\n"""\n'
         )
+
+    if local_dict_guidance:
+        prompt += f"\nLocal Dictionary Guidance:\n{local_dict_guidance}\n"
 
     prompt += f"""
 Footnote Snippets:

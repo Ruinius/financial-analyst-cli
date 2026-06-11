@@ -1,6 +1,10 @@
 import json
+import time
+import logging
 import httpx
 from src.core.config import load_config
+
+logger = logging.getLogger(__name__)
 
 
 class LLMClient:
@@ -77,93 +81,81 @@ class LLMClient:
             "messages": messages,
             "temperature": temperature,
         }
-        if stream_thinking:
-            payload["stream"] = True
-            if self.provider == "openrouter":
-                payload["include_reasoning"] = True
-                payload["reasoning"] = {"exclude": False}
-            elif self.provider == "deepseek":
-                payload["thinking"] = {"type": "enabled"}
 
-            from rich.console import Console
+        max_retries = 3
+        initial_delay = 1.0
+        backoff = 2.0
 
-            console = Console()
-
-            full_content = []
-            reasoning_content = []
-            has_started_thinking = False
-            has_started_content = False
-            printed_thinking_len = 0
-            printed_content_len = 0
-
+        for attempt in range(max_retries + 1):
             try:
-                with httpx.Client(timeout=60.0) as client:
-                    with client.stream(
-                        "POST", self.endpoint, headers=self.headers, json=payload
-                    ) as r:
-                        r.raise_for_status()
-                        for line in r.iter_lines():
-                            if not line.strip():
-                                continue
-                            if line.startswith("data: "):
-                                data_str = line[len("data: ") :]
-                                if data_str.strip() == "[DONE]":
-                                    break
-                                try:
-                                    chunk = json.loads(data_str)
-                                    delta = chunk["choices"][0]["delta"]
+                if stream_thinking:
+                    payload["stream"] = True
+                    if self.provider == "openrouter":
+                        payload["include_reasoning"] = True
+                        payload["reasoning"] = {"exclude": False}
+                    elif self.provider == "deepseek":
+                        payload["thinking"] = {"type": "enabled"}
 
-                                    reasoning = delta.get(
-                                        "reasoning_content"
-                                    ) or delta.get("reasoning")
-                                    content = delta.get("content")
+                    from rich.console import Console
 
-                                    if reasoning:
-                                        if not has_started_thinking:
+                    console = Console()
+
+                    full_content = []
+                    reasoning_content = []
+                    has_started_thinking = False
+                    has_started_content = False
+                    printed_thinking_len = 0
+                    printed_content_len = 0
+
+                    with httpx.Client(timeout=60.0) as client:
+                        with client.stream(
+                            "POST", self.endpoint, headers=self.headers, json=payload
+                        ) as r:
+                            r.raise_for_status()
+                            for line in r.iter_lines():
+                                if not line.strip():
+                                    continue
+                                if line.startswith("data: "):
+                                    data_str = line[len("data: ") :]
+                                    if data_str.strip() == "[DONE]":
+                                        break
+                                    try:
+                                        chunk = json.loads(data_str)
+                                        delta = chunk["choices"][0]["delta"]
+
+                                        reasoning = delta.get(
+                                            "reasoning_content"
+                                        ) or delta.get("reasoning")
+                                        content = delta.get("content")
+
+                                        if reasoning:
+                                            if not has_started_thinking:
+                                                console.print(
+                                                    "[italic dim]Sir Pennyworth is pondering... [/italic dim]",
+                                                    end="",
+                                                )
+                                                has_started_thinking = True
                                             console.print(
-                                                "[italic dim]Sir Pennyworth is pondering... [/italic dim]",
-                                                end="",
+                                                reasoning, end="", style="italic dim"
                                             )
-                                            has_started_thinking = True
-                                        console.print(
-                                            reasoning, end="", style="italic dim"
-                                        )
-                                        console.file.flush()
-                                        reasoning_content.append(reasoning)
+                                            console.file.flush()
+                                            reasoning_content.append(reasoning)
 
-                                    if content:
-                                        full_content.append(content)
-                                        accumulated = "".join(full_content)
+                                        if content:
+                                            full_content.append(content)
+                                            accumulated = "".join(full_content)
 
-                                        if "<think>" in accumulated:
-                                            if "</think>" not in accumulated:
-                                                if not has_started_thinking:
-                                                    console.print(
-                                                        "[italic dim]Sir Pennyworth is pondering... [/italic dim]",
-                                                        end="",
-                                                    )
-                                                    has_started_thinking = True
-                                                thinking_part = accumulated.split(
-                                                    "<think>", 1
-                                                )[1]
-                                                unprinted = thinking_part[
-                                                    printed_thinking_len:
-                                                ]
-                                                if unprinted:
-                                                    console.print(
-                                                        unprinted,
-                                                        end="",
-                                                        style="italic dim",
-                                                    )
-                                                    printed_thinking_len += len(
-                                                        unprinted
-                                                    )
-                                                console.file.flush()
-                                            else:
-                                                if has_started_thinking:
+                                            if "<think>" in accumulated:
+                                                if "</think>" not in accumulated:
+                                                    if not has_started_thinking:
+                                                        console.print(
+                                                            "[italic dim]Sir Pennyworth is pondering... [/italic dim]",
+                                                            end="",
+                                                        )
+                                                        has_started_thinking = True
                                                     thinking_part = accumulated.split(
-                                                        "</think>", 1
-                                                    )[0].split("<think>", 1)[1]
+                                                        "<think>", 1
+                                                    )[1]
                                                     unprinted = thinking_part[
                                                         printed_thinking_len:
                                                     ]
@@ -173,64 +165,93 @@ class LLMClient:
                                                             end="",
                                                             style="italic dim",
                                                         )
-                                                    console.print()
-                                                    has_started_thinking = False
-
-                                                if not has_started_content:
-                                                    console.print(
-                                                        "[dim]Extracting metrics... [/dim]",
-                                                        end="",
-                                                    )
-                                                    has_started_content = True
-
-                                                actual_content = accumulated.split(
-                                                    "</think>", 1
-                                                )[1]
-                                                new_content_len = (
-                                                    len(actual_content)
-                                                    - printed_content_len
-                                                )
-                                                if new_content_len > 0:
-                                                    console.print(
-                                                        "."
-                                                        * (new_content_len // 5 or 1),
-                                                        end="",
-                                                    )
-                                                    printed_content_len = len(
-                                                        actual_content
-                                                    )
-                                                console.file.flush()
-                                        else:
-                                            if "<think>".startswith(accumulated):
-                                                pass
-                                            else:
-                                                if not has_started_content:
+                                                        printed_thinking_len += len(
+                                                            unprinted
+                                                        )
+                                                    console.file.flush()
+                                                else:
                                                     if has_started_thinking:
+                                                        thinking_part = (
+                                                            accumulated.split(
+                                                                "</think>", 1
+                                                            )[0].split("<think>", 1)[1]
+                                                        )
+                                                        unprinted = thinking_part[
+                                                            printed_thinking_len:
+                                                        ]
+                                                        if unprinted:
+                                                            console.print(
+                                                                unprinted,
+                                                                end="",
+                                                                style="italic dim",
+                                                            )
                                                         console.print()
                                                         has_started_thinking = False
-                                                    console.print(
-                                                        "[dim]Extracting metrics... [/dim]",
-                                                        end="",
+
+                                                    if not has_started_content:
+                                                        console.print(
+                                                            "[dim]Extracting metrics... [/dim]",
+                                                            end="",
+                                                        )
+                                                        has_started_content = True
+
+                                                    actual_content = accumulated.split(
+                                                        "</think>", 1
+                                                    )[1]
+                                                    new_content_len = (
+                                                        len(actual_content)
+                                                        - printed_content_len
                                                     )
-                                                    has_started_content = True
-                                                console.print(".", end="")
-                                                console.file.flush()
-                                except Exception:
-                                    pass
-                        if has_started_thinking or has_started_content:
-                            console.print()
-                return "".join(full_content)
+                                                    if new_content_len > 0:
+                                                        console.print(
+                                                            "."
+                                                            * (
+                                                                new_content_len // 5
+                                                                or 1
+                                                            ),
+                                                            end="",
+                                                        )
+                                                        printed_content_len = len(
+                                                            actual_content
+                                                        )
+                                                    console.file.flush()
+                                            else:
+                                                if "<think>".startswith(accumulated):
+                                                    pass
+                                                else:
+                                                    if not has_started_content:
+                                                        if has_started_thinking:
+                                                            console.print()
+                                                            has_started_thinking = False
+                                                        console.print(
+                                                            "[dim]Extracting metrics... [/dim]",
+                                                            end="",
+                                                        )
+                                                        has_started_content = True
+                                                    console.print(".", end="")
+                                                    console.file.flush()
+                                    except Exception:
+                                        pass
+                            if has_started_thinking or has_started_content:
+                                console.print()
+                    return "".join(full_content)
+                else:
+                    with httpx.Client(timeout=60.0) as client:
+                        response = client.post(
+                            self.endpoint, headers=self.headers, json=payload
+                        )
+                        response.raise_for_status()
+                        data = response.json()
+                        return data["choices"][0]["message"]["content"]
             except Exception as e:
-                raise RuntimeError(f"LLM streaming generation failed: {str(e)}")
-        else:
-            try:
-                with httpx.Client(timeout=60.0) as client:
-                    response = client.post(
-                        self.endpoint, headers=self.headers, json=payload
-                    )
-                    response.raise_for_status()
-                    data = response.json()
-                    return data["choices"][0]["message"]["content"]
-            except Exception as e:
-                # Handle potential API errors gracefully
-                raise RuntimeError(f"LLM generation failed: {str(e)}")
+                if attempt == max_retries:
+                    if stream_thinking:
+                        raise RuntimeError(f"LLM streaming generation failed: {str(e)}")
+                    else:
+                        raise RuntimeError(f"LLM generation failed: {str(e)}")
+
+                delay = initial_delay * (backoff**attempt)
+                logger.warning(
+                    f"LLM API request failed: {e}. Retrying in {delay:.1f}s (Attempt {attempt + 1}/{max_retries + 1})..."
+                )
+                time.sleep(delay)
