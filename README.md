@@ -14,6 +14,20 @@ The interface is hosted by **Sir Pennyworth**, a greedy financial analyst pig wi
    └───────────┘
 ```
 
+![Sir Pennyworth Help Screen](assets/cli_help.png)
+
+---
+
+## Why a Financial Analyst CLI?
+
+While a layperson or chatbot might assume that financial analysis is completely deterministic, anyone who has tried to automate it knows this is far from the truth:
+
+- **Inconsistent Reporting**: Every company formats and reports their financial statements differently.
+- **Sign Ambiguity**: Numbers in financial tables are inconsistently expressed as positive or negative depending on the specific filing's layout and context.
+- **Judgment & Context**: Isolating non-operating adjustments, interpreting ambiguous line items, and extracting footnotes require context, interpretation, and judgment.
+
+While this doesn't require the open-ended reasoning level of a software engineering coding agent, standard static scripts and regexes simply cannot handle this variability. This complexity makes financial analysis the perfect candidate for an agentic AI CLI tool that blends LLM-based reasoning, structured validation schemas, and deterministic mathematical calculations.
+
 ---
 
 ## A Personal Growth Journey
@@ -30,6 +44,7 @@ I am constantly learning and growing. I am incredibly grateful for any comments,
 
 ## Table of Contents
 
+- [Why a Financial Analyst CLI?](#why-a-financial-analyst-cli)
 - [A Personal Growth Journey](#a-personal-growth-journey)
 - [Core Features](#core-features)
 - [Installation & Setup](#installation--setup)
@@ -144,6 +159,8 @@ uv run fa run historical
 # Generate DCF model projections
 uv run fa run model
 ```
+
+![Pipeline Execution](assets/pipeline_run.png)
 
 ### 2. `fa chat` (Interactive Analyst Shell)
 
