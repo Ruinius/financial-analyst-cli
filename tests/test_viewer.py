@@ -40,7 +40,7 @@ def test_save_scenario_ticker_sanitization(monkeypatch, tmp_path):
     class MockHandler(DCFViewerHandler):
         def __init__(self):
             self.path = "/api/save-scenario"
-            self.headers = {"Content-Length": "100"}
+            self.headers = {"Content-Length": "100", "Content-Type": "application/json", "Origin": "http://localhost:3000"}
             self.rfile = MockRequestFile()
             self.responses = []
 
