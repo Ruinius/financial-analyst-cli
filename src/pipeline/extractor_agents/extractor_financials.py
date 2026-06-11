@@ -158,6 +158,26 @@ def calculate_deterministic_metrics(
         if item.category == "noncurrent_liabilities" and item.operating
     ]
 
+    non_operating_assets = [
+        item
+        for item in extracted_line_items
+        if item.category
+        in ("current_assets", "current_asset", "noncurrent_assets", "noncurrent_asset")
+        and not item.operating
+    ]
+    non_operating_liabilities = [
+        item
+        for item in extracted_line_items
+        if item.category
+        in (
+            "current_liabilities",
+            "current_liability",
+            "noncurrent_liabilities",
+            "noncurrent_liability",
+        )
+        and not item.operating
+    ]
+
     oca = sum(item.value for item in oca_items)
     ocl = sum(item.value for item in ocl_items)
     onca = sum(item.value for item in onca_items)
@@ -203,18 +223,13 @@ def calculate_deterministic_metrics(
     output_lines.append("|---|---|")
     output_lines.append(f"| Starting Point | {starting_name} |")
     output_lines.append(f"| Starting Value | {starting_val} |")
-    output_lines.append(f"| EBITA | {ebita} |")
-    output_lines.append(f"| EBITA Margin | {ebita_margin:.2f}% |")
-    output_lines.append("\n### EBITA Reconciliation Bridge\n")
-    output_lines.append("| Adjustment / Step | Value |")
-    output_lines.append("|---|---|")
-    output_lines.append(f"| {starting_name} | {starting_val} |")
     for adj in ebita_adjustments:
         name = adj.get("name", "Adjustment")
         val = adj.get("value", 0.0)
         sign = "+" if val >= 0 else ""
         output_lines.append(f"| {name} | {sign}{val} |")
-    output_lines.append(f"| **EBITA** | **{ebita}** |")
+    output_lines.append(f"| EBITA | {ebita} |")
+    output_lines.append(f"| EBITA Margin | {ebita_margin:.2f}% |")
     output_lines.append("\n---\n")
 
     output_lines.append("## Invested Capital\n")
@@ -266,13 +281,25 @@ def calculate_deterministic_metrics(
     )
     output_lines.append("\n---\n")
 
-    output_lines.append("## Tax Rates\n")
-    output_lines.append("| Field | Value |")
-    output_lines.append("|---|---|")
-    output_lines.append(f"| Effective Tax Rate | {effective_rate * 100:.2f}% |")
-    output_lines.append(f"| Adjusted Tax Rate | {adjusted_rate * 100:.2f}% |")
+    output_lines.append("\n#### Non-Operating Assets\n")
+    if non_operating_assets:
+        output_lines.append("| Line Item | Value |")
+        output_lines.append("|---|---|")
+        for item in non_operating_assets:
+            output_lines.append(f"| {item.line_name} | {item.value} |")
+    else:
+        output_lines.append("None detected\n")
 
-    output_lines.append("\n### Tax Rates Reconciliation Bridge\n")
+    output_lines.append("\n#### Non-Operating Liabilities\n")
+    if non_operating_liabilities:
+        output_lines.append("| Line Item | Value |")
+        output_lines.append("|---|---|")
+        for item in non_operating_liabilities:
+            output_lines.append(f"| {item.line_name} | {item.value} |")
+    else:
+        output_lines.append("None detected\n")
+
+    output_lines.append("## Tax Rates\n")
     output_lines.append("| Component | Value | Description |")
     output_lines.append("|---|---|---|")
     output_lines.append(
@@ -314,24 +341,12 @@ def calculate_deterministic_metrics(
     output_lines.append("\n---\n")
 
     output_lines.append("## Shares Outstanding\n")
-    output_lines.append(f"Basic Shares Outstanding: **{basic_shares}**\n")
+    output_lines.append(f"Basic Shares Outstanding: **{basic_shares}**")
     output_lines.append(f"Diluted Shares Outstanding: **{diluted_shares}**\n")
 
     output_lines.append("## Organic Growth\n")
-    output_lines.append(f"Simple Growth (%): **{simple_growth * 100}**\n")
+    output_lines.append(f"Simple Growth (%): **{simple_growth * 100}**")
     output_lines.append(f"Final Growth (%): **{organic_growth * 100}**\n")
-
-    output_lines.append("\n## Extracted Line Items & Audit Lineage\n")
-    output_lines.append(
-        "| Line Name | Value | Operating | Calculated | Category | Source File | Chunk ID | Exact Snippet |"
-    )
-    output_lines.append("|---|---|---|---|---|---|---|---|")
-    for item in extracted_line_items:
-        clean_snippet = item.audit.exact_snippet.replace("\n", " ").replace("|", "\\|")
-        output_lines.append(
-            f"| {item.line_name} | {item.value} | {item.operating} | {item.calculated} | {item.category} | "
-            f"{item.audit.source_file} | {item.audit.chunk_id} | {clean_snippet} |"
-        )
 
     # Write output file to 4_extracted_data/
     extracted_dir = Path(extractor.settings.active_workspace_path) / "4_extracted_data"
