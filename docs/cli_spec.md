@@ -93,8 +93,8 @@ Extracts financial statement data and qualitative metrics.
   - Scans `2_parsed_data/` and targets unextracted files.
   - Commands LLM to read chunks one-by-one based on the `chunk_id=0` index.
   - Appends chunk-by-chunk notes to `YYYYMMDD_filetype_extracted.md`.
-  - Extracts balance sheets, income statements, revenues, share counts.
-  - Performs LLM-driven operating vs non-operating classification and calculates NOPAT, ROIC, and EBITA.
+  - Orchestrates a multi-agent pipeline: Balance Sheet and Income Statement agents extract statements; the Financial Statement Interpretation agent handles subtotal/total checking, operating/non-operating classification, and cross-statement mathematical audits; Diluted Shares and Organic Growth agents extract shares and CC growth rates; EBITA and Adjusted Taxes agents locate restructuring/amortization adjustments and apply statutory tax rates.
+  - Passes validated outputs to the Rust core engine to calculate NOPAT, ROIC, and invested capital with full audit trails.
   - Updates `6_company_context/extract_context.md`.
 
 #### `fa run historical`

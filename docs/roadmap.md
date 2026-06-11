@@ -70,11 +70,21 @@ Config      Ingestion   Extraction  History     Modeling    Interactive
 - **3.1 Chunk-by-Chunk Agent**:
   - [x] Implement the LLM extraction agent that reads `chunk_id=0` first and requests specific chunks sequentially.
   - [x] Output intermediate chunk-by-chunk notes to `YYYYMMDD_filetype_extracted.md`.
+  - [x] **Agentic Refactor (Core Extraction)**: Transition to dedicated agents for structured output:
+    - [x] **Balance Sheet Agent**: Extract raw tabular data of assets, liabilities, and equity from financial documents.
+    - [x] **Income Statement Agent**: Extract raw tabular revenue, expense, and income lines with standard sign representation.
 - **3.2 Task-Specific Extraction & Traceability**:
   - [x] Extract relevant sections (Balance Sheet, Income Statement, Moat indicators, Press release announcements) based on document type.
   - [x] Bind metadata containing `source_file`, `chunk_id`, and `exact_snippet` to every extracted numerical figure for auditing.
 - **3.3 Financial Calculation Engine & Rust Boundaries**:
   - [x] Build the Operating/Non-Operating classifier using LLM judgment, central dictionary lookups, and Investopedia web search fallbacks (using `duckduckgo-search`).
+  - [x] **Interpretation & Classification Agents**:
+    - [x] **Financial Statement Interpretation Agent**: Classify lines as `calculated` (subtotals/totals) or raw items, identify operating vs non-operating items, interpret ambiguous/generic lines, and perform cross-statement mathematical checks.
+    - [x] **Diluted Shares Outstanding Agent**: Target basic & diluted shares outstanding with a low-latency 4-turn search.
+  - [x] **Derived Metric Calculation Agents**:
+    - [x] **Organic Growth Agent**: Extract constant currency adjustments, back out M&A contributions, and calculate organic revenue growth rates.
+    - [x] **Operating EBITA Agent**: Adjust operating income by identifying non-recurring adjustments (restructuring, amortization, impairment).
+    - [x] **Adjusted Taxes Agent**: Back out tax effects of non-operating adjustments at a statutory tax rate (25%) and inspect footnotes for non-recurring benefits.
   - [x] Seed the central dictionary (`src/resources/dictionary/`) with an initial `index.md` and basic accounting definitions/treatment markdowns.
   - [x] Define strict Pydantic schemas to validate financial data before passing to Rust.
   - [x] Expand the **Rust Core Engine** via PyO3 to calculate Invested Capital, EBITA, Adjusted Taxes, NOPAT, and ROIC schedules.
@@ -93,6 +103,7 @@ Config      Ingestion   Extraction  History     Modeling    Interactive
 
 - **4.1 Qualitative Trend Synthesis**:
   - [x] Compile analyst views (moat, margins, growth changes over time) into `5_historical_analysis/analyst_views.md`.
+  - [x] **Analyst Report Agent**: Refactor qualitative analysis into a multi-turn, interactive reasoning agent that synthesizes analyst views, assesses qualitative trends, and verifies source citations.
   - [x] Track press trends and conference call transcripts in `news_trend.md` and `transcript_trend.md`.
 - **4.2 Quantitative Trend Synthesis**:
   - [x] Build the longitudinal financials processor to update `financials_quarter.md` and `financials_annual.md`.

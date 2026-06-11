@@ -229,7 +229,9 @@ class Extractor:
         success = False
 
         if is_financial:
-            from src.pipeline.extractor_financials import extract_financials
+            from src.pipeline.extractor_agents.extractor_financials import (
+                extract_financials,
+            )
 
             success = extract_financials(
                 file_path=file_path,
@@ -239,7 +241,9 @@ class Extractor:
                 summaries=summaries,
             )
         elif is_analyst:
-            from src.pipeline.extractor_analyst_report import extract_analyst_report
+            from src.pipeline.extractor_agents.extractor_analyst_report import (
+                extract_analyst_report,
+            )
 
             success = extract_analyst_report(
                 file_path=file_path,
@@ -249,7 +253,9 @@ class Extractor:
                 summaries=summaries,
             )
         elif is_transcript:
-            from src.pipeline.extractor_transcript import extract_transcript
+            from src.pipeline.extractor_agents.extractor_transcript import (
+                extract_transcript,
+            )
 
             success = extract_transcript(
                 file_path=file_path,
@@ -259,7 +265,7 @@ class Extractor:
                 summaries=summaries,
             )
         else:
-            from src.pipeline.extractor_other import extract_other
+            from src.pipeline.extractor_agents.extractor_other import extract_other
 
             success = extract_other(
                 file_path=file_path,

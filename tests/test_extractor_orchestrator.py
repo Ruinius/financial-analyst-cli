@@ -13,7 +13,7 @@ from src.pipeline.extractor_orchestrator import (
     TranscriptExtraction,
     GeneralSummary,
 )
-import src.rust_core as rust_core
+import src.utils.math as rust_core
 
 
 def test_pydantic_schemas():
@@ -329,7 +329,7 @@ def test_extract_financials_stages(mock_llm_class, mock_load_config, tmp_path):
 
     extractor = Extractor()
 
-    from src.pipeline.extractor_financials import (
+    from src.pipeline.extractor_agents.extractor_financials import (
         find_keyword_contexts,
         extract_financial_statements,
         run_diluted_shares_agent,

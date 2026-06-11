@@ -6,7 +6,7 @@ This document describes the high-level architecture, directory layout, and data 
 
 ## 1. High-Level Architecture
 
-The system is designed as a modular Python CLI that delegates heavy financial computations to a high-performance Rust core engine. It utilizes LLM services for unstructured parsing, information extraction, and qualitative assessments.
+The system is designed as a modular Python CLI that executes standard data pipeline math directly in Python, while delegating intensive financial modeling and multi-scenario sensitivity analyses to a compiled Rust core engine. It utilizes LLM services for unstructured parsing, information extraction, and qualitative assessments.
 
 ```mermaid
 graph TD
@@ -65,10 +65,19 @@ financial-analyst-cli/
 │   │   ├── queue.py                # Safe job queue & retry manager
 │   │   ├── ingester.py             # File ingestion, hashing & chunking
 │   │   ├── extractor_orchestrator.py # Routing extraction jobs to sub-extractors
-│   │   ├── extractor_financials.py  # Specialized extractor for 10K, 10Q, 20F, etc.
-│   │   ├── extractor_analyst_report.py # Specialized extractor for analyst reports
-│   │   ├── extractor_transcript.py  # Specialized extractor for transcripts
-│   │   ├── extractor_other.py       # Specialized extractor for other types
+│   │   └── extractor_agents/        # Folder containing specialized extractors and agents
+│   │       ├── extractor_financials.py # Specialized coordinator for 10K, 10Q, 20F, etc.
+│   │       ├── extractor_analyst_report.py # Specialized extractor for analyst reports
+│   │       ├── extractor_transcript.py # Specialized extractor for transcripts
+│   │       ├── extractor_other.py   # Specialized extractor for other types
+│   │       └── extractor_financials_agents/ # Nested financial sub-agents
+│   │           ├── agent_runner.py  # Shared runner for agent loops and parsing
+│   │           ├── income_statement_agent.py # Income Statement extraction agent
+│   │           ├── balance_sheet_agent.py # Balance Sheet extraction agent
+│   │           ├── interpretation_agent.py # Financial statement interpretation agent
+│   │           ├── diluted_shares_agent.py # Basic/diluted shares extraction agent
+│   │           ├── organic_growth_agent.py # Organic revenue growth agent
+│   │           └── ebita_tax_agent.py # EBITA adjustments & adjusted tax agent
 │   │   ├── analyzer.py             # Historical synthesis & trend tracking
 │   │   └── modeler.py              # Assumption processing & model generation
 │   ├── rust_core/                  # Rust performance critical calculation engine
@@ -146,8 +155,7 @@ sequenceDiagram
 1. **Deterministic Job Queue**:
    To avoid race conditions and resource leaks during file processing and LLM calls, all pipeline commands (`ingest`, `extract`, `historical`) feed into a centralized queue runner. Jobs are completed sequentially with exponential back-off retries.
 2. **Hybrid Python-Rust Framework**:
-   All core arithmetic (discounting cash flows, compounding, WACC calculation, ROIC schedules) is written in Rust (`src/rust_core/lib.rs`) for performance, safety, and correctness, compiled as a Python C-extension. Python handles orchestration, file operations, LLM prompts, and CLI interactions.
-   Pydantic schemas validate all payloads crossed between Python and Rust to maintain strict structural contracts.
+   Core financial valuation and sensitivity modeling (discounting cash flows, compounding, WACC calculations) are written in Rust (`src/rust_core/lib.rs`) for performance, safety, and correctness, compiled as a Python C-extension. Standard pipeline calculations (EBITA, Invested Capital, Tax Rates, and ROIC schedules) are written in pure Python to simplify development, testing, and out-of-the-box execution.
 3. **Chunked LLM Processing**:
    To avoid context bloat and high API costs, files are split into 5,000-character chunks. The LLM only receives `chunk_id=0` (the character inventory index) and pulls subsequent chunks one-by-one as needed.
 4. **Self-Healing Company Context**:

@@ -43,25 +43,35 @@ Welcome to the `financial-analyst-cli` project.
     - [src/pipeline/queue.py](file:///f:/AIML projects/financial-analyst-cli/src/pipeline/queue.py): Safe job queue and exponential back-off retry manager.
     - [src/pipeline/ingester.py](file:///f:/AIML projects/financial-analyst-cli/src/pipeline/ingester.py): File parsing, deduplication, chunking, and LLM metadata identification.
     - [src/pipeline/extractor_orchestrator.py](file:///f:/AIML projects/financial-analyst-cli/src/pipeline/extractor_orchestrator.py): Orchestrates document parsing, metadata processing, and routing of extraction jobs to document-type sub-extractors.
-    - [src/pipeline/extractor_financials.py](file:///f:/AIML projects/financial-analyst-cli/src/pipeline/extractor_financials.py): Sub-extractor specialized for 10-K, 10-Q, 20-F, and earnings announcements.
-    - [src/pipeline/extractor_analyst_report.py](file:///f:/AIML projects/financial-analyst-cli/src/pipeline/extractor_analyst_report.py): Sub-extractor specialized for analyst reports.
-    - [src/pipeline/extractor_transcript.py](file:///f:/AIML projects/financial-analyst-cli/src/pipeline/extractor_transcript.py): Sub-extractor specialized for transcripts.
-    - [src/pipeline/extractor_other.py](file:///f:/AIML projects/financial-analyst-cli/src/pipeline/extractor_other.py): Sub-extractor specialized for all other document types.
+    - [src/pipeline/extractor_agents/](file:///f:/AIML projects/financial-analyst-cli/src/pipeline/extractor_agents): Folder containing all document sub-extractors and agents.
+      - [src/pipeline/extractor_agents/extractor_financials.py](file:///f:/AIML projects/financial-analyst-cli/src/pipeline/extractor_agents/extractor_financials.py): Sub-extractor coordinator specialized for 10-K, 10-Q, 20-F, and earnings announcements.
+      - [src/pipeline/extractor_agents/extractor_analyst_report.py](file:///f:/AIML projects/financial-analyst-cli/src/pipeline/extractor_agents/extractor_analyst_report.py): Sub-extractor specialized for analyst reports.
+      - [src/pipeline/extractor_agents/extractor_transcript.py](file:///f:/AIML projects/financial-analyst-cli/src/pipeline/extractor_agents/extractor_transcript.py): Sub-extractor specialized for transcripts.
+      - [src/pipeline/extractor_agents/extractor_other.py](file:///f:/AIML projects/financial-analyst-cli/src/pipeline/extractor_agents/extractor_other.py): Sub-extractor specialized for all other document types.
+      - [src/pipeline/extractor_agents/extractor_financials_agents/](file:///f:/AIML projects/financial-analyst-cli/src/pipeline/extractor_agents/extractor_financials_agents): Nested directory for the sub-agents.
+        - [agent_runner.py](file:///f:/AIML projects/financial-analyst-cli/src/pipeline/extractor_agents/extractor_financials_agents/agent_runner.py): Shared runner for extraction loops and line items parser.
+        - [income_statement_agent.py](file:///f:/AIML projects/financial-analyst-cli/src/pipeline/extractor_agents/extractor_financials_agents/income_statement_agent.py): Agent specialized in Income Statement extraction.
+        - [balance_sheet_agent.py](file:///f:/AIML projects/financial-analyst-cli/src/pipeline/extractor_agents/extractor_financials_agents/balance_sheet_agent.py): Agent specialized in Balance Sheet extraction.
+        - [interpretation_agent.py](file:///f:/AIML projects/financial-analyst-cli/src/pipeline/extractor_agents/extractor_financials_agents/interpretation_agent.py): Agent specialized in interpreting line item classification.
+        - [diluted_shares_agent.py](file:///f:/AIML projects/financial-analyst-cli/src/pipeline/extractor_agents/extractor_financials_agents/diluted_shares_agent.py): Agent specialized in basic and diluted shares.
+        - [organic_growth_agent.py](file:///f:/AIML projects/financial-analyst-cli/src/pipeline/extractor_agents/extractor_financials_agents/organic_growth_agent.py): Agent specialized in simple and organic revenue growth.
+        - [ebita_tax_agent.py](file:///f:/AIML projects/financial-analyst-cli/src/pipeline/extractor_agents/extractor_financials_agents/ebita_tax_agent.py): Agent specialized in Operating EBITA and adjusted taxes.
     - [src/pipeline/analyzer.py](file:///f:/AIML projects/financial-analyst-cli/src/pipeline/analyzer.py): Longitudinal trend synthesis, analyst view compiling, and Q4 deduction engine.
 
   - [src/services/](file:///f:/AIML projects/financial-analyst-cli/src/services): SEC client, LLM wrapper, web search, and AST-sandboxed math solver.
     - [src/services/edgar_client.py](file:///f:/AIML projects/financial-analyst-cli/src/services/edgar_client.py): SEC EDGAR download API client.
     - [src/services/llm_client.py](file:///f:/AIML projects/financial-analyst-cli/src/services/llm_client.py): Unified client for text & vision LLMs.
-  - [src/rust_core/lib.rs](file:///f:/AIML projects/financial-analyst-cli/src/rust_core/lib.rs): Rust module with PyO3 bindings for financial and mathematical calculations.
-  - [src/rust_core/fallback.py](file:///f:/AIML projects/financial-analyst-cli/src/rust_core/fallback.py): Pure Python fallback for calculations when Rust library is not compiled.
-  - [src/rust_core/__init__.py](file:///f:/AIML projects/financial-analyst-cli/src/rust_core/**init**.py): Hybrid import loader for calculation engine.
+  - [src/rust_core/lib.rs](file:///f:/AIML projects/financial-analyst-cli/src/rust_core/lib.rs): Rust module with PyO3 bindings for DCF financial modeling.
+  - [src/rust_core/fallback.py](file:///f:/AIML projects/financial-analyst-cli/src/rust_core/fallback.py): Pure Python fallback for DCF modeling when Rust library is not compiled.
+  - [src/rust_core/__init__.py](file:///f:/AIML projects/financial-analyst-cli/src/rust_core/**init**.py): Hybrid import loader for the DCF modeling engine.
   - [src/viewer/index.html](file:///f:/AIML projects/financial-analyst-cli/src/viewer/index.html): Interactive zero-dependency web viewer template.
   - [src/resources/dictionary/](file:///f:/AIML projects/financial-analyst-cli/src/resources/dictionary): Central accounting glossary and classification dictionary containing definition markdowns and valuation treatment guidelines.
     - [income_statement.md](file:///f:/AIML projects/financial-analyst-cli/src/resources/dictionary/income_statement.md): Table mapping of typical income statement line items.
     - [balance_sheet.md](file:///f:/AIML projects/financial-analyst-cli/src/resources/dictionary/balance_sheet.md): Table mapping of typical balance sheet line items.
-  - [src/utils/](file:///f:/AIML projects/financial-analyst-cli/src/utils): CLI output formatting and filesystem helpers.
+  - [src/utils/](file:///f:/AIML projects/financial-analyst-cli/src/utils): CLI output formatting, math utilities, and filesystem helpers.
     - [src/utils/formatting.py](file:///f:/AIML projects/financial-analyst-cli/src/utils/formatting.py): Rich terminal formatting helpers and Sir Pennyworth speech bubbles.
     - [src/utils/tools.py](file:///f:/AIML projects/financial-analyst-cli/src/utils/tools.py): Universal utility tools (keyword context finding, markdown appenders, editors).
+    - [src/utils/math.py](file:///f:/AIML projects/financial-analyst-cli/src/utils/math.py): Pure Python financial calculations utility module (EBITA, Invested Capital, Tax Rates, ROIC).
 
 - [tests/](file:///f:/AIML projects/financial-analyst-cli/tests): Test suite folder.
   - [tests/test_analyzer.py](file:///f:/AIML projects/financial-analyst-cli/tests/test_analyzer.py): Unit tests for qualitative views compiling, longitudinal financial trends, and Q4 deduction logic.
@@ -85,3 +95,4 @@ Welcome to the `financial-analyst-cli` project.
 - **Commands**: Preferred pattern is `uv run python <file>.py` or `uv run <command>`.
 - **OS/Shell**: Windows with PowerShell (`pwsh`).
 - **Test Focus:** always run E2E and backend tests for non-trivial modifications. We need to ensure tests pass before committing.
+- **Multi-Agent Extraction Pattern**: Unstructured extraction tasks delegate to specialized agents (e.g., Balance Sheet, Income Statement, Interpretation, Diluted Shares, Organic Growth, Operating EBITA, Adjusted Taxes, Analyst Report) running within structured loop boundaries (4-5 turns limit). Categorized results are validated using Pydantic schemas before running deterministic financial calculation schedules in Rust.

@@ -91,19 +91,25 @@ flowchart TD
 - **Step 3A: Chunk-Based Extraction**:
   - The LLM examines the prepended table in `chunk_id=0` to locate relevant sections.
   - The LLM pulls chunks one-by-one. For each chunk accessed, it appends a 1-2 sentence summary of that chunk to `YYYYMMDD_filetype_extracted.md` along with the `chunk_id`.
-- **Step 3B: Task-Specific Summaries**:
-  - **`analyst_report`**: Summary focused on the company's **economic moat** (none, narrow, wide), **future margins** (decreasing, stable, increasing), and **future growth** (decelerating, stable, accelerating).
+- **Step 3B: Task-Specific Extraction & Agents**:
+  - **`analyst_report`**: Processes analyst reports via the **Analyst Report Agent** (a multi-turn agent with a maximum of 5 turns) that locates discussions on economic moat, margin outlook, and organic growth outlook, compiles qualitative trends, and verifies source citations.
   - **`press_release` / `news_article` / `other`**: Concise summary of what is different, unusual, or special.
   - **`transcript`**: Focus on analyst questions, management guidance, and non-mundane developments.
-  - **`10-Q` / `10-K` / `20-F` / `earnings_announcement`**:
-    - Extract Balance Sheet and Income Statement.
-    - Extract current and past period revenues, calculating simple and organic/constant-currency growth rates.
-    - Identify basic and diluted shares outstanding.
-    - **Traceability and Audit Linkage**: For every extracted financial figure, the model must record metadata containing `source_file`, `chunk_id`, and `exact_snippet`. This ensures full auditing capabilities.
-- **Step 3C: Financial Calculations & Rust Boundaries**:
-  - Classify financial line items into **operating** and **non-operating** categories using LLM judgment (guided by `6_company_context/extract_context.md` and the central tool dictionary in `src/resources/dictionary/`).
-  - Pass the classified statements as Pydantic-validated JSON structures to the **Rust Core Engine** to calculate key metrics: Invested Capital, EBITA, Adjusted Taxes, Net Operating Profit Less Adjusted Taxes (NOPAT), and Return on Invested Capital (ROIC) schedules. This enforces a strict math contract between Python and Rust.
-  - All calculated metrics must preserve the audit linkage metadata back to their respective raw source numbers.
+  - **`10-Q` / `10-K` / `20-F` / `earnings_announcement`**: Utilizes dedicated agents to extract core financial statements:
+    - **Income Statement Agent**: Locates and extracts the complete Income Statement. Ensures standard sign representation (expenses/reductions are negative, additions/gains are positive) guided by `src/resources/dictionary/income_statement.md`.
+    - **Balance Sheet Agent**: Locates and extracts the complete Balance Sheet.
+    - **Quality Checks**: Employs programmatic LLM validators (`check_income_statement_quality` and `check_balance_sheet_quality`) to verify that subtotals match raw line items and Assets = Liabilities + Equity before finalizing.
+    - **Traceability and Audit Linkage**: For every extracted financial figure, the agents record metadata containing `source_file`, `chunk_id`, and `exact_snippet` for full auditing.
+- **Step 3C: Interpretation & Advanced Agents**:
+  - **Financial Statement Interpretation Agent**: Review and audit extracted statements to:
+    - Classify line items as raw primitive lines or `calculated` subtotals/totals (inferring mathematical hierarchy from indentation, placement, and sums).
+    - Classify lines as **operating** (core activities) vs **non-operating** (financing, investing, taxes), respecting local dictionaries and manual user feedback.
+    - Standardize positive/negative signs across all lines to maintain mathematical consistency.
+  - **Diluted Shares Outstanding Agent**: Executes a targeted, low-latency 4-turn search utilizing keyword context to locate exact basic and diluted shares outstanding for the periods.
+  - **Organic Growth Agent**: Locates organic revenue growth figures, constant currency (CC) adjustments, and M&A contributions; computes the organic growth rate if not explicitly reported.
+  - **Operating EBITA Agent**: Identifies non-recurring adjustments (restructuring, amortization, impairment, write-offs) in footnotes and backs them out to compute clean Operating EBITA.
+  - **Adjusted Taxes Agent**: Backs out the tax effects of non-operating adjustments at a standard statutory tax rate (25%) and reviews footnotes for non-recurring tax benefits.
+  - **Rust Performance Boundary**: Passes the Pydantic-validated JSON of classified items to the **Rust Core Engine** to calculate Invested Capital, NOPAT, ROIC, and Capital Turnover. All calculated metrics propagate the audit linkage metadata back to their respective raw source numbers.
 - **Step 3D: Manual User Extraction Context**:
   - The file `6_company_context/extract_context.md` is reserved strictly for manual user feedback to override/configure custom classifications for operating/non-operating items. The agent reads this file but must never automatically write/update it, avoiding self-reinforcing errors.
 

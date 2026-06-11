@@ -56,95 +56,9 @@ pub fn calculate_dcf(
         .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
 }
 
-/// Calculate EBITA and EBITA Margin.
-#[pyfunction]
-pub fn calculate_ebita(
-    starting_val: f64,
-    revenue: f64,
-    non_operating_adjustments_sum: f64,
-) -> PyResult<(f64, f64)> {
-    let ebita = starting_val + non_operating_adjustments_sum;
-    let margin = if revenue > 0.0 {
-        (ebita / revenue) * 100.0
-    } else {
-        0.0
-    };
-    Ok((ebita, margin))
-}
-
-/// Calculate Invested Capital components and Capital Turnover.
-#[pyfunction]
-pub fn calculate_invested_capital(
-    oca: f64,
-    ocl: f64,
-    onca: f64,
-    oncl: f64,
-    annualized_revenue: f64,
-) -> PyResult<(f64, f64, f64, f64)> {
-    let nwc = oca - ocl;
-    let nltoa = onca - oncl;
-    let ic = nwc + nltoa;
-    let turnover = if ic != 0.0 {
-        annualized_revenue / ic
-    } else {
-        0.0
-    };
-    Ok((nwc, nltoa, ic, turnover))
-}
-
-/// Calculate Effective and Adjusted Tax Rates.
-#[pyfunction]
-pub fn calculate_tax_rates(
-    income_before_taxes: f64,
-    income_tax_expense: f64,
-    net_income: f64,
-    total_tax_adj: f64,
-    ebita: f64,
-) -> PyResult<(f64, f64)> {
-    let effective_rate = if income_before_taxes != 0.0 {
-        // reported provision is often negative for expense
-        -(income_tax_expense / income_before_taxes)
-    } else if income_before_taxes != 0.0 {
-        (income_before_taxes - net_income) / income_before_taxes
-    } else {
-        0.21
-    };
-
-    let adjusted_tax = income_tax_expense + total_tax_adj;
-    let adjusted_rate = if ebita != 0.0 {
-        -(adjusted_tax / ebita)
-    } else {
-        0.0
-    };
-
-    Ok((effective_rate, adjusted_rate))
-}
-
-/// Calculate NOPAT, Annualized NOPAT, and ROIC.
-#[pyfunction]
-pub fn calculate_roic(
-    ebita: f64,
-    tax_rate: f64,
-    invested_capital: f64,
-    multiplier: f64,
-) -> PyResult<(f64, f64, f64)> {
-    let nopat = ebita * (1.0 - tax_rate);
-    let annualized_nopat = nopat * multiplier;
-    let roic = if invested_capital != 0.0 {
-        (annualized_nopat / invested_capital) * 100.0
-    } else {
-        0.0
-    };
-    Ok((nopat, annualized_nopat, roic))
-}
-
 /// A Python module implemented in Rust.
 #[pymodule]
 fn _rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(calculate_dcf, m)?)?;
-    m.add_function(wrap_pyfunction!(calculate_ebita, m)?)?;
-    m.add_function(wrap_pyfunction!(calculate_invested_capital, m)?)?;
-    m.add_function(wrap_pyfunction!(calculate_tax_rates, m)?)?;
-    m.add_function(wrap_pyfunction!(calculate_roic, m)?)?;
     Ok(())
 }

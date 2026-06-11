@@ -71,7 +71,7 @@ I am constantly learning and growing. I am incredibly grateful for any comments,
 
 1. **Structured Ingestion & Parsing**: Automated retrieval of filings (10-K, 10-Q, 20-F) from SEC EDGAR, layout-preserved markdown parsing, duplicate hashing, and smart LLM-driven date/quarter identification.
 2. **Auditable Metric Extraction**: Extract Balance Sheet and Income Statement line items. Every data point is tagged with trace metadata (`source_file`, `chunk_id`, `exact_snippet`) for absolute auditing.
-3. **Hybrid Rust-Python Engine**: Perform performance-critical calculations (Invested Capital, NOPAT, EBITA, WACC, and ROIC schedules) in Rust via PyO3 bindings with strict Pydantic payload verification.
+3. **Hybrid Python-Rust Engine**: Perform valuation modeling and multi-scenario sensitivity calculations in Rust via PyO3 bindings, with standard pipeline calculations (EBITA, Invested Capital, Tax Rates, and ROIC) executed directly in Python.
 4. **Self-Healing Company Context**: Company-specific extraction and mapping contexts that automatically heal and improve on successive pipeline runs.
 5. **Interactive REPL / Analyst Shell (`fa chat`)**: Talk directly to Sir Pennyworth. Probe extracted financial metrics, execute custom math formulas in a sandboxed execution environment, and audit statements.
 6. **Zero-Dependency DCF Viewer**: Start a local viewer server to dynamically tune DCF assumptions and save custom scenarios back to the workspace.
@@ -80,13 +80,13 @@ I am constantly learning and growing. I am incredibly grateful for any comments,
 
 ## Installation & Setup
 
-This project uses a hybrid architecture consisting of a Python CLI and a compiled Rust computation core.
+This project uses a hybrid architecture consisting of a Python CLI and an optional compiled Rust computation core for sensitivity modeling.
 
 ### Prerequisites
 
 1. **Python**: Python >= 3.14 (recommend managing via `uv`).
 2. **uv**: This project uses `uv` for package management. Install it via instructions on [astral.sh/uv](https://astral.sh/uv).
-3. **Rust Toolchain**: To compile the Rust core modules, you must have Rust and `cargo` installed (via [rustup.rs](https://rustup.rs/)).
+3. **Rust Toolchain (Optional)**: To compile the Rust core modules for sensitivity modeling, you must have Rust and `cargo` installed (via [rustup.rs](https://rustup.rs/)).
 
 ### Environment Initialization
 
@@ -105,8 +105,8 @@ uv run pre-commit install
 uv run python main.py
 ```
 
-#### Optional: High-Performance Rust Engine
-The CLI ships with a pure Python fallback. However, for maximum calculation performance, you can optionally build the Rust extension module:
+#### Optional: Sensitivity Modeling Rust Engine
+The CLI runs out-of-the-box in pure Python. However, for running multi-scenario sensitivity modeling, you can optionally build the Rust extension module:
 
 ```powershell
 # Compile the Rust extension module using maturin
