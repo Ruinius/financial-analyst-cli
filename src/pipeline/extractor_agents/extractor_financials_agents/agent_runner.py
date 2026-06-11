@@ -21,6 +21,20 @@ def run_extraction_agent(
     target_output_path.parent.mkdir(parents=True, exist_ok=True)
     target_output_path.write_text(f"# Extracted {agent_name}\n\n", encoding="utf-8")
 
+    # Load extraction learnings
+    learning_context = ""
+    ticker = extractor.settings.active_ticker
+    if ticker:
+        learning_path = (
+            Path(extractor.settings.active_workspace_path)
+            / f"{ticker}_extract_learning.md"
+        )
+        if learning_path.exists():
+            try:
+                learning_context = learning_path.read_text(encoding="utf-8")
+            except Exception:
+                pass
+
     history = []
     initial_prompt = (
         f"You are the {agent_name} Agent. Your goal is to extract the complete statement and save it to the target file. "
@@ -33,6 +47,9 @@ def run_extraction_agent(
         f"Target output path to write to: '{target_output_path.as_posix()}'.\n"
         f"Once you write/append the content and verify its quality using the quality check tool, call the `finalize` tool to complete."
     )
+
+    if learning_context:
+        initial_prompt += f'\n\nHere is the active company extraction learning context to guide your extraction decision logic:\n"""\n{learning_context}\n"""'
 
     history.append({"role": "user", "content": initial_prompt})
 

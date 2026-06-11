@@ -25,13 +25,14 @@ Welcome to the `financial-analyst-cli` project.
   - src/cli/: Sub-commands and main CLI definitions.
     - src/cli/main.py: Primary Typer entry point and command router.
     - src/cli/commands/config.py: Commands for config initialization (`init`), masked printing (`show`), and direct parameter updating (`set`).
-    - src/cli/commands/use.py: Workspace switcher command that updates active ticker and initializes 8 folders.
+    - src/cli/commands/use.py: Workspace switcher command that updates active ticker and initializes 7 folders.
   - src/core/: Settings, custom exception classes, and Pydantic schemas.
     - src/core/config.py: Settings model definition, loading/saving utilities, and API key masking.
     - src/core/exceptions.py: Custom exception classes (e.g. ConfigError, WorkspaceError).
   - src/pipeline/: Execution runner stages (ingest, extract, historical, model).
     - src/pipeline/queue.py: Safe job queue and exponential back-off retry manager.
     - src/pipeline/ingester.py: File parsing, deduplication, chunking, and LLM metadata identification.
+    - src/pipeline/curator_agent.py: Curator agent for summarizing learnings and refining qualitative bull/bear views.
     - src/pipeline/document_types.json: Mapping definitions for supported financial report types.
     - src/pipeline/extractor_orchestrator.py: Orchestrates document parsing, metadata processing, and routing of extraction jobs to document-type sub-extractors.
     - src/pipeline/extractor_agents/: Folder containing all document sub-extractors and agents.

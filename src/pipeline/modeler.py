@@ -112,15 +112,31 @@ class Modeler:
             )
             return
 
+        # Load modeling learnings if available
+        learning_context = ""
+        learning_path = workspace / f"{active_ticker}_model_learning.md"
+        if learning_path.exists():
+            try:
+                learning_context = learning_path.read_text(encoding="utf-8")
+            except Exception:
+                pass
+
         # Phase 5 Implementation will be built out here
         assumptions = self.calculate_default_assumptions(active_ticker, workspace)
         assumptions = self.estimate_llm_assumptions(
-            active_ticker, workspace, assumptions
+            active_ticker, workspace, assumptions, learning_context
         )
         assumptions = self.propose_and_validate_assumptions(
             active_ticker, workspace, assumptions
         )
         self.generate_financial_model(active_ticker, workspace, assumptions)
+
+        # Trigger Curator Agent
+        logs = f"Executed modeling stage. Generated model projections with assumptions: {json.dumps(assumptions, indent=2)}"
+        from src.pipeline.curator_agent import CuratorAgent
+
+        CuratorAgent(self.settings).curate(active_ticker, "model", logs)
+
         formatting.print_success(f"Modeling finished for {active_ticker}.")
 
     def calculate_default_assumptions(
@@ -256,8 +272,8 @@ class Modeler:
         self, ticker: str, workspace: Path, assumptions: Dict[str, Any]
     ) -> None:
         """Generate the DCF model markdown and JSON."""
-        model_dir = workspace / "7_financial_model"
-        json_dir = workspace / "8_historical_model_json"
+        model_dir = workspace / "6_financial_model"
+        json_dir = workspace / "7_historical_model_json"
 
         model_dir.mkdir(parents=True, exist_ok=True)
         json_dir.mkdir(parents=True, exist_ok=True)
@@ -375,7 +391,11 @@ Date: {today}
         )
 
     def estimate_llm_assumptions(
-        self, ticker: str, workspace: Path, base_assumptions: Dict[str, Any]
+        self,
+        ticker: str,
+        workspace: Path,
+        base_assumptions: Dict[str, Any],
+        learning_context: str = "",
     ) -> Dict[str, Any]:
         """Leverage historical financials and analyst views to estimate final assumptions."""
         # Simple implementation for now. In Phase 5, this would use the llm_client
@@ -384,13 +404,6 @@ Date: {today}
     def propose_and_validate_assumptions(
         self, ticker: str, workspace: Path, assumptions: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """Render assumptions table using rich for user feedback and save adjustments to model_context.md."""
-        context_dir = workspace / "6_company_context"
-        context_dir.mkdir(parents=True, exist_ok=True)
-
-        md_path = context_dir / "model_context.md"
-        with open(md_path, "w", encoding="utf-8") as f:
-            f.write("# Model Context and Overrides\n")
-            f.write(json.dumps(assumptions, indent=2))
-
+        """Render assumptions table using rich for user feedback."""
+        # Cleaned up model_context.md and 6_company_context folder references
         return assumptions

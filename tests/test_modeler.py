@@ -97,8 +97,8 @@ def test_generate_financial_model(mock_load_config, mock_workspace):
     modeler = Modeler()
     modeler.generate_financial_model("MOCK", mock_workspace, assumptions)
 
-    model_dir = mock_workspace / "7_financial_model"
-    json_dir = mock_workspace / "8_historical_model_json"
+    model_dir = mock_workspace / "6_financial_model"
+    json_dir = mock_workspace / "7_historical_model_json"
 
     assert list(model_dir.glob("*_model.md"))
     assert list(json_dir.glob("*_0.json"))

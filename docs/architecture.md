@@ -135,7 +135,8 @@ sequenceDiagram
     Extract->>Extract: 2. Verify and interpret statements using Interpretation Agent (classification, subtotals, checks)
     Extract->>Extract: 3. Extract shares and organic growth using Diluted Shares & Organic Growth Agents
     Extract->>Extract: 4. Compute EBITA & tax adjustments using EBITA & Tax Agents and run deterministic computations (Invested Capital, NOPAT, ROIC)
-    Extract->>User: Save outputs to 4_extracted_data & context to 6_company_context
+    Extract->>User: Save outputs to 4_extracted_data
+    Extract->>User: Curator Agent curates extract learnings and wiki in ticker root
     User->>CLI: fa run historical
     CLI->>Queue: Feed extracted data
     Queue->>Hist: Synthesize trends
@@ -146,7 +147,7 @@ sequenceDiagram
     CLI->>Model: Calculate default assumptions
     Model->>Rust: Compute DCF base indicators
     Model->>User: Present assumptions table for feedback
-    Model->>User: Output 7_financial_model markdown & 8_historical_model_json
+    Model->>User: Output 6_financial_model markdown & 7_historical_model_json
 ```
 
 ---
@@ -159,10 +160,10 @@ sequenceDiagram
    Core financial valuation and sensitivity modeling (discounting cash flows, compounding, WACC calculations) are written in Rust (`src/rust_core/lib.rs`) for performance, safety, and correctness, compiled as a Python C-extension. Standard pipeline calculations (EBITA, Invested Capital, Tax Rates, and ROIC schedules) are written in pure Python to simplify development, testing, and out-of-the-box execution.
 3. **Chunked LLM Processing**:
    To avoid context bloat and high API costs, files are split into 5,000-character chunks. The LLM only receives `chunk_id=0` (the character inventory index) and pulls subsequent chunks one-by-one as needed.
-4. **Self-Healing Company Context**:
-    The `6_company_context/` directory contains company-specific guidelines (`ingest_context.md`, `extract_context.md`, `model_context.md`). While `ingest_context.md` and `model_context.md` may be updated/compiled during runs, `extract_context.md` is reserved strictly for manual user feedback to record custom classifications and avoid reinforcing agent errors. These files capture fiscal mappings, statement layout preferences, and custom account classifications to ensure future runs align with the specific company.
+4. **Self-Refining LLMWiki & Learning Files**:
+    Instead of an isolated context directory, company-specific context is maintained directly in each ticker's root workspace directory via 4 markdown files: `[TICKER]_wiki.md`, `[TICKER]_extract_learning.md`, `[TICKER]_analyze_learning.md`, and `[TICKER]_model_learning.md`. A dedicated `LLMWiki_curator_agent` runs after each pipeline stage, absorbing any manual user feedback and new run logs to continuously rewrite, refine, and compact the learnings, preventing memory loss and reinforcing correct behavior.
 5. **Interactive Zero-Dependency HTML Viewer**:
-   The viewer command (`fa viewer`) launches a local server hosting a self-contained HTML page. This app reads JSON data from `8_historical_model_json/`, runs DCF projections client-side, lets the user play with assumptions dynamically, and saves updated projections directly back to the workspace.
+   The viewer command (`fa viewer`) launches a local server hosting a self-contained HTML page. This app reads JSON data from `7_historical_model_json/`, runs DCF projections client-side, lets the user play with assumptions dynamically, and saves updated projections directly back to the workspace.
 6. **Auditable Traceability**:
    All metrics in the data lake (down to individual cells) must contain strict metadata properties tracking their provenance (`source_file`, `chunk_id`, `exact_snippet`). This ensures all calculated valuations can be verified in a single query, preventing model hallucination.
 7. **Interactive Shell with Sandboxed Execution**:
@@ -192,3 +193,21 @@ graph TD
 1. **AST Node Filtering:** Blocks execution of forbidden syntax elements (e.g., imports, attribute mutations, private double-underscore `__` accessors).
 2. **Namespace Isolation:** Execution scope is restricted to a custom dictionary containing only whitelisted functions (`math` libraries, safe `numpy` helpers, basic builtins like `abs`, `min`, `max`, `sum`) and read-only injections of the company's historical financial tables.
 3. **Execution Guardrails:** Thread-wrapped timeout controls terminate execution if processing exceeds a strict 5-second CPU time limit, guarding against infinite loops or resource starvation attacks.
+
+---
+
+## 6. Self-Learning LLMWiki & Curator Agent Architecture
+
+The self-learning mechanism replaces separate config folders with 4 dedicated root files per company workspace:
+
+### Workspace LLMWiki Files
+- `[TICKER]_wiki.md`: Stores structural company registries (e.g., Ingested Sources list) and qualitative perspectives (Bull & Bear) extracted strictly from recent document context without outside knowledge pollution.
+- `[TICKER]_extract_learning.md`: Stores the fiscal schedule end-dates (Q1, Q2, Q3, FY) and extraction lessons (e.g., handling ambiguous table rows or subtotal overlaps).
+- `[TICKER]_analyze_learning.md`: Stores qualitative/trend analysis lessons.
+- `[TICKER]_model_learning.md`: Stores modeling lessons (e.g., ADR conversion ratios, base currencies, WACC inputs).
+
+### Curator Agent Logic (`CuratorAgent`)
+The `CuratorAgent` class (in `src/pipeline/curator_agent.py`) executes compaction after each pipeline stage completes:
+1. **User Feedback Extraction**: It scans the file for a `## User Feedback` header, extracts everything underneath it, and filters out placeholder HTML comments.
+2. **LLM Compaction**: It feeds the existing markdown body, new user feedback, and recent stage logs to the LLM.
+3. **Rewrite & Clean**: The LLM compiles the feedback into the lessons sections, rewrites the file, and resets the `## User Feedback` section back to its blank template state.

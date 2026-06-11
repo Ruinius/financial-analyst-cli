@@ -9,18 +9,16 @@ logger = logging.getLogger(__name__)
 
 
 def update_extract_context(extractor, line_item) -> None:
-    """Append classification to 6_company_context/extract_context.md."""
-    # Do not auto-update or write to extract_context.md.
-    # This file is reserved strictly for manual user feedback to prevent reinforcing agent errors.
+    """Placeholder for backward compatibility. Direct updates are handled via CuratorAgent."""
     pass
 
 
 def get_extract_context(extractor) -> str:
     if extractor._extract_context_cache is None:
+        ticker = extractor.settings.active_ticker or "UNK"
         context_path = (
             Path(extractor.settings.active_workspace_path)
-            / "6_company_context"
-            / "extract_context.md"
+            / f"{ticker}_extract_learning.md"
         )
         if context_path.exists():
             try:

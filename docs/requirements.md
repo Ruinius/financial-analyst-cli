@@ -39,9 +39,9 @@ When a workspace path is set or initialized, the CLI automatically verifies and 
 - `3_archived_data/`: Archived original raw files.
 - `4_extracted_data/`: Extracted metrics and summaries of individual documents.
 - `5_historical_analysis/`: Longitudinal historical models and qualitative trends.
-- `6_company_context/`: Self-healing context files and accounting override definitions.
-- `7_financial_model/`: Markdown representations of projected DCF valuation models.
-- `8_historical_model_json/`: JSON model versions for the interactive web viewer.
+- `6_financial_model/`: Markdown representations of projected DCF valuation models.
+- `7_historical_model_json/`: JSON model versions for the interactive web viewer.
+- Root wiki/learning files (`[TICKER]_wiki.md`, `[TICKER]_extract_learning.md`, `[TICKER]_analyze_learning.md`, `[TICKER]_model_learning.md`): Continuously refined via the Curator Agent.
 
 ---
 
@@ -51,9 +51,9 @@ When a workspace path is set or initialized, the CLI automatically verifies and 
 flowchart TD
     A[EDGAR / Raw Data] -->|fa run edgar| B(1_ingest_data)
     B -->|fa run ingest| C(2_parsed_data / 3_archived_data)
-    C -->|fa run extract| D(4_extracted_data / 6_company_context)
+    C -->|fa run extract| D(4_extracted_data)
     D -->|fa run historical| E(5_historical_analysis)
-    E -->|fa run model| F(7_financial_model / 8_historical_model_json)
+    E -->|fa run model| F(6_financial_model / 7_historical_model_json)
 ```
 
 ### 3.1 Step 1: Data Fetching (`fa run edgar`)
@@ -81,9 +81,9 @@ flowchart TD
   - If the document is a `10-Q`, `10-K`, or `earnings_announcement`, the LLM also identifies the fiscal quarter.
   - Rename the markdown and raw files to `YYYYMMDD_document_type.md` (and corresponding raw extension) using the identified document date, and update `parsed_data.csv`.
 - **Step 2E: Self-Healing Ingestion Context**:
-  - Create/update `6_company_context/ingest_context.md` with identified company details:
+  - The Curator Agent compiles details and updates `[TICKER]_extract_learning.md` and `[TICKER]_wiki.md` in the root with identified company details:
     - Fiscal year-end month and the mapping of calendar months to fiscal quarters.
-    - Company-specific formatting preferences (e.g., where document dates are typically located).
+    - Company-specific formatting preferences.
   - Verify and correct fiscal quarter/document date mappings retroactively.
 
 ### 3.3 Step 3: Metric Extraction (`fa run extract`)
@@ -111,7 +111,7 @@ flowchart TD
   - **Adjusted Taxes Agent**: Backs out the tax effects of non-operating adjustments at a standard statutory tax rate (25%) and reviews footnotes for non-recurring tax benefits.
   - **Rust Performance Boundary**: Passes the Pydantic-validated JSON of classified items to the **Rust Core Engine** to calculate Invested Capital, NOPAT, ROIC, and Capital Turnover. All calculated metrics propagate the audit linkage metadata back to their respective raw source numbers.
 - **Step 3D: Manual User Extraction Context**:
-  - The file `6_company_context/extract_context.md` is reserved strictly for manual user feedback to override/configure custom classifications for operating/non-operating items. The agent reads this file but must never automatically write/update it, avoiding self-reinforcing errors.
+  - The file `[TICKER]_extract_learning.md` in the root is used to provide manual user feedback to override/configure custom classifications for operating/non-operating items under the `## User Feedback` section. The Curator Agent reads and rewrites/compacts this feedback into lessons and clears the feedback section.
 
 ### 3.4 Step 4: Historical Analysis (`fa run historical`)
 - **Queue**: Identify files in `4_extracted_data/` not yet integrated into `5_historical_analysis/`.
@@ -123,6 +123,8 @@ flowchart TD
   - **`10-K` / `20-F`**: Update `5_historical_analysis/financials_annual.md` (annual metrics).
 - **Self-Healing Integration**:
   - If annual reports are processed, the LLM checks if it can deduce a missing fourth quarter's financials by subtracting the first three quarters from the annual total, and writes the calculated Q4 metrics to `financials_quarter.md`.
+  - At the end of the analysis stage, the Curator Agent runs to consolidate qualitative views into `[TICKER]_wiki.md` and historical trend lessons into `[TICKER]_analyze_learning.md`, clearing the feedback section.
+
 
 ### 3.5 Step 5: Financial Modeling (`fa run model`)
 - **Step 5A: Base Assumption Derivation**:
@@ -131,9 +133,9 @@ flowchart TD
   - Use `analyst_views.md`, `financials_quarter.md`, and `financials_annual.md` to propose optimized assumptions for margins, growth, capital turnover, tax rates, and WACC.
 - **Step 5C: User Validation & Self-Healing**:
   - Present the assumptions table to the user for feedback.
-  - Record any overrides or adjustments in `6_company_context/model_context.md`.
+  - Record any overrides or adjustments in `[TICKER]_model_learning.md`.
 - **Step 5D: Execution**:
-  - Generate the projected financial model. Output the readable markdown file to `7_financial_model/` and the structured JSON to `8_historical_model_json/` as `YYYYMMDD_ticker_0.json`.
+  - Generate the projected financial model. Output the readable markdown file to `6_financial_model/` and the structured JSON to `7_historical_model_json/` as `YYYYMMDD_ticker_0.json`.
 
 ---
 
@@ -154,7 +156,7 @@ flowchart TD
 
 ### 4.2 Local HTML Viewer
 - Zero-dependency DCF HTML application.
-- Loads JSON files from `8_historical_model_json/`.
+- Loads JSON files from `7_historical_model_json/`.
 - Allows modifying assumptions (e.g., tax rate, WACC, growth) in the browser, recalculating cash flows and intrinsic value in real time, and saving the new model back as `YYYYMMDD_ticker_1.json`, etc.
 
 ---

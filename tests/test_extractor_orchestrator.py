@@ -112,6 +112,7 @@ def test_extractor_limit(mock_extract, mock_load_config, tmp_path):
 
     mock_settings = MagicMock()
     mock_settings.active_workspace_path = str(workspace)
+    mock_settings.active_ticker = "AAPL"
     mock_load_config.return_value = mock_settings
 
     # Create 3 parsed files
@@ -141,6 +142,7 @@ def test_extractor_ignores_readme_and_hidden(mock_extract, mock_load_config, tmp
 
     mock_settings = MagicMock()
     mock_settings.active_workspace_path = str(workspace)
+    mock_settings.active_ticker = "AAPL"
     mock_load_config.return_value = mock_settings
 
     parsed_dir = workspace / "2_parsed_data"
@@ -202,7 +204,9 @@ def test_extract_different_document_types(mock_llm_class, mock_load_config, tmp_
     workspace.mkdir()
     (workspace / "2_parsed_data").mkdir()
     (workspace / "4_extracted_data").mkdir()
-    (workspace / "6_company_context").mkdir()
+    (workspace / "AAPL_extract_learning.md").write_text(
+        "# Extract Learning\n", encoding="utf-8"
+    )
 
     mock_settings = MagicMock()
     mock_settings.active_workspace_path = str(workspace)
@@ -254,7 +258,9 @@ def test_extract_financials_stages(mock_llm_class, mock_load_config, tmp_path):
     workspace.mkdir()
     (workspace / "2_parsed_data").mkdir()
     (workspace / "4_extracted_data").mkdir()
-    (workspace / "6_company_context").mkdir()
+    (workspace / "AAPL_extract_learning.md").write_text(
+        "# Extract Learning\n", encoding="utf-8"
+    )
 
     mock_settings = MagicMock()
     mock_settings.active_workspace_path = str(workspace)

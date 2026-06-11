@@ -14,6 +14,12 @@ from src.pipeline.ingester import (
 from src.pipeline.queue import JobQueue
 
 
+@pytest.fixture(autouse=True)
+def mock_curator_agent():
+    with patch("src.pipeline.curator_agent.CuratorAgent.curate") as mock_curate:
+        yield mock_curate
+
+
 @pytest.fixture
 def mock_settings(tmp_path):
     workspace = tmp_path / "AAPL"

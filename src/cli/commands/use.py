@@ -12,14 +12,13 @@ FOLDER_DEFINITIONS = {
     "3_archived_data": "Archived exact raw documents after conversion to preserve history.",
     "4_extracted_data": "Chunk-by-chunk extraction summaries, balance sheets, income statements, and audit linkage records.",
     "5_historical_analysis": "Longitudinal quarterly and annual metrics, synthesized analyst views, and qualitative trend reports.",
-    "6_company_context": "Self-healing company contexts, fiscal calendars, statement formats, and custom classification guidelines.",
-    "7_financial_model": "Readable markdown outputs detailing DCF projections and intrinsic value calculations.",
-    "8_historical_model_json": "Structured JSON representations of model projections used by the interactive web viewer.",
+    "6_financial_model": "Readable markdown outputs detailing DCF projections and intrinsic value calculations.",
+    "7_historical_model_json": "Structured JSON representations of model projections used by the interactive web viewer.",
 }
 
 
 def initialize_workspace(workspace_dir: Path, ticker: str) -> None:
-    """Initialize the 8 subdirectories with descriptive README.md files."""
+    """Initialize the 7 subdirectories with descriptive README.md files and default wiki/learning files."""
     try:
         workspace_dir.mkdir(parents=True, exist_ok=True)
         for folder, desc in FOLDER_DEFINITIONS.items():
@@ -35,6 +34,53 @@ def initialize_workspace(workspace_dir: Path, ticker: str) -> None:
                     f"**Company Ticker**: {ticker}\n"
                 )
                 readme_path.write_text(readme_content, encoding="utf-8")
+
+        # Initialize default Wiki and Learning files in the ticker root folder
+        wiki_path = workspace_dir / f"{ticker}_wiki.md"
+        if not wiki_path.exists():
+            wiki_content = (
+                f"# Wiki: {ticker}\n\n"
+                "## Bull Perspective\n- No bull perspective compiled yet.\n\n"
+                "## Bear Perspective\n- No bear perspective compiled yet.\n\n"
+                "## Ingested Sources\n- None\n"
+            )
+            wiki_path.write_text(wiki_content, encoding="utf-8")
+
+        extract_learning_path = workspace_dir / f"{ticker}_extract_learning.md"
+        if not extract_learning_path.exists():
+            extract_content = (
+                f"# Ingestion & Extraction Learning: {ticker}\n\n"
+                "## Fiscal Schedule Mappings\n"
+                "- Q1: N/A\n"
+                "- Q2: N/A\n"
+                "- Q3: N/A\n"
+                "- FY: N/A\n\n"
+                "## Lessons to Better Ingest & Extract\n- None\n\n"
+                "## User Feedback\n"
+                "<!-- Write your feedback here. The Curator Agent will compile it into lessons and clear this section. -->\n"
+            )
+            extract_learning_path.write_text(extract_content, encoding="utf-8")
+
+        analyze_learning_path = workspace_dir / f"{ticker}_analyze_learning.md"
+        if not analyze_learning_path.exists():
+            analyze_content = (
+                f"# Analysis Learning: {ticker}\n\n"
+                "## Lessons to Better Analyze\n- None\n\n"
+                "## User Feedback\n"
+                "<!-- Write your feedback here. The Curator Agent will compile it into lessons and clear this section. -->\n"
+            )
+            analyze_learning_path.write_text(analyze_content, encoding="utf-8")
+
+        model_learning_path = workspace_dir / f"{ticker}_model_learning.md"
+        if not model_learning_path.exists():
+            model_content = (
+                f"# Modeling Learning: {ticker}\n\n"
+                "## Lessons to Better Model\n- None\n\n"
+                "## User Feedback\n"
+                "<!-- Write your feedback here. The Curator Agent will compile it into lessons and clear this section. -->\n"
+            )
+            model_learning_path.write_text(model_content, encoding="utf-8")
+
     except Exception as e:
         raise RuntimeError(f"Failed to initialize workspace folders: {str(e)}")
 
@@ -60,7 +106,7 @@ def main_use(
                 f"Workspace for {ticker} not found. Creating it now..."
             )
             initialize_workspace(target_path, ticker)
-            msg = f"Indubitably! I have created and switched our workspace to [bold]{ticker}[/bold].\nAll 8 folders are initialized at: {target_path}"
+            msg = f"Indubitably! I have created and switched our workspace to [bold]{ticker}[/bold].\nAll 7 folders are initialized at: {target_path}"
         else:
             msg = f"Indubitably! I have switched our workspace to [bold]{ticker}[/bold].\nActive workspace path: {target_path}"
 

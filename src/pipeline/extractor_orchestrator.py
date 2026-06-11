@@ -177,6 +177,13 @@ class Extractor:
 
         queue.run()
 
+        # Invoke Curator Agent at the end of extraction
+        ticker = self.settings.active_ticker or "UNK"
+        logs = f"Executed extraction stage. Processed files: {[f.name for f in unextracted_files]}"
+        from src.pipeline.curator_agent import CuratorAgent
+
+        CuratorAgent(self.settings).curate(ticker, "extract", logs)
+
     def get_document_metadata(self, file_name: str) -> dict:
         parsed_dir = Path(self.settings.active_workspace_path) / "2_parsed_data"
         csv_path = parsed_dir / "parsed_data.csv"

@@ -164,6 +164,16 @@ class Analyzer:
             analysis_dir / "financials_annual.md", annual_financials, is_quarterly=False
         )
 
+        # Trigger Curator Agent
+        ticker = self.settings.active_ticker or "UNK"
+        logs = (
+            f"Executed historical analysis stage. Processed extracted files: {extracted_files}.\n"
+            f"Analyst views synthesized: {analyst_views_entries}.\n"
+        )
+        from src.pipeline.curator_agent import CuratorAgent
+
+        CuratorAgent(self.settings).curate(ticker, "analyze", logs)
+
     def parse_chunk_summaries(self, content: str) -> str:
         """Extract summaries from the Chunk Summaries section."""
         match = re.search(

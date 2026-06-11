@@ -61,16 +61,15 @@ def test_initialize_workspace():
         ws_path = Path(tmpdir) / "AAPL"
         initialize_workspace(ws_path, "AAPL")
 
-        # Verify 8 folders exist
+        # Verify 7 folders exist
         folders = [
             "1_ingest_data",
             "2_parsed_data",
             "3_archived_data",
             "4_extracted_data",
             "5_historical_analysis",
-            "6_company_context",
-            "7_financial_model",
-            "8_historical_model_json",
+            "6_financial_model",
+            "7_historical_model_json",
         ]
         for f in folders:
             folder_path = ws_path / f
@@ -79,6 +78,12 @@ def test_initialize_workspace():
             readme_path = folder_path / "README.md"
             assert readme_path.exists()
             assert "AAPL" in readme_path.read_text(encoding="utf-8")
+
+        # Verify root files exist
+        assert (ws_path / "AAPL_wiki.md").exists()
+        assert (ws_path / "AAPL_extract_learning.md").exists()
+        assert (ws_path / "AAPL_analyze_learning.md").exists()
+        assert (ws_path / "AAPL_model_learning.md").exists()
 
 
 def test_cli_config_show(temp_config):

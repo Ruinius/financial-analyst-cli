@@ -27,11 +27,11 @@ Config      Ingestion   Extraction  History     Modeling    Interactive
 - **1.2 Settings & Configuration (`fa config`)**:
   - [x] Build `fa config init` to guide users through name, email, project name, API keys, and workspace path configuration.
   - [x] Build `fa config show` with masked API keys.
-  - [x] Implement workspace validation that checks for and automatically initializes the 8 folders (`1_ingest_data/` to `8_historical_model_json/`) with boilerplate instructions.
+  - [x] Implement workspace validation that checks for and automatically initializes the 7 folders (`1_ingest_data/` to `7_historical_model_json/`) with boilerplate instructions and default wiki/learning files.
   - [x] Build the workspace switching command `fa use <ticker>` to set active workspace paths dynamically.
   - [x] Migrate configuration settings entirely from the global plaintext JSON file (`~/.financial_analyst_cli.json`) to a local `.env` file in the project root, covering all fields (e.g., name, email, project, base workspace, and API keys).
   - [x] **Cross-Platform Default Workspace to Desktop**: Update the configuration initialization to default the base workspace directory (`base_workspace_dir`) to the user's Desktop. Resolve this dynamically using Python's `pathlib.Path.home() / "Desktop"` to ensure cross-platform compatibility across Windows, macOS, and Linux.
-  - [x] **Dynamic Ticker Workspace Creation in `fa use <ticker>`**: Update the `fa use <ticker>` command. When switched to a ticker, check if a folder with that ticker name (force uppercase) exists in the configured base workspace. If it does not exist, automatically create the ticker directory and initialize the 8 standard workspace folders (from `1_ingest_data/` to `8_historical_model_json/`) inside it, then update the active workspace path.
+  - [x] **Dynamic Ticker Workspace Creation in `fa use <ticker>`**: Update the `fa use <ticker>` command. When switched to a ticker, check if a folder with that ticker name (force uppercase) exists in the configured base workspace. If it does not exist, automatically create the ticker directory and initialize the 7 standard workspace folders (from `1_ingest_data/` to `7_historical_model_json/`) inside it, then update the active workspace path.
   - [x] **Startup Config Auto-Detection**: Modify the CLI entrypoint (`main.py` or `src/cli/main.py`) to check `config_exists()` _before_ invoking the Typer application `app()`. If the configuration is missing, immediately run the `initialize_config_flow()` interactive setup instead of letting Typer exit with the help screen due to `no_args_is_help=True`.
   - [x] **Animated Setup Flow**: Integrate the dynamic Pig ASCII animation (snout wiggling and ear flapping via `prompt_toolkit`'s async prompt loop) directly into the interactive setup prompts in [config.py](src/cli/commands/config.py), ensuring Sir Pennyworth is fully animated during the first-time config wizard.
   - [x] **Verify dotenv content during startup**: Update startup check to verify if the `.env` file contains Sir Pennyworth's configuration settings (e.g. `FULL_NAME`, `EMAIL`), rather than just checking if the file `.env` exists, to determine if it's the user's first time.
@@ -56,7 +56,7 @@ Config      Ingestion   Extraction  History     Modeling    Interactive
   - [x] Implement the 5,000-character chunking algorithm and prepend `chunk_id=0` indices.
   - [x] Integrate LLM to detect true document dates, quarters, and types.
   - [x] Rename files to `YYYYMMDD_document_type.md` (and raw equivalent in `3_archived_data/`).
-  - [x] Create and update `6_company_context/ingest_context.md`.
+  - [x] Trigger the Curator Agent to update `[TICKER]_extract_learning.md` and `[TICKER]_wiki.md` in root.
 - **2.4 Testing & Verification**:
   - [x] Mock the SEC EDGAR API calls to verify downloader functionality.
   - [x] Test sequential job queuing, SHA-256 deduplication hashing, chunking outputs, and renaming logic using temporary directory fixtures (`tmp_path`).
@@ -88,7 +88,7 @@ Config      Ingestion   Extraction  History     Modeling    Interactive
   - [x] Seed the central dictionary (`src/resources/dictionary/`) with an initial `index.md` and basic accounting definitions/treatment markdowns.
   - [x] Define strict Pydantic schemas to validate financial data before passing to Rust.
   - [x] Expand the **Rust Core Engine** via PyO3 to calculate Invested Capital, EBITA, Adjusted Taxes, NOPAT, and ROIC schedules.
-  - [x] Create and update `6_company_context/extract_context.md`.
+  - [x] Trigger the Curator Agent to update extraction lessons in `[TICKER]_extract_learning.md`.
   - [x] Propagate audit lineage through all derived metrics calculations.
 - **3.4 Testing & Verification**:
   - [x] Write unit tests for PyO3 Rust extension arithmetic schedules (ROIC, NOPAT, WACC) with test tables.
@@ -108,6 +108,8 @@ Config      Ingestion   Extraction  History     Modeling    Interactive
 - **4.2 Quantitative Trend Synthesis**:
   - [x] Build the longitudinal financials processor to update `financials_quarter.md` and `financials_annual.md`.
   - [x] Implement Q4 deduction logic (Annual minus Q1-Q3).
+  - [x] Trigger the Curator Agent to update qualitative perspectives in `[TICKER]_wiki.md` and analysis lessons in `[TICKER]_analyze_learning.md`.
+
 - **4.3 Testing & Evaluation (Evals)**:
   - [x] Test historical trend compiling and fourth-quarter arithmetic deductions.
   - [x] **Baseline Evaluation Setup**: Establish the initial Golden Dataset for benchmark tickers (e.g. AAPL 2024 JSON) containing ground truth numbers and classifications. Implement basic validation assertions.
@@ -123,10 +125,12 @@ Config      Ingestion   Extraction  History     Modeling    Interactive
 - **5.2 Modeler Agent (`fa run model`)**:
   - [x] Leverage historical financials and analyst views to estimate final assumptions.
   - [x] Display the interactive assumptions table to the user for feedback.
-  - [x] Save adjustments to `6_company_context/model_context.md`.
+  - [x] Save adjustments to `[TICKER]_model_learning.md`.
 - **5.3 Financial Model Generation**:
-  - [x] Generate the DCF model markdown inside `7_financial_model/`.
-  - [x] Output the baseline model JSON (`YYYYMMDD_ticker_0.json`) inside `8_historical_model_json/`.
+  - [x] Generate the DCF model markdown inside `6_financial_model/`.
+  - [x] Output the baseline model JSON (`YYYYMMDD_ticker_0.json`) inside `7_historical_model_json/`.
+  - [x] Trigger the Curator Agent to update modeling lessons in `[TICKER]_model_learning.md` and clear feedback.
+
 - **5.4 Testing & Evaluation (Evals)**:
   - [x] Test default assumptions calculations and model state export functions.
   - [x] **Model LLM Evals Pipeline**: Implement programmatic quantitative scorecards (pass/fail thresholds) and qualitative semantic scoring (1-5 scale) using an LLM-as-a-Judge mechanism to evaluate the accuracy of final models.
@@ -145,7 +149,7 @@ Config      Ingestion   Extraction  History     Modeling    Interactive
   - [x] Implement the sandboxed math execution engine (`math_solver.py`) using `RestrictedPython` or `SymPy` with AST filtering and timeout guards.
 - **6.3 DCF Viewer Server (`fa viewer`)**:
   - [x] Build the zero-dependency interactive HTML browser viewer.
-  - [x] Setup a simple Python server to launch the viewer, read from `8_historical_model_json/`, and write back updated override JSON versions (e.g. `YYYYMMDD_ticker_1.json`).
+  - [x] Setup a simple Python server to launch the viewer, read from `7_historical_model_json/`, and write back updated override JSON versions (e.g. `YYYYMMDD_ticker_1.json`).
 - **6.4 Testing & Regression Evaluation**:
   - [x] Test the viewer server routing, reading JSON files, and writing overrides.
   - [x] Test interactive REPL prompts, mock user inputs, math solver AST filtering, and timeout watchdogs.

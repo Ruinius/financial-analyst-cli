@@ -53,7 +53,7 @@ The CLI prompts for:
    - *Alternative*: Option to select a unified multimodal model (e.g., **Gemma**) natively handling both tasks.
 4. **Workspace Path**:
    - Active directory folder path.
-   - When set, the system automatically initializes the 8 subfolders (`1_ingest_data/` through `8_historical_model_json/`) and generates boilerplate instructions in each.
+   - When set, the system automatically initializes the 7 subfolders (`1_ingest_data/` through `7_historical_model_json/`) and generates default wiki and learning files in the ticker root folder.
 
 ---
 
@@ -83,7 +83,7 @@ Ingests, hashes, parses, and structures raw filings from `1_ingest_data/`.
   - Moves raw files to `3_archived_data/` and saves markdown to `2_parsed_data/`.
   - Chunks into 5,000-character blocks, prepending chunk index table as `chunk_id=0`.
   - Prompts LLM to identify the filing date and document type, renaming files to `YYYYMMDD_document_type.md`.
-  - Updates `6_company_context/ingest_context.md`.
+  - The Curator Agent updates the `[TICKER]_extract_learning.md` fiscal mappings and `[TICKER]_wiki.md` ingested sources.
 
 #### `fa run extract`
 Extracts financial statement data and qualitative metrics.
@@ -95,7 +95,7 @@ Extracts financial statement data and qualitative metrics.
   - Appends chunk-by-chunk notes to `YYYYMMDD_filetype_extracted.md`.
   - Orchestrates a multi-agent pipeline: Balance Sheet and Income Statement agents extract statements; the Financial Statement Interpretation agent handles subtotal/total checking, operating/non-operating classification, and cross-statement mathematical audits; Diluted Shares and Organic Growth agents extract shares and CC growth rates; EBITA and Adjusted Taxes agents locate restructuring/amortization adjustments and apply statutory tax rates.
   - Passes validated outputs to the Rust core engine to calculate NOPAT, ROIC, and invested capital with full audit trails.
-  - Updates `6_company_context/extract_context.md`.
+  - The Curator Agent updates the `[TICKER]_extract_learning.md` extraction lessons and clears the manual user feedback section.
 
 #### `fa run historical`
 Synthesizes longitudinal quarterly and annual data trends.
@@ -104,6 +104,8 @@ Synthesizes longitudinal quarterly and annual data trends.
 - **Execution**:
   - Updates `5_historical_analysis/analyst_views.md`, `news_trend.md`, `transcript_trend.md`, `financials_quarter.md`, and `financials_annual.md`.
   - Deduces missing Q4 data from annual figures if possible.
+  - The Curator Agent updates the `[TICKER]_wiki.md` (Bull and Bear qualitative perspectives) and `[TICKER]_analyze_learning.md` (analysis lessons) and clears the feedback section.
+
 
 #### `fa run model`
 Proposes valuation assumptions and generates DCF projections.
@@ -111,8 +113,8 @@ Proposes valuation assumptions and generates DCF projections.
   - `--ticker`, `-t`: Limit modeling to this ticker.
 - **Execution**:
   - Proposes defaults (`base_WACC`, `base_growth_rate`, etc.).
-  - Renders assumption table for user approval/feedback.
-  - Writes markdown projection report to `7_financial_model/` and JSON representation to `8_historical_model_json/` as `YYYYMMDD_ticker_0.json`.
+  - Writes markdown projection report to `6_financial_model/` and JSON representation to `7_historical_model_json/` as `YYYYMMDD_ticker_0.json`.
+  - The Curator Agent updates the `[TICKER]_model_learning.md` modeling lessons and clears the feedback section.
 
 ---
 
@@ -149,7 +151,7 @@ Launches the zero-dependency interactive local web viewer.
   - `--port`, `-p`: Port to run the server on (Default: `3000`).
   - `--host`, `-h`: Host to bind the server to (Default: `127.0.0.1`).
 - **Execution**:
-  - Scans and loads JSON files from `8_historical_model_json/`.
+  - Scans and loads JSON files from `7_historical_model_json/`.
   - Renders an interactive browser UI where users can adjust DCF levers and write updated models back to the workspace.
 
 ---
@@ -172,8 +174,8 @@ Dynamically switch the current active workspace to the folder for the specified 
   - `ticker` (Required, e.g. `AAPL`)
 - **Execution**:
   - Updates the active workspace path in configuration to point to the directory named after the company's ticker.
-  - Automatically initializes the 8 folders (`1_ingest_data/` to `8_historical_model_json/`) in that directory if they do not exist.
-  - Loads the corresponding self-healing company contexts.
+  - Automatically initializes the 7 folders (`1_ingest_data/` to `7_historical_model_json/`) in that directory if they do not exist along with the default wiki and learning files.
+  - Loads the corresponding company contexts/learnings from the root files.
 
 ---
 

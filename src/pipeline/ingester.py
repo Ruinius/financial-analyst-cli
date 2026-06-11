@@ -201,10 +201,9 @@ class Ingester:
             with open(doc_types_path, "r", encoding="utf-8") as f:
                 doc_types_str = f.read()
 
+        ticker = self.settings.active_ticker or "UNK"
         context_path = (
-            Path(self.settings.active_workspace_path)
-            / "6_company_context"
-            / "ingest_context.md"
+            Path(self.settings.active_workspace_path) / f"{ticker}_extract_learning.md"
         )
         context_str = ""
         if context_path.exists():
@@ -262,12 +261,8 @@ Please return a valid JSON object matching this structure:
         return ("YYYY-MM-DD", "other", "N/A", "N/A")
 
     def heal_ingest_context(self, registry: Dict[str, Dict[str, str]] = None) -> None:
-        """Scan the parsed registry and update 6_company_context/ingest_context.md with correct fiscal mappings."""
+        """Scan the parsed registry and update learning and wiki files using the Curator Agent."""
         ticker = self.settings.active_ticker or "UNK"
-        context_dir = Path(self.settings.active_workspace_path) / "6_company_context"
-        context_dir.mkdir(parents=True, exist_ok=True)
-        context_file = context_dir / "ingest_context.md"
-
         if registry is None:
             registry = self.load_parsed_registry()
         if not registry:
@@ -348,10 +343,6 @@ Please return a valid JSON object matching this structure:
             )
 
         lines = []
-        lines.append(f"# Ingestion Context: {ticker}\n")
-        lines.append(
-            "This file contains automatically detected company configuration parameters.\n"
-        )
         lines.append("## Fiscal Schedule Mappings")
         lines.append(f"- **Fiscal Year End**: {fye_desc}")
         lines.append("- **Quarterly Mappings**:")
@@ -365,10 +356,21 @@ Please return a valid JSON object matching this structure:
             m, src = final_quarter_mappings[q]
             lines.append(f"  - {q}: Ends around Month {m} ({src})")
 
-        content = "\n".join(lines) + "\n"
+        # Compile list of files in registry for Wiki Sources
+        file_logs = []
+        file_logs.append("### Registry Files:")
+        for r in registry.values():
+            file_logs.append(
+                f"- [{r.get('new_filename')}]: Original '{r.get('original_filename')}', type '{r.get('document_type')}', date '{r.get('document_date')}', period end '{r.get('period_end_date')}'"
+            )
 
-        with open(context_file, "w", encoding="utf-8") as f:
-            f.write(content)
+        agent_logs = "\n".join(lines) + "\n\n" + "\n".join(file_logs)
+
+        # Trigger Curator Agent
+        from src.pipeline.curator_agent import CuratorAgent
+
+        curator = CuratorAgent(self.settings)
+        curator.curate(ticker, "ingest", agent_logs)
 
     def create_or_update_ingest_context(
         self,
@@ -379,7 +381,7 @@ Please return a valid JSON object matching this structure:
         period_end_date: str = "N/A",
         registry: Dict[str, Dict[str, str]] = None,
     ) -> None:
-        """Heal 6_company_context/ingest_context.md with correct mappings."""
+        """Call heal_ingest_context to curate via CuratorAgent."""
         self.heal_ingest_context(registry)
 
     def ingest_single_file(

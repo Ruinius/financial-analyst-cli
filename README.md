@@ -72,7 +72,7 @@ I am constantly learning and growing. I am incredibly grateful for any comments,
 1. **Structured Ingestion & Parsing**: Automated retrieval of filings (10-K, 10-Q, 20-F) from SEC EDGAR, layout-preserved markdown parsing, duplicate hashing, and smart LLM-driven date/quarter identification.
 2. **Auditable Metric Extraction**: Extract Balance Sheet and Income Statement line items. Every data point is tagged with trace metadata (`source_file`, `chunk_id`, `exact_snippet`) for absolute auditing.
 3. **Hybrid Python-Rust Engine**: Perform valuation modeling and multi-scenario sensitivity calculations in Rust via PyO3 bindings, with standard pipeline calculations (EBITA, Invested Capital, Tax Rates, and ROIC) executed directly in Python.
-4. **Self-Healing Company Context**: Company-specific extraction and mapping contexts that automatically heal and improve on successive pipeline runs.
+4. **Self-Learning LLMWiki**: Centralized ticker wiki and stage-specific learning registers that automatically consolidate, refine, and compact lessons and user feedback after each agent run.
 5. **Interactive REPL / Analyst Shell (`fa chat`)**: Talk directly to Sir Pennyworth. Probe extracted financial metrics, execute custom math formulas in a sandboxed execution environment, and audit statements.
 6. **Zero-Dependency DCF Viewer**: Start a local viewer server to dynamically tune DCF assumptions and save custom scenarios back to the workspace.
 
@@ -135,9 +135,12 @@ Setting up a workspace for a company ticker (e.g., `AAPL` or `MSFT`) initializes
 - **`3_archived_data/`**: Archived original files.
 - **`4_extracted_data/`**: Parsed metrics, statement summaries, and audit trail metadata.
 - **`5_historical_analysis/`**: Generated reports summarizing qualitative moats (`analyst_views.md`), transcripts (`transcript_trend.md`), and quantitative trends (`financials_quarter.md`, `financials_annual.md`).
-- **`6_company_context/`**: Customizable self-healing accounting contexts (`ingest_context.md`, `extract_context.md`, `model_context.md`).
-- **`7_financial_model/`**: Markdown representations of DCF models.
-- **`8_historical_model_json/`**: JSON model states for import/export in the interactive viewer.
+- **`6_financial_model/`**: Markdown representations of DCF models.
+- **`7_historical_model_json/`**: JSON model states for import/export in the interactive viewer.
+- **`[TICKER]_wiki.md`**: Centralized wiki containing qualitative bull/bear views and lists of ingested sources.
+- **`[TICKER]_extract_learning.md`**: Custom fiscal schedule mappings, ingest/extract lessons, and user feedback.
+- **`[TICKER]_analyze_learning.md`**: Analysis-specific lessons and user feedback.
+- **`[TICKER]_model_learning.md`**: Modeler-specific lessons and user feedback.
 
 ---
 
