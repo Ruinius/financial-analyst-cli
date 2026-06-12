@@ -148,8 +148,10 @@ class Extractor:
                 }
             )
 
-    def run_extraction(self, limit: int = None) -> None:
-        """Scan 2_parsed_data/ and run extraction on unextracted documents sequentially."""
+    def run_extraction(
+        self, limit: int = None, files_to_process: List[Path] = None
+    ) -> None:
+        """Scan 2_parsed_data/ and run extraction sequentially."""
         if not self.settings.active_workspace_path:
             raise ValueError(
                 "No active workspace is selected. Use 'fa use <ticker>' first."
@@ -160,47 +162,52 @@ class Extractor:
             logger.warning(f"Parsed directory {parsed_dir} does not exist.")
             return
 
-        parsed_files = [
-            p
-            for p in parsed_dir.iterdir()
-            if p.is_file()
-            and p.suffix.lower() == ".md"
-            and p.name.lower() != "readme.md"
-            and not p.name.startswith(".")
-            and p.name != "parsed_data.csv"
-        ]
-        if not parsed_files:
-            logger.info("No parsed files found to extract.")
-            return
-
         import src.utils.formatting as formatting
 
-        extracted_registry = self.load_extracted_registry()
+        if files_to_process is not None:
+            files_to_run = files_to_process
+        else:
+            parsed_files = [
+                p
+                for p in parsed_dir.iterdir()
+                if p.is_file()
+                and p.suffix.lower() == ".md"
+                and p.name.lower() != "readme.md"
+                and not p.name.startswith(".")
+                and p.name != "parsed_data.csv"
+            ]
+            if not parsed_files:
+                logger.info("No parsed files found to extract.")
+                return
 
-        # Filter out files that are already extracted first
-        unextracted_files = [
-            p for p in parsed_files if p.name not in extracted_registry
-        ]
+            extracted_registry = self.load_extracted_registry()
 
-        for p_file in parsed_files:
-            if p_file.name in extracted_registry:
-                formatting.print_info(f"Skipped already extracted: {p_file.name}")
+            # Filter out files that are already extracted first
+            files_to_run = [p for p in parsed_files if p.name not in extracted_registry]
 
-        if limit is not None:
-            skipped_limit_files = unextracted_files[limit:]
-            unextracted_files = unextracted_files[:limit]
-            for f in skipped_limit_files:
-                formatting.print_info(f"Skipped due to limit: {f.name}")
+            for p_file in parsed_files:
+                if p_file.name in extracted_registry:
+                    formatting.print_info(f"Skipped already extracted: {p_file.name}")
+
+            if limit is not None:
+                skipped_limit_files = files_to_run[limit:]
+                files_to_run = files_to_run[:limit]
+                for f in skipped_limit_files:
+                    formatting.print_info(f"Skipped due to limit: {f.name}")
+
+        if not files_to_run:
+            formatting.print_info("No files to extract.")
+            return
 
         queue = JobQueue(retries=2, initial_delay=1.0)
-        for p_file in unextracted_files:
+        for p_file in files_to_run:
             queue.add_job(self.extract_single_file, p_file)
 
         queue.run()
 
         # Invoke Curator Agent at the end of extraction
         ticker = self.settings.active_ticker or "UNK"
-        logs = f"Executed extraction stage. Processed files: {[f.name for f in unextracted_files]}"
+        logs = f"Executed extraction stage. Processed files: {[f.name for f in files_to_run]}"
         from src.pipeline.curator_agent import CuratorAgent
 
         CuratorAgent(self.settings).curate(ticker, "extract", logs)

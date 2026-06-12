@@ -348,31 +348,96 @@ def run_extract(ticker: str = typer.Option(None, "--ticker", "-t")):
         )
         return
 
-    formatting.speak(
-        f"Splendid! I found {len(parsed_files)} parsed file(s) ready for extraction."
-    )
-
-    response = typer.prompt("How many files would you like to process?", default="all")
-    limit = None
-    if response.strip().lower() != "all":
-        try:
-            limit = int(response.strip())
-        except ValueError:
-            formatting.print_warning(
-                "Invalid number of files entered. Defaulting to processing all files."
-            )
-            limit = None
-
-    formatting.print_info("Starting extraction stage...")
     try:
         extractor = Extractor()
-        extractor.run_extraction(limit=limit)
-        formatting.print_success(
-            "Successfully extracted financial data and calculated metrics."
-        )
+        extracted_registry = extractor.load_extracted_registry()
     except Exception as e:
-        formatting.print_error(f"Extraction failed: {str(e)}")
+        formatting.print_error(f"Failed to load registry: {str(e)}")
         raise typer.Exit(1)
+
+    new_files = [p for p in parsed_files if p.name not in extracted_registry]
+    extracted_files = [p for p in parsed_files if p.name in extracted_registry]
+
+    new_files.sort(key=lambda p: p.name, reverse=True)
+    extracted_files.sort(key=lambda p: p.name, reverse=True)
+
+    ordered_files = []
+    for p in new_files:
+        ordered_files.append((p, False))
+    for p in extracted_files:
+        ordered_files.append((p, True))
+
+    num_total = len(parsed_files)
+    num_new = len(new_files)
+    formatting.speak(
+        f"Splendid! I found {num_total} parsed file(s) ready for extraction, of which {num_new} are new."
+    )
+
+    def get_letter_label(index: int) -> str:
+        label = ""
+        while index >= 0:
+            label = chr(ord("a") + (index % 26)) + label
+            index = (index // 26) - 1
+        return label
+
+    label_to_file = {}
+    for i, (p_file, is_extracted) in enumerate(ordered_files):
+        label = get_letter_label(i)
+        label_to_file[label] = p_file
+        suffix = " (already extracted)" if is_extracted else ""
+        formatting.console.print(f"  {label}) {p_file.name}{suffix}")
+    formatting.console.print()
+
+    response = typer.prompt("How many files would you like to process?", default="all")
+    response_clean = response.strip().lower()
+
+    if response_clean in label_to_file:
+        chosen_file = label_to_file[response_clean]
+        formatting.print_info(
+            f"Starting extraction stage for specifically selected file: {chosen_file.name}..."
+        )
+        try:
+            extractor.run_extraction(files_to_process=[chosen_file])
+            formatting.print_success(
+                "Successfully extracted financial data and calculated metrics."
+            )
+        except Exception as e:
+            formatting.print_error(f"Extraction failed: {str(e)}")
+            raise typer.Exit(1)
+    elif response_clean == "all":
+        formatting.print_info("Starting extraction stage...")
+        try:
+            extractor.run_extraction(limit=None)
+            formatting.print_success(
+                "Successfully extracted financial data and calculated metrics."
+            )
+        except Exception as e:
+            formatting.print_error(f"Extraction failed: {str(e)}")
+            raise typer.Exit(1)
+    elif response_clean.isdigit():
+        limit = int(response_clean)
+        formatting.print_info("Starting extraction stage...")
+        try:
+            extractor.run_extraction(limit=limit)
+            formatting.print_success(
+                "Successfully extracted financial data and calculated metrics."
+            )
+        except Exception as e:
+            formatting.print_error(f"Extraction failed: {str(e)}")
+            raise typer.Exit(1)
+    else:
+        formatting.print_warning(
+            "Invalid input entered. Defaulting to processing all new files."
+        )
+        formatting.print_info("Starting extraction stage...")
+        try:
+            extractor.run_extraction(limit=None)
+            formatting.print_success(
+                "Successfully extracted financial data and calculated metrics."
+            )
+        except Exception as e:
+            formatting.print_error(f"Extraction failed: {str(e)}")
+            raise typer.Exit(1)
 
 
 @run_app.command("historical")

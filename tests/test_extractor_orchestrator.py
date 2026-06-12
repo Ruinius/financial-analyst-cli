@@ -513,3 +513,45 @@ def test_deterministic_metrics_variations():
 
             # Assertions to verify correct logic was run without exceptions
             assert True
+
+
+@patch("src.pipeline.extractor_orchestrator.load_config")
+@patch("src.pipeline.extractor_orchestrator.Extractor.extract_single_file")
+def test_extractor_files_to_process(mock_extract, mock_load_config, tmp_path):
+    workspace = tmp_path / "AAPL"
+    workspace.mkdir()
+    (workspace / "2_parsed_data").mkdir()
+    (workspace / "4_extracted_data").mkdir()
+
+    mock_settings = MagicMock()
+    mock_settings.active_workspace_path = str(workspace)
+    mock_settings.active_ticker = "AAPL"
+    mock_load_config.return_value = mock_settings
+
+    # Create 3 parsed files
+    parsed_dir = workspace / "2_parsed_data"
+    f0 = parsed_dir / "20230920_annual_filing.md"
+    f0.write_text("dummy0", encoding="utf-8")
+    f1 = parsed_dir / "20230921_annual_filing.md"
+    f1.write_text("dummy1", encoding="utf-8")
+    f2 = parsed_dir / "20230922_annual_filing.md"
+    f2.write_text("dummy2", encoding="utf-8")
+
+    # Add f1 to extracted_registry to check if it's bypassed
+    registry_file = workspace / "4_extracted_data" / "extracted_data.csv"
+    registry_file.write_text(
+        "source_file,extracted_at\n20230921_annual_filing.md,1234.5\n", encoding="utf-8"
+    )
+
+    extractor = Extractor()
+    mock_extract.__name__ = "extract_single_file"
+
+    # Explicitly run extraction on f1 (which is in the registry) and f0
+    extractor.run_extraction(files_to_process=[f1, f0])
+
+    # Should process exactly f1 and f0
+    assert mock_extract.call_count == 2
+    called_paths = [args[0] for args, _ in mock_extract.call_args_list]
+    assert f1 in called_paths
+    assert f0 in called_paths
+    assert f2 not in called_paths

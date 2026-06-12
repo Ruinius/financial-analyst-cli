@@ -1,6 +1,6 @@
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 import pytest
 from typer.testing import CliRunner
 
@@ -384,3 +384,58 @@ def test_initialize_config_flow_deepseek(monkeypatch, temp_config):
     assert settings.api_provider == "deepseek"
     assert settings.deepseek_api_key == "sk-ds-deepseekKey"
     assert settings.text_model_id == "deepseek-v4-flash"
+
+
+@patch("src.cli.main.Extractor")
+def test_cli_run_extract(mock_extractor_cls, temp_config):
+    mock_extractor = MagicMock()
+    mock_extractor.load_extracted_registry.return_value = [
+        "20250828_quarterly_filing.md"
+    ]
+    mock_extractor_cls.return_value = mock_extractor
+
+    base_dir = temp_config.parent / "workspace"
+    settings = Settings(
+        full_name="Bob",
+        email="bob@example.com",
+        project_name="BobProj",
+        primary_llm_api_key="sk-secret-key-1234",
+        base_workspace_dir=str(base_dir),
+        active_ticker="AAPL",
+        active_workspace_path=str(base_dir / "AAPL"),
+    )
+    save_config(settings)
+
+    # Create parsed files in 2_parsed_data
+    parsed_dir = base_dir / "AAPL" / "2_parsed_data"
+    parsed_dir.mkdir(parents=True, exist_ok=True)
+    (parsed_dir / "20250828_quarterly_filing.md").write_text("dummy", encoding="utf-8")
+    (parsed_dir / "20260131_annual_filing.md").write_text("dummy", encoding="utf-8")
+    (parsed_dir / "20260521_quarterly_filing.md").write_text("dummy", encoding="utf-8")
+
+    # Order expected:
+    # New files descending: 20260521_quarterly_filing.md, 20260131_annual_filing.md
+    # Extracted files descending: 20250828_quarterly_filing.md
+    # So:
+    # a) 20260521_quarterly_filing.md
+    # b) 20260131_annual_filing.md
+    # c) 20250828_quarterly_filing.md (already extracted)
+
+    # Test selecting 'c' (re-extraction of a specific file)
+    result = runner.invoke(app, ["run", "extract"], input="c\n")
+    assert result.exit_code == 0
+    import re
+
+    stdout_clean = result.stdout.replace("\n", " ")
+    stdout_clean = re.sub(r"[\u2500-\u257F│┌┐└┘├┤┬┴┼]", " ", stdout_clean)
+    stdout_clean = re.sub(r"\s+", " ", stdout_clean)
+    assert "ready for extraction" in stdout_clean
+    assert "2 are new" in stdout_clean
+    assert "a) 20260521_quarterly_filing.md" in stdout_clean
+    assert "b) 20260131_annual_filing.md" in stdout_clean
+    assert "c) 20250828_quarterly_filing.md (already extracted)" in stdout_clean
+
+    # Verify that run_extraction was called with the specific file path of 'c'
+    mock_extractor.run_extraction.assert_called_with(
+        files_to_process=[parsed_dir / "20250828_quarterly_filing.md"]
+    )
