@@ -109,6 +109,12 @@ class DCFViewerHandler(http.server.SimpleHTTPRequestHandler):
                 return
 
             content_length = int(self.headers.get("Content-Length", 0))
+            if content_length > 1048576:  # 1MB limit
+                self.send_response(413)
+                self.end_headers()
+                self.wfile.write(b'{"error": "Payload Too Large"}')
+                return
+
             body = self.rfile.read(content_length)
 
             try:
