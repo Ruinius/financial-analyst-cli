@@ -309,8 +309,9 @@ def test_extract_financials_stages(mock_llm_class, mock_load_config, tmp_path):
         if (
             "ebita adjustments and tax provisions" in sys_lower
             or "reported operating income" in p_lower
+            or "ebita adjustments" in p_lower
         ):
-            return '{"operating_ebita": 1000.0, "adjusted_taxes": 250.0}'
+            return '{"thought": "Finalizing", "tool": "finalize", "arguments": {"operating_income": 1000.0, "income_before_taxes": 1200.0, "reported_tax_provision": -250.0, "operating_ebita": 1000.0, "adjusted_taxes": -250.0}}'
         if "income statement" in sys_lower or "income statement" in p_lower:
             if "observation from check_income_statement_quality" in p_lower:
                 return '{"thought": "Quality check passed. Finalizing.", "tool": "finalize", "arguments": {}}'
@@ -346,6 +347,7 @@ def test_extract_financials_stages(mock_llm_class, mock_load_config, tmp_path):
         run_diluted_shares_agent,
         run_organic_growth_agent,
         run_interpretation_agent,
+        run_ebita_and_tax_agent,
         calculate_deterministic_metrics,
     )
 
@@ -391,6 +393,9 @@ Revenue of $1000. Cash of $500. Shares outstanding basic shares diluted shares o
     assert organic_growth == 0.08
 
     # 5. Test calculate_deterministic_metrics
+    op_inc, inc_bt, rep_tax, ebita, adj_taxes, ebita_adjustments, tax_adjustments = (
+        run_ebita_and_tax_agent(content, interpreted, extractor)
+    )
     success = calculate_deterministic_metrics(
         file_path=Path("20240901_annual_filing.md"),
         content=content,
@@ -399,6 +404,13 @@ Revenue of $1000. Cash of $500. Shares outstanding basic shares diluted shares o
         diluted_shares=diluted_shares,
         simple_growth=simple_growth,
         organic_growth=organic_growth,
+        op_inc=op_inc,
+        inc_bt=inc_bt,
+        rep_tax=rep_tax,
+        ebita=ebita,
+        adj_taxes=adj_taxes,
+        ebita_adjustments=ebita_adjustments,
+        tax_adjustments=tax_adjustments,
         extractor=extractor,
         summaries=summaries,
     )
@@ -482,6 +494,15 @@ def test_deterministic_metrics_variations():
                 diluted_shares=910.0,
                 simple_growth=0.10,
                 organic_growth=0.08,
+                op_inc=2300.0,
+                inc_bt=2400.0,
+                rep_tax=-500.0,
+                ebita=2304.0,
+                adj_taxes=-499.0,
+                ebita_adjustments=[{"name": "Restructuring", "value": 4.0}],
+                tax_adjustments=[
+                    {"name": "Tax effect of restructuring at 25%", "value": 1.0}
+                ],
                 extractor=mock_extractor,
                 summaries=[],
             )

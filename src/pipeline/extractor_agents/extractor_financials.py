@@ -85,6 +85,13 @@ def calculate_deterministic_metrics(
     diluted_shares: float,
     simple_growth: float,
     organic_growth: float,
+    op_inc: float,
+    inc_bt: float,
+    rep_tax: float,
+    ebita: float,
+    adj_taxes: float,
+    ebita_adjustments: list,
+    tax_adjustments: list,
     extractor,
     summaries: list,
     income_statement_content: str = "",
@@ -118,15 +125,6 @@ def calculate_deterministic_metrics(
             revenue = item.value
             break
 
-    # EBITA & Taxes via Agent
-    op_inc, inc_bt, rep_tax, ebita, adj_taxes, ebita_adjustments, tax_adjustments = (
-        run_ebita_and_tax_agent(
-            content,
-            extracted_line_items,
-            extractor,
-            income_statement_content=income_statement_content,
-        )
-    )
     ebita_margin = (ebita / revenue) * 100.0 if revenue > 0.0 else 0.0
 
     starting_val = op_inc
@@ -187,7 +185,7 @@ def calculate_deterministic_metrics(
     )
 
     # Taxes
-    income_before_taxes = inc_bt
+    income_before_taxes = -inc_bt
     income_tax_expense = rep_tax
 
     # Compute effective rate using standard formula
@@ -400,12 +398,22 @@ def extract_financials(
             revenue = item.value
             break
 
-    # Phase 3: Diluted Shares and Organic Growth Agents
+    # Phase 3: Diluted Shares, Organic Growth, EBITA, and Adjusted Tax Agents
     basic_shares, diluted_shares = run_diluted_shares_agent(
         content, extractor, income_statement_content=income_statement_content
     )
+
     simple_growth, organic_growth = run_organic_growth_agent(
         content, revenue, extractor, income_statement_content=income_statement_content
+    )
+
+    op_inc, inc_bt, rep_tax, ebita, adj_taxes, ebita_adjustments, tax_adjustments = (
+        run_ebita_and_tax_agent(
+            content,
+            extracted_line_items,
+            extractor,
+            income_statement_content=income_statement_content,
+        )
     )
 
     # Phase 4: Deterministic calculations
@@ -417,6 +425,13 @@ def extract_financials(
         diluted_shares=diluted_shares,
         simple_growth=simple_growth,
         organic_growth=organic_growth,
+        op_inc=op_inc,
+        inc_bt=inc_bt,
+        rep_tax=rep_tax,
+        ebita=ebita,
+        adj_taxes=adj_taxes,
+        ebita_adjustments=ebita_adjustments,
+        tax_adjustments=tax_adjustments,
         extractor=extractor,
         summaries=summaries,
         income_statement_content=income_statement_content,
