@@ -119,22 +119,18 @@ def calculate_deterministic_metrics(
             break
 
     # EBITA & Taxes via Agent
-    ebita, adj_taxes, ebita_adjustments, tax_adjustments = run_ebita_and_tax_agent(
-        content,
-        extracted_line_items,
-        extractor,
-        income_statement_content=income_statement_content,
+    op_inc, inc_bt, rep_tax, ebita, adj_taxes, ebita_adjustments, tax_adjustments = (
+        run_ebita_and_tax_agent(
+            content,
+            extracted_line_items,
+            extractor,
+            income_statement_content=income_statement_content,
+        )
     )
     ebita_margin = (ebita / revenue) * 100.0 if revenue > 0.0 else 0.0
 
-    # Starting Point (for display only)
-    starting_val = 0.0
+    starting_val = op_inc
     starting_name = "Operating Income"
-    for item in extracted_line_items:
-        n = item.line_name.lower()
-        if "operating_income" in n or "operating income" in n or "ebit" in n:
-            starting_val = item.value
-            break
 
     # Invested Capital
     oca_items = [
@@ -191,14 +187,8 @@ def calculate_deterministic_metrics(
     )
 
     # Taxes
-    income_before_taxes = starting_val
-    income_tax_expense = 0.0
-    for item in extracted_line_items:
-        n = item.line_name.lower()
-        if "income before" in n or "income_before_taxes" in n:
-            income_before_taxes = item.value
-        elif "tax provision" in n or "income tax provision" in n or "tax expense" in n:
-            income_tax_expense = item.value
+    income_before_taxes = inc_bt
+    income_tax_expense = rep_tax
 
     # Compute effective rate using standard formula
     effective_rate = (
@@ -331,6 +321,7 @@ def calculate_deterministic_metrics(
     output_lines.append(f"| **Revenue** | {revenue} | |")
     output_lines.append(f"| **EBITA** | {ebita} | |")
     output_lines.append(f"| **EBITA Margin** | {ebita_margin:.2f}% | |")
+    output_lines.append(f"| **Adjusted Taxes** | **{adj_taxes}** | |")
     output_lines.append(f"| **NOPAT** | {nopat:.2f} | |")
     output_lines.append(f"| **Invested Capital** | {ic} | |")
     output_lines.append(f"| **Capital Turnover** | {turnover:.2f}x | |")
