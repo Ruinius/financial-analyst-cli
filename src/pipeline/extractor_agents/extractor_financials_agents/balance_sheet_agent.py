@@ -5,7 +5,9 @@ from src.pipeline.extractor_agents.extractor_financials_agents.agent_runner impo
 )
 
 
-def check_balance_sheet_quality(filepath: str, extractor) -> str:
+def check_balance_sheet_quality(
+    filepath: str, extractor, is_quarterly: bool = True
+) -> str:
     path = Path(filepath)
     if not path.exists():
         return "Error: File does not exist."
@@ -21,8 +23,14 @@ def check_balance_sheet_quality(filepath: str, extractor) -> str:
     if syntax_error:
         return syntax_error
 
+    focus_period = (
+        "fiscal quarter (three months)"
+        if is_quarterly
+        else "fiscal year (twelve months)"
+    )
     sys_prompt = (
         "You are a senior financial auditor. Perform a quality check on the following extracted Balance Sheet. "
+        f"Verify that we are focused on the {focus_period} time period. "
         "Verify that Assets = Liabilities + Equity. Return 'PASSED' if everything is correct. "
         "If there are missing fields, incorrect values, or mathematical inconsistencies (like total assets not matching total liabilities + equity), "
         "return a list of specific errors so the agent can edit the file."
@@ -41,9 +49,16 @@ def run_balance_sheet_agent(
     sorted_chunk_ids: list,
     extractor,
     target_output_path: Path,
+    is_quarterly: bool = True,
 ) -> None:
+    focus_period = (
+        "fiscal quarter (three months)"
+        if is_quarterly
+        else "fiscal year (twelve months)"
+    )
     system_prompt_bs = (
         "You are Sir Pennyworth, a senior financial analyst. Your task is to locate and extract the COMPLETE Balance Sheet from the financial filing.\n"
+        f"Specifically, we are focused on the {focus_period} time period. Ensure you extract the Balance Sheet for this focused period (e.g. the end of this period).\n"
         "You must execute actions by outputting a valid JSON object containing 'thought', 'tool', and 'arguments'.\n"
         "Available tools:\n"
         "- 'find_keyword_contexts': arguments: {'keywords': list, 'window': int}\n"
@@ -73,4 +88,5 @@ def run_balance_sheet_agent(
         extractor=extractor,
         content=content,
         sorted_chunk_ids=sorted_chunk_ids,
+        is_quarterly=is_quarterly,
     )

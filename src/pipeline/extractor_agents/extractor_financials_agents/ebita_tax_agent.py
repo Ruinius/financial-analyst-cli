@@ -12,6 +12,7 @@ def run_ebita_and_tax_agent(
     extracted_line_items: list,
     extractor,
     income_statement_content: str = "",
+    is_quarterly: bool = True,
 ) -> tuple[float, float, float, float, float, list, list]:
     op_inc = 0.0
     inc_bt = 0.0
@@ -27,11 +28,16 @@ def run_ebita_and_tax_agent(
     if is_dict_path.exists():
         local_dict_guidance += f"--- Income Statement Dictionary ---\n{is_dict_path.read_text(encoding='utf-8')}\n"
 
+    focus_period = (
+        "fiscal quarter (three months)"
+        if is_quarterly
+        else "fiscal year (twelve months)"
+    )
     sys_prompt = (
         "You are Sir Pennyworth, a senior financial analyst specializing in EBITA adjustments and tax provisions.\n"
-        "Your task is to identify and extract key income statement figures directly from the statement (such as Operating Income, "
+        f"Your task is to identify and extract key income statement figures directly from the statement (such as Operating Income, "
         "Income Before Taxes, and Reported Tax Provision), identify non-operating/non-recurring adjustments and non-recurring tax "
-        "benefits from footnotes, and calculate adjusted taxes and EBITA.\n\n"
+        f"benefits from footnotes, and calculate adjusted taxes and EBITA, focusing specifically on the {focus_period} time period.\n\n"
         "You must execute actions by outputting a valid JSON object containing 'thought', 'tool', and 'arguments'.\n"
         "Available tools:\n"
         "- 'find_keyword_contexts': arguments: {'keywords': list, 'window': int}\n"

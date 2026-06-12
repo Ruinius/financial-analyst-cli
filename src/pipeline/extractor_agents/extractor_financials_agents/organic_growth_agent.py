@@ -7,15 +7,25 @@ logger = logging.getLogger(__name__)
 
 
 def run_organic_growth_agent(
-    content: str, revenue: float, extractor, income_statement_content: str = ""
+    content: str,
+    revenue: float,
+    extractor,
+    income_statement_content: str = "",
+    is_quarterly: bool = True,
 ) -> tuple[float, float]:
     from src.pipeline.extractor_orchestrator import clean_val
 
     simple_growth = 0.0
     organic_growth = 0.0
 
+    focus_period = (
+        "fiscal quarter (three months)"
+        if is_quarterly
+        else "fiscal year (twelve months)"
+    )
     sys_prompt = (
         "You are Sir Pennyworth, a senior financial analyst. Your goal is to determine the simple revenue growth and organic revenue growth.\n"
+        f"Specifically, we are focused on the {focus_period} time period. Find the growth rates corresponding to this focused period.\n"
         "You must execute actions by outputting a valid JSON object containing 'thought', 'tool', and 'arguments'.\n"
         "Available tools:\n"
         "- 'find_keyword_contexts': arguments: {'keywords': list, 'window': int}\n"

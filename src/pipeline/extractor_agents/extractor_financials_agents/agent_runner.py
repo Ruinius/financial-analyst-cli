@@ -16,6 +16,7 @@ def run_extraction_agent(
     extractor,
     content: str,
     sorted_chunk_ids: list,
+    is_quarterly: bool = True,
 ) -> None:
     # Initialize target output file
     target_output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -35,6 +36,11 @@ def run_extraction_agent(
             except Exception:
                 pass
 
+    focus_period = (
+        "fiscal quarter (three months)"
+        if is_quarterly
+        else "fiscal year (twelve months)"
+    )
     history = []
     initial_prompt = (
         f"You are the {agent_name} Agent. Your goal is to extract the complete statement and save it to the target file. "
@@ -42,6 +48,7 @@ def run_extraction_agent(
         f"Note: The chunk IDs are sorted in descending order of number frequency (digit count). "
         f"Since financial statements (tables) contain many digits, the chunks containing financial statements "
         f"are highly likely to be near the beginning of this list.\n\n"
+        f"IMPORTANT: We are focused on the {focus_period} time period. Please locate and extract the data specifically corresponding to this focused period.\n\n"
         f"You do not have the document content in your initial context. You MUST first call the tool `find_keyword_contexts` "
         f"to locate where the statement is, and then call `get_chunk_by_id` to inspect the contents. "
         f"Target output path to write to: '{target_output_path.as_posix()}'.\n"
@@ -134,7 +141,7 @@ def run_extraction_agent(
             )
 
             result = check_income_statement_quality(
-                target_output_path.as_posix(), extractor
+                target_output_path.as_posix(), extractor, is_quarterly=is_quarterly
             )
         elif tool == "check_balance_sheet_quality":
             from src.pipeline.extractor_agents.extractor_financials_agents.balance_sheet_agent import (
@@ -142,7 +149,7 @@ def run_extraction_agent(
             )
 
             result = check_balance_sheet_quality(
-                target_output_path.as_posix(), extractor
+                target_output_path.as_posix(), extractor, is_quarterly=is_quarterly
             )
         else:
             result = f"Error: Unknown tool '{tool}'."

@@ -378,23 +378,27 @@ Revenue of $1000. Cash of $500. Shares outstanding basic shares diluted shares o
 
     # 3. Test run_interpretation_agent
     interpreted = run_interpretation_agent(
-        line_items, Path("20240901_annual_filing.md"), extractor
+        line_items, Path("20240901_annual_filing.md"), extractor, is_quarterly=False
     )
     assert len(interpreted) == 2
     assert interpreted[0].operating is True
 
     # 4. Test run_diluted_shares_agent & run_organic_growth_agent
-    basic_shares, diluted_shares = run_diluted_shares_agent(content, extractor)
+    basic_shares, diluted_shares = run_diluted_shares_agent(
+        content, extractor, is_quarterly=False
+    )
     assert basic_shares == 100.0
     assert diluted_shares == 110.0
 
-    simple_growth, organic_growth = run_organic_growth_agent(content, 1000.0, extractor)
+    simple_growth, organic_growth = run_organic_growth_agent(
+        content, 1000.0, extractor, is_quarterly=False
+    )
     assert simple_growth == 0.10
     assert organic_growth == 0.08
 
     # 5. Test calculate_deterministic_metrics
     op_inc, inc_bt, rep_tax, ebita, adj_taxes, ebita_adjustments, tax_adjustments = (
-        run_ebita_and_tax_agent(content, interpreted, extractor)
+        run_ebita_and_tax_agent(content, interpreted, extractor, is_quarterly=False)
     )
     success = calculate_deterministic_metrics(
         file_path=Path("20240901_annual_filing.md"),

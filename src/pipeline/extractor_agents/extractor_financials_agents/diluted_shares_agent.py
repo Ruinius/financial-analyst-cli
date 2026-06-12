@@ -7,15 +7,24 @@ logger = logging.getLogger(__name__)
 
 
 def run_diluted_shares_agent(
-    content: str, extractor, income_statement_content: str = ""
+    content: str,
+    extractor,
+    income_statement_content: str = "",
+    is_quarterly: bool = True,
 ) -> tuple[float, float]:
     from src.pipeline.extractor_orchestrator import clean_val
 
     basic_shares = 0.0
     diluted_shares = 0.0
 
+    focus_period = (
+        "fiscal quarter (three months)"
+        if is_quarterly
+        else "fiscal year (twelve months)"
+    )
     sys_prompt = (
         "You are Sir Pennyworth, a precise financial analyst. Your goal is to find the exact basic and diluted shares outstanding in the document.\n"
+        f"Specifically, we are focused on the {focus_period} time period. Ensure you find the shares outstanding corresponding to this focused period.\n"
         "You must execute actions by outputting a valid JSON object containing 'thought', 'tool', and 'arguments'.\n"
         "Available tools:\n"
         "- 'find_keyword_contexts': arguments: {'keywords': list, 'window': int}\n"

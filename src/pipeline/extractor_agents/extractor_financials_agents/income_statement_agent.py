@@ -5,7 +5,9 @@ from src.pipeline.extractor_agents.extractor_financials_agents.agent_runner impo
 )
 
 
-def check_income_statement_quality(filepath: str, extractor) -> str:
+def check_income_statement_quality(
+    filepath: str, extractor, is_quarterly: bool = True
+) -> str:
     path = Path(filepath)
     if not path.exists():
         return "Error: File does not exist."
@@ -21,8 +23,14 @@ def check_income_statement_quality(filepath: str, extractor) -> str:
     if syntax_error:
         return syntax_error
 
+    focus_period = (
+        "fiscal quarter (three months)"
+        if is_quarterly
+        else "fiscal year (twelve months)"
+    )
     sys_prompt = (
         "You are a senior financial auditor. Perform a quality check on the following extracted Income Statement. "
+        f"Verify that it corresponds to the focused time period: {focus_period}. "
         "Verify that it contains all essential lines (Revenue, Operating Income, Net Income) and that intermediate math is correct. "
         "Return 'PASSED' if everything is correct. If there are missing fields, incorrect values, or mathematical inconsistencies, "
         "return a list of specific errors so the agent can edit the file."
@@ -41,9 +49,16 @@ def run_income_statement_agent(
     sorted_chunk_ids: list,
     extractor,
     target_output_path: Path,
+    is_quarterly: bool = True,
 ) -> None:
+    focus_period = (
+        "fiscal quarter (three months)"
+        if is_quarterly
+        else "fiscal year (twelve months)"
+    )
     system_prompt_is = (
         "You are Sir Pennyworth, a senior financial analyst. Your task is to locate and extract the COMPLETE Income Statement from the financial filing.\n"
+        f"Specifically, we are focused on the {focus_period} time period. Ensure you extract the statement for this focused period.\n"
         "You must execute actions by outputting a valid JSON object containing 'thought', 'tool', and 'arguments'.\n"
         "Available tools:\n"
         "- 'find_keyword_contexts': arguments: {'keywords': list, 'window': int}\n"
@@ -74,4 +89,5 @@ def run_income_statement_agent(
         extractor=extractor,
         content=content,
         sorted_chunk_ids=sorted_chunk_ids,
+        is_quarterly=is_quarterly,
     )

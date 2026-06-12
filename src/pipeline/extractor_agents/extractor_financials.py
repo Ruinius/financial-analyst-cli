@@ -36,6 +36,7 @@ def extract_financial_statements(
     sorted_chunk_ids: list,
     extractor,
     summaries: list,
+    is_quarterly: bool = True,
 ) -> list:
     extracted_dir = Path(extractor.settings.active_workspace_path) / "4_extracted_data"
     extracted_dir.mkdir(parents=True, exist_ok=True)
@@ -50,6 +51,7 @@ def extract_financial_statements(
         sorted_chunk_ids=sorted_chunk_ids,
         extractor=extractor,
         target_output_path=is_path,
+        is_quarterly=is_quarterly,
     )
 
     # Balance Sheet Agent
@@ -59,6 +61,7 @@ def extract_financial_statements(
         sorted_chunk_ids=sorted_chunk_ids,
         extractor=extractor,
         target_output_path=bs_path,
+        is_quarterly=is_quarterly,
     )
 
     # Parse and consolidate line items
@@ -367,6 +370,23 @@ def extract_financials(
     chunk_frequencies.sort(key=lambda x: x[1], reverse=True)
     sorted_chunk_ids = [x[0] for x in chunk_frequencies]
 
+    # Determine if filing is quarterly or annual
+    metadata = extractor.get_document_metadata(file_path.name)
+    doc_type = metadata.get("document_type", "")
+    if not doc_type:
+        chunk_0 = get_chunk_by_id(content, 0) or content[:4000]
+        meta_match = re.search(r"\|\s*Document Type\s*\|\s*([^|]+?)\s*\|", chunk_0)
+        if meta_match:
+            doc_type = meta_match.group(1).strip()
+
+    is_quarterly = (
+        "10-Q" in file_path.name
+        or "10Q" in file_path.name
+        or "earnings_announcement" in file_path.name
+        or doc_type == "quarterly_filing"
+        or doc_type == "earnings_announcement"
+    )
+
     # Phase 1: Extract complete balance sheet and income statement
     extracted_line_items = extract_financial_statements(
         file_path=file_path,
@@ -374,6 +394,7 @@ def extract_financials(
         sorted_chunk_ids=sorted_chunk_ids,
         extractor=extractor,
         summaries=summaries,
+        is_quarterly=is_quarterly,
     )
 
     # Phase 2: Financial Statement Interpretation Agent
@@ -381,6 +402,7 @@ def extract_financials(
         extracted_line_items=extracted_line_items,
         file_path=file_path,
         extractor=extractor,
+        is_quarterly=is_quarterly,
     )
 
     # Read the extracted income statement content if available
@@ -400,11 +422,18 @@ def extract_financials(
 
     # Phase 3: Diluted Shares, Organic Growth, EBITA, and Adjusted Tax Agents
     basic_shares, diluted_shares = run_diluted_shares_agent(
-        content, extractor, income_statement_content=income_statement_content
+        content,
+        extractor,
+        income_statement_content=income_statement_content,
+        is_quarterly=is_quarterly,
     )
 
     simple_growth, organic_growth = run_organic_growth_agent(
-        content, revenue, extractor, income_statement_content=income_statement_content
+        content,
+        revenue,
+        extractor,
+        income_statement_content=income_statement_content,
+        is_quarterly=is_quarterly,
     )
 
     op_inc, inc_bt, rep_tax, ebita, adj_taxes, ebita_adjustments, tax_adjustments = (
@@ -413,6 +442,7 @@ def extract_financials(
             extracted_line_items,
             extractor,
             income_statement_content=income_statement_content,
+            is_quarterly=is_quarterly,
         )
     )
 

@@ -35,6 +35,7 @@ def run_interpretation_agent(
     extracted_line_items: list,
     file_path: Path,
     extractor,
+    is_quarterly: bool = True,
 ) -> list:
     extracted_dir = Path(extractor.settings.active_workspace_path) / "4_extracted_data"
     is_path = extracted_dir / f"{file_path.stem}_income_statement.md"
@@ -78,9 +79,15 @@ def run_interpretation_agent(
             }
         )
 
+    focus_period = (
+        "fiscal quarter (three months)"
+        if is_quarterly
+        else "fiscal year (twelve months)"
+    )
     sys_prompt = (
         "You are Sir Pennyworth, a senior financial auditor and statement interpretation agent.\n"
         "Your task is to analyze the raw financial statements and classify/verify all extracted line items.\n"
+        f"Specifically, we are focused on the {focus_period} time period. Ensure you interpret and verify the line items for this focused period.\n"
         "Specifically, you must:\n"
         "1. Identify whether each line item is a raw transaction/primitive line or a subtotal/total ('calculated' = true/false).\n"
         "   - 'calculated' = true indicates the line is a subtotal or total (e.g., Gross Profit, Operating Income, Total Assets).\n"
