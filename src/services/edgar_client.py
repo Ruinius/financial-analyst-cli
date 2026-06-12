@@ -89,7 +89,8 @@ class EdgarClient:
 
                 # Determine output path
                 # Standard pattern: {accession}_{doc_name}
-                out_path = ingest_dir / f"{accession}_{doc_name}"
+                safe_doc_name = Path(doc_name).name
+                out_path = ingest_dir / f"{accession}_{safe_doc_name}"
 
                 try:
                     logger.info(
