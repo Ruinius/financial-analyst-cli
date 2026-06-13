@@ -28,19 +28,19 @@ def calculate_invested_capital(
 def calculate_tax_rates(
     income_before_taxes: float,
     income_tax_expense: float,
-    net_income: float,
     total_tax_adj: float,
     ebita: float,
 ) -> Tuple[float, float]:
     if income_before_taxes != 0.0:
-        effective_rate = -(income_tax_expense / income_before_taxes)
+        effective_rate = income_tax_expense / income_before_taxes
     else:
-        effective_rate = 0.21
+        effective_rate = -0.25
 
     adjusted_tax = income_tax_expense + total_tax_adj
-    adjusted_rate = -(adjusted_tax / ebita) if ebita != 0.0 else 0.0
+    adjusted_rate = (adjusted_tax / ebita) if ebita != 0.0 else -0.25
 
-    return effective_rate, adjusted_rate
+    # Flip the sign before returning so the ROIC calculations and markdown makes sense
+    return -effective_rate, -adjusted_rate
 
 
 def calculate_roic(

@@ -96,9 +96,9 @@ def test_calculations_logic():
     assert turnover == 500.0 / 150.0
 
     # Test Tax Rates
-    eff, adj = rust_core.calculate_tax_rates(120.0, 30.0, 90.0, 5.0, 110.0)
-    assert eff == -0.25
-    assert adj == -(35.0 / 110.0)
+    eff, adj = rust_core.calculate_tax_rates(120.0, -30.0, -5.0, 110.0)
+    assert eff == 0.25
+    assert adj == (35.0 / 110.0)
 
     # Test ROIC
     nopat, ann_nopat, roic = rust_core.calculate_roic(110.0, 0.20, 150.0, 4.0)

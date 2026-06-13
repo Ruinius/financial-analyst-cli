@@ -188,19 +188,14 @@ def calculate_deterministic_metrics(
     )
 
     # Taxes
-    income_before_taxes = inc_bt
-    income_tax_expense = rep_tax
+    total_tax_adj = adj_taxes - rep_tax
 
-    # Compute effective rate using standard formula
-    effective_rate = (
-        (income_tax_expense / income_before_taxes)
-        if income_before_taxes != 0.0
-        else 0.0
+    effective_rate, adjusted_rate = pipeline_math.calculate_tax_rates(
+        inc_bt, rep_tax, total_tax_adj, ebita
     )
 
-    adjusted_rate = (adj_taxes / ebita) if ebita != 0.0 else 0.0
-
     chosen_tax_rate = adjusted_rate if adjusted_rate != 0.0 else effective_rate
+
     nopat, annualized_nopat, roic = pipeline_math.calculate_roic(
         ebita, chosen_tax_rate, ic, multiplier
     )
@@ -298,11 +293,11 @@ def calculate_deterministic_metrics(
     output_lines.append("| Component | Value | Description |")
     output_lines.append("|---|---|---|")
     output_lines.append(
-        f"| Income Before Taxes | {income_before_taxes} | Starting Point for Effective Tax Rate |"
+        f"| Income Before Taxes | {inc_bt} | Starting Point for Effective Tax Rate |"
     )
-    output_lines.append(f"| Reported Tax Provision | {income_tax_expense} | |")
+    output_lines.append(f"| Reported Tax Provision | {rep_tax} | |")
     output_lines.append(
-        f"| **Effective Tax Rate** | **{effective_rate * 100:.2f}%** | -(Reported Tax Provision / Income Before Taxes) |"
+        f"| **Effective Tax Rate** | **{effective_rate * 100:.2f}%** | (Reported Tax Provision / Income Before Taxes) |"
     )
     for adj in tax_adjustments:
         name = adj.get("name", "Adjustment")
