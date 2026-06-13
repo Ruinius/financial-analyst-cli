@@ -41,13 +41,13 @@ Welcome to the `financial-analyst-cli` project.
       - src/pipeline/extractor_agents/extractor_transcript.py: Sub-extractor specialized for transcripts.
       - src/pipeline/extractor_agents/extractor_other.py: Sub-extractor specialized for all other document types.
       - src/pipeline/extractor_agents/extractor_financials_agents/: Nested directory for the sub-agents.
-        - agent_runner.py: Shared runner for extraction loops and line items parser.
         - income_statement_agent.py: Agent specialized in Income Statement extraction.
         - balance_sheet_agent.py: Agent specialized in Balance Sheet extraction.
         - interpretation_agent.py: Agent specialized in interpreting line item classification.
         - diluted_shares_agent.py: Agent specialized in basic and diluted shares.
         - organic_growth_agent.py: Agent specialized in simple and organic revenue growth.
-        - ebita_tax_agent.py: Agent specialized in Operating EBITA and adjusted taxes.
+        - ebita_agent.py: Agent specialized in Operating EBITA adjustments and calculations.
+        - tax_agent.py: Agent specialized in Adjusted Taxes adjustments and calculations.
     - src/pipeline/analyzer.py: Longitudinal trend synthesis, analyst view compiling, and Q4 deduction engine.
   - src/services/: SEC client, LLM wrapper, web search, and AST-sandboxed math solver.
     - src/services/edgar_client.py: SEC EDGAR download API client.
@@ -88,4 +88,5 @@ Welcome to the `financial-analyst-cli` project.
 - **Commands**: Preferred pattern is `uv run python <file>.py` or `uv run <command>`.
 - **OS/Shell**: Windows with PowerShell (`pwsh`).
 - **Test Focus:** always run E2E and backend tests for non-trivial modifications. We need to ensure tests pass before committing.
+- **Manual CLI Tests**: Never directly use the CLI to run manual tests. Always ask the user instead.
 - **Multi-Agent Extraction Pattern**: Unstructured extraction tasks delegate to specialized agents (e.g., Balance Sheet, Income Statement, Interpretation, Diluted Shares, Organic Growth, Operating EBITA, Adjusted Taxes, Analyst Report) running within structured loop boundaries (4-5 turns limit). Categorized results are validated using Pydantic schemas before running deterministic financial calculation schedules in Rust.

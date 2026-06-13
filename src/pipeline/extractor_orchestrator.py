@@ -260,7 +260,6 @@ class Extractor:
         if not all_chunk_ids:
             all_chunk_ids = [1]
 
-        summaries = []
         success = False
 
         if is_financial:
@@ -273,7 +272,6 @@ class Extractor:
                 content=content,
                 chunk_ids=all_chunk_ids,
                 extractor=self,
-                summaries=summaries,
             )
         elif is_analyst:
             from src.pipeline.extractor_agents.extractor_analyst_report import (
@@ -285,7 +283,6 @@ class Extractor:
                 content=content,
                 chunk_ids=all_chunk_ids,
                 extractor=self,
-                summaries=summaries,
             )
         elif is_transcript:
             from src.pipeline.extractor_agents.extractor_transcript import (
@@ -297,7 +294,6 @@ class Extractor:
                 content=content,
                 chunk_ids=all_chunk_ids,
                 extractor=self,
-                summaries=summaries,
             )
         else:
             from src.pipeline.extractor_agents.extractor_other import extract_other
@@ -307,7 +303,6 @@ class Extractor:
                 content=content,
                 chunk_ids=all_chunk_ids,
                 extractor=self,
-                summaries=summaries,
             )
 
         if success:

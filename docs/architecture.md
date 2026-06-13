@@ -72,7 +72,6 @@ financial-analyst-cli/
 │   │       ├── extractor_transcript.py # Specialized extractor for transcripts
 │   │       ├── extractor_other.py   # Specialized extractor for other types
 │   │       └── extractor_financials_agents/ # Nested financial sub-agents
-│   │           ├── agent_runner.py  # Shared runner for agent loops and parsing
 │   │           ├── income_statement_agent.py # Income Statement extraction agent
 │   │           ├── balance_sheet_agent.py # Balance Sheet extraction agent
 │   │           ├── interpretation_agent.py # Financial statement interpretation agent

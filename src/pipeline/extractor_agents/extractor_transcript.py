@@ -10,8 +10,8 @@ def extract_transcript(
     content: str,
     chunk_ids: list,
     extractor,
-    summaries: list,
 ) -> bool:
+    summaries = []
     import json
     import src.utils.formatting as formatting
     from src.pipeline.extractor_orchestrator import get_chunk_by_id

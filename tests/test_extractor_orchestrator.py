@@ -291,32 +291,22 @@ def test_extract_financials_stages(mock_llm_class, mock_load_config, tmp_path):
             in sys_lower
         ):
             return "PASSED"
-        if (
-            "extract all financial statement line items from the provided markdown statement"
-            in sys_lower
-            or "extract all financial statement line items from the provided markdown statement"
-            in p_lower
-        ):
+        if "extract all financial statement line items" in sys_lower:
             if "revenue" in p_lower:
                 return '{"line_items": [{"line_name": "Revenue", "value": "1000", "category": "income_statement", "exact_snippet": "Revenue 1000"}]}'
             else:
                 return '{"line_items": [{"line_name": "Cash", "value": "500", "category": "current_assets", "exact_snippet": "Cash 500"}]}'
-        if "basic and diluted shares" in p_lower:
+        if "basic and diluted shares" in sys_lower:
             return '{"thought": "Finalizing", "tool": "finalize", "arguments": {"basic_shares": "100.0", "diluted_shares": "110.0"}}'
-        if "simple and organic revenue growth" in p_lower:
+        if "simple revenue growth and organic revenue growth" in sys_lower:
             return '{"thought": "Finalizing", "tool": "finalize", "arguments": {"simple_growth": "10%", "organic_growth": "8%"}}'
-        if (
-            "statement interpretation agent" in sys_lower
-            or "currently extracted line items" in p_lower
-        ):
+        if "statement interpretation agent" in sys_lower:
             return '{"line_items": [{"line_name": "Revenue", "value": 1000.0, "category": "income_statement", "operating": true, "calculated": false}, {"line_name": "Cash", "value": 500.0, "category": "current_assets", "operating": true, "calculated": false}]}'
-        if (
-            "ebita adjustments and tax provisions" in sys_lower
-            or "reported operating income" in p_lower
-            or "ebita adjustments" in p_lower
-        ):
-            return '{"thought": "Finalizing", "tool": "finalize", "arguments": {"operating_income": 1000.0, "income_before_taxes": 1200.0, "reported_tax_provision": -250.0, "operating_ebita": 1000.0, "adjusted_taxes": -250.0}}'
-        if "income statement" in sys_lower or "income statement" in p_lower:
+        if "ebita adjustments" in sys_lower:
+            return '{"thought": "Finalizing", "tool": "finalize", "arguments": {"operating_income": 1000.0, "operating_ebita": 1000.0, "ebita_adjustments": []}}'
+        if "tax provisions and adjustments" in sys_lower:
+            return '{"thought": "Finalizing", "tool": "finalize", "arguments": {"income_before_taxes": 1200.0, "reported_tax_provision": -250.0, "adjusted_taxes": -250.0, "tax_adjustments": []}}'
+        if "income statement" in sys_lower:
             if "observation from check_income_statement_quality" in p_lower:
                 return '{"thought": "Quality check passed. Finalizing.", "tool": "finalize", "arguments": {}}'
             if "observation from append_markdown" in p_lower:
@@ -326,7 +316,7 @@ def test_extract_financials_stages(mock_llm_class, mock_load_config, tmp_path):
             if "observation from find_keyword_contexts" in p_lower:
                 return '{"thought": "Let me fetch chunk 1.", "tool": "get_chunk_by_id", "arguments": {"chunk_id": 1}}'
             return '{"thought": "Let me search for keyword context.", "tool": "find_keyword_contexts", "arguments": {"keywords": ["Revenue"]}}'
-        if "balance sheet" in sys_lower or "balance sheet" in p_lower:
+        if "balance sheet" in sys_lower:
             if "observation from check_balance_sheet_quality" in p_lower:
                 return '{"thought": "Quality check passed. Finalizing.", "tool": "finalize", "arguments": {}}'
             if "observation from append_markdown" in p_lower:
@@ -351,8 +341,13 @@ def test_extract_financials_stages(mock_llm_class, mock_load_config, tmp_path):
         run_diluted_shares_agent,
         run_organic_growth_agent,
         run_interpretation_agent,
-        run_ebita_and_tax_agent,
         calculate_deterministic_metrics,
+    )
+    from src.pipeline.extractor_agents.extractor_financials_agents.ebita_agent import (
+        run_ebita_agent,
+    )
+    from src.pipeline.extractor_agents.extractor_financials_agents.tax_agent import (
+        run_tax_agent,
     )
 
     content = """<!-- CHUNK_START: 1 -->
@@ -401,8 +396,16 @@ Revenue of $1000. Cash of $500. Shares outstanding basic shares diluted shares o
     assert organic_growth == 0.08
 
     # 5. Test calculate_deterministic_metrics
-    op_inc, inc_bt, rep_tax, ebita, adj_taxes, ebita_adjustments, tax_adjustments = (
-        run_ebita_and_tax_agent(content, interpreted, extractor, is_quarterly=False)
+    op_inc, ebita, ebita_adjustments = run_ebita_agent(
+        content, extractor, is_quarterly=False
+    )
+    inc_bt, rep_tax, adj_taxes, tax_adjustments = run_tax_agent(
+        content,
+        extractor,
+        operating_income=op_inc,
+        operating_ebita=ebita,
+        ebita_adjustments=ebita_adjustments,
+        is_quarterly=False,
     )
     success = calculate_deterministic_metrics(
         file_path=Path("20240901_annual_filing.md"),
@@ -476,22 +479,9 @@ def test_deterministic_metrics_variations():
         ),
     ]
 
-    # We patch run_ebita_and_tax_agent so we don't call actual LLM
-    with patch(
-        "src.pipeline.extractor_agents.extractor_financials.run_ebita_and_tax_agent"
-    ) as mock_agent, patch("builtins.open", MagicMock()), patch(
+    with patch("builtins.open", MagicMock()), patch(
         "src.utils.formatting.print_success", MagicMock()
     ):
-        mock_agent.return_value = (
-            2300.0,
-            2400.0,
-            -500.0,
-            2304.0,
-            -499.0,
-            [{"name": "Restructuring", "value": 4.0}],
-            [{"name": "Tax effect of restructuring at 25%", "value": 1.0}],
-        )
-
         # We also patch Path.mkdir so it doesn't try to create directories
         with patch("pathlib.Path.mkdir", MagicMock()):
             calculate_deterministic_metrics(
@@ -562,3 +552,66 @@ def test_extractor_files_to_process(
     assert f1 in called_paths
     assert f0 in called_paths
     assert f2 not in called_paths
+
+
+@patch("src.pipeline.curator_agent.LLMClient")
+def test_curator_agent_curate_and_self_healing(mock_llm_class, tmp_path):
+    # Setup paths
+    workspace = tmp_path / "AAPL"
+    workspace.mkdir()
+    wiki = workspace / "AAPL_wiki.md"
+    extract_learning = workspace / "AAPL_extract_learning.md"
+    analyze_learning = workspace / "AAPL_analyze_learning.md"
+    model_learning = workspace / "AAPL_model_learning.md"
+
+    # 1. Test ensure_files_exist with a brand new workspace
+    from src.pipeline.curator_agent import CuratorAgent
+
+    mock_settings = MagicMock()
+    mock_settings.active_workspace_path = str(workspace)
+
+    mock_llm = MagicMock()
+    mock_llm.generate.return_value = "Updated mock learning file content"
+    mock_llm_class.return_value = mock_llm
+
+    curator = CuratorAgent(mock_settings)
+    curator._ensure_files_exist(
+        "AAPL", wiki, extract_learning, analyze_learning, model_learning
+    )
+
+    assert extract_learning.exists()
+    content = extract_learning.read_text(encoding="utf-8")
+    assert "## balance_sheet" in content
+    assert "## income_statement" in content
+    assert "## diluted_shares" in content
+    assert "## organic growth" in content
+    assert "## ebita" in content
+    assert "## tax" in content
+
+    # 2. Test self-healing on an old format file
+    old_content = (
+        "# Ingestion & Extraction Learning: AAPL\n\n"
+        "## Fiscal Schedule Mappings\n- Q1: N/A\n\n"
+        "## Lessons to Better Ingest & Extract\n- None\n\n"
+        "## User Feedback\n<!-- feedback -->\n"
+    )
+    extract_learning.write_text(old_content, encoding="utf-8")
+
+    # Run ensure_files_exist again which triggers self-healing
+    curator._ensure_files_exist(
+        "AAPL", wiki, extract_learning, analyze_learning, model_learning
+    )
+
+    healed_content = extract_learning.read_text(encoding="utf-8")
+    assert "## balance_sheet" in healed_content
+    assert "## income_statement" in healed_content
+    assert "## tax" in healed_content
+    assert "## User Feedback" in healed_content
+
+    # 3. Test curate_agent method
+    curator.curate_agent("AAPL", "diluted_shares", "Search keywords: weighted average")
+    assert mock_llm.generate.call_count == 1
+    assert (
+        extract_learning.read_text(encoding="utf-8")
+        == "Updated mock learning file content"
+    )

@@ -1,4 +1,5 @@
 import re
+import json
 import logging
 from pathlib import Path
 import src.utils.math as pipeline_math
@@ -20,14 +21,98 @@ from src.pipeline.extractor_agents.extractor_financials_agents.diluted_shares_ag
 from src.pipeline.extractor_agents.extractor_financials_agents.organic_growth_agent import (
     run_organic_growth_agent,
 )
-from src.pipeline.extractor_agents.extractor_financials_agents.ebita_tax_agent import (
-    run_ebita_and_tax_agent,
+from src.pipeline.extractor_agents.extractor_financials_agents.ebita_agent import (
+    run_ebita_agent,
 )
-from src.pipeline.extractor_agents.extractor_financials_agents.agent_runner import (
-    parse_markdown_to_line_items,
+from src.pipeline.extractor_agents.extractor_financials_agents.tax_agent import (
+    run_tax_agent,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def parse_markdown_to_line_items(
+    file_path: Path,
+    target_statement_path: Path,
+    extractor,
+    category_default: str,
+) -> list:
+    from src.pipeline.extractor_orchestrator import LineItem, AuditLinkage, clean_val
+
+    if not target_statement_path.exists():
+        return []
+
+    content = target_statement_path.read_text(encoding="utf-8")
+
+    dict_guidance = ""
+    if category_default == "income_statement":
+        is_dict_path = Path("src/resources/dictionary/income_statement.md")
+        if is_dict_path.exists():
+            dict_guidance = f"\n\nUse the following Income Statement Dictionary as a guide for classifications and expense/revenue sign mapping:\n{is_dict_path.read_text(encoding='utf-8')}\n"
+
+    sys_prompt = (
+        "You are Sir Pennyworth, a senior financial analyst. "
+        "Extract all financial statement line items from the provided markdown statement. "
+        "For every line item, record the exact_snippet (exact text match from the markdown statement) for audit trial. "
+        "Ensure you extract standard items: revenue, operating income, cash_and_equivalents, debt, etc."
+    )
+    if category_default == "income_statement":
+        sys_prompt += (
+            "\n\nStandardize positive/negative signs for the Income Statement:\n"
+            "- Any number that subtracts from the revenue is an expense, cost, or loss, and MUST be expressed as a negative number.\n"
+            "- Any number that effectively increases profit (e.g. revenue, interest income, tax benefits, gains) MUST be expressed as a positive number.\n"
+            "- If an item is an expense but listed as a positive number in the source markdown, you MUST convert it to a negative number.\n"
+            "- Be careful with ambiguous items like 'Net Interest Income' or 'Other Income/Expense Net'. Check their context: if they represent a net expense or loss, express them as negative. If they represent net income or gain, express them as positive."
+        )
+
+    prompt = f"""
+Markdown statement content:
+\"\"\"
+{content}
+\"\"\"
+{dict_guidance}
+Extract all financial statement line items (Line Name, Value, Category (current_assets | current_liabilities | noncurrent_assets | noncurrent_liabilities | income_statement | other), exact_snippet).
+Return a valid JSON object matching this structure:
+{{
+  "line_items": [
+     {{
+       "line_name": "Cash and cash equivalents",
+       "value": "12,345",
+       "category": "{category_default}",
+       "exact_snippet": "Cash and cash equivalents $ 12,345"
+     }}
+  ]
+}}
+"""
+    extracted_items = []
+    try:
+        resp = extractor.llm.generate(
+            prompt, system_prompt=sys_prompt, stream_thinking=True
+        )
+        json_match = re.search(r"\{.*\}", resp, re.DOTALL)
+        if json_match:
+            data = json.loads(json_match.group(0))
+            for item in data.get("line_items", []):
+                val_float = clean_val(str(item.get("value", "0")))
+                if val_float == 0.0 and str(item.get("value")) not in ["0", "0.0"]:
+                    continue
+                line_item = LineItem(
+                    line_name=item.get("line_name"),
+                    value=val_float,
+                    category=item.get("category", "other"),
+                    audit=AuditLinkage(
+                        source_file=file_path.name,
+                        chunk_id=0,  # Consolidated from agent-derived markdown
+                        exact_snippet=item.get("exact_snippet", ""),
+                    ),
+                )
+                extracted_items.append(line_item)
+    except Exception as e:
+        logger.error(
+            f"Failed to parse line items from markdown statement {target_statement_path.name}: {e}"
+        )
+
+    return extracted_items
 
 
 def extract_financial_statements(
@@ -97,7 +182,6 @@ def calculate_deterministic_metrics(
     tax_adjustments: list,
     extractor,
     summaries: list,
-    income_statement_content: str = "",
 ) -> bool:
     # Check time period and multiplier
     metadata = extractor.get_document_metadata(file_path.name)
@@ -347,8 +431,8 @@ def extract_financials(
     content: str,
     chunk_ids: list,
     extractor,
-    summaries: list,
 ) -> bool:
+    summaries = []
     from src.pipeline.extractor_orchestrator import get_chunk_by_id
 
     # 1. Rank order the chunks by number frequency
@@ -429,15 +513,21 @@ def extract_financials(
         income_statement_content=income_statement_content,
         is_quarterly=is_quarterly,
     )
+    op_inc, ebita, ebita_adjustments = run_ebita_agent(
+        content,
+        extractor,
+        income_statement_content=income_statement_content,
+        is_quarterly=is_quarterly,
+    )
 
-    op_inc, inc_bt, rep_tax, ebita, adj_taxes, ebita_adjustments, tax_adjustments = (
-        run_ebita_and_tax_agent(
-            content,
-            extracted_line_items,
-            extractor,
-            income_statement_content=income_statement_content,
-            is_quarterly=is_quarterly,
-        )
+    inc_bt, rep_tax, adj_taxes, tax_adjustments = run_tax_agent(
+        content,
+        extractor,
+        operating_income=op_inc,
+        operating_ebita=ebita,
+        ebita_adjustments=ebita_adjustments,
+        income_statement_content=income_statement_content,
+        is_quarterly=is_quarterly,
     )
 
     # Phase 4: Deterministic calculations
@@ -458,7 +548,6 @@ def extract_financials(
         tax_adjustments=tax_adjustments,
         extractor=extractor,
         summaries=summaries,
-        income_statement_content=income_statement_content,
     )
 
     return success

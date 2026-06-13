@@ -83,10 +83,71 @@ class CuratorAgent:
                 "- Q3: N/A\n"
                 "- FY: N/A\n\n"
                 "## Lessons to Better Ingest & Extract\n- None\n\n"
+                "## balance_sheet\n"
+                "- Which key words that worked well in the search: None\n"
+                "- What are line items to watch out for and why: None\n"
+                "- What is a question that would be helpful for the user to clarify: None\n\n"
+                "## income_statement\n"
+                "- Which key words that worked well in the search: None\n"
+                "- What are line items to watch out for and why: None\n"
+                "- What is a question that would be helpful for the user to clarify: None\n\n"
+                "## diluted_shares\n"
+                "- Which key words that worked well in the search: None\n"
+                "- What are line items to watch out for and why: None\n"
+                "- What is a question that would be helpful for the user to clarify: None\n\n"
+                "## organic growth\n"
+                "- Which key words that worked well in the search: None\n"
+                "- What are line items to watch out for and why: None\n"
+                "- What is a question that would be helpful for the user to clarify: None\n\n"
+                "## ebita\n"
+                "- Which key words that worked well in the search: None\n"
+                "- What are line items to watch out for and why: None\n"
+                "- What is a question that would be helpful for the user to clarify: None\n\n"
+                "## tax\n"
+                "- Which key words that worked well in the search: None\n"
+                "- What are line items to watch out for and why: None\n"
+                "- What is a question that would be helpful for the user to clarify: None\n\n"
                 "## User Feedback\n"
                 "<!-- Write your feedback here. The Curator Agent will compile it into lessons and clear this section. -->\n",
                 encoding="utf-8",
             )
+        else:
+            try:
+                content = extract.read_text(encoding="utf-8")
+                sections_to_add = []
+                for section in [
+                    "balance_sheet",
+                    "income_statement",
+                    "diluted_shares",
+                    "organic growth",
+                    "ebita",
+                    "tax",
+                ]:
+                    if f"## {section}" not in content:
+                        sections_to_add.append(
+                            f"## {section}\n"
+                            "- Which key words that worked well in the search: None\n"
+                            "- What are line items to watch out for and why: None\n"
+                            "- What is a question that would be helpful for the user to clarify: None\n"
+                        )
+                if sections_to_add:
+                    feedback_match = re.search(
+                        r"## User Feedback", content, re.IGNORECASE
+                    )
+                    if feedback_match:
+                        prefix = content[: feedback_match.start()]
+                        suffix = content[feedback_match.start() :]
+                        new_content = (
+                            prefix + "\n".join(sections_to_add) + "\n\n" + suffix
+                        )
+                    else:
+                        new_content = content + "\n\n" + "\n".join(sections_to_add)
+                    extract.write_text(new_content, encoding="utf-8")
+            except Exception as e:
+                logger.error(
+                    f"Failed to run self-healing on extract learning file: {e}"
+                )
+
         if not analyze.exists():
             analyze.write_text(
                 f"# Analysis Learning: {ticker}\n\n"
@@ -162,7 +223,9 @@ Please append the newly ingested files to the '## Ingested Sources' list. Do not
             "Your task is to update the Ingestion & Extraction Learning markdown file with correct fiscal mappings from the logs, "
             "absorb user feedback, and compile/rewrite the lessons to be concise and accurate. "
             "Return the entire updated markdown file, and ensure that the '## User Feedback' section is empty/cleared "
-            "(with only the placeholder comment inside). Do not wrap in markdown code blocks."
+            "(with only the placeholder comment inside). Do not wrap in markdown code blocks. "
+            "CRITICAL: Do NOT modify or remove the agent-specific sections (## balance_sheet, ## income_statement, "
+            "## diluted_shares, ## organic growth, ## ebita, ## tax) or their contents. Keep them exactly as they are."
         )
         prompt_extract = f"""
 Ticker: {ticker}
@@ -206,7 +269,9 @@ Please:
             "Your task is to update the Ingestion & Extraction Learning markdown file with new extraction lessons from the run, "
             "absorb user feedback, and compact the lessons. "
             "Return the entire updated markdown file, and ensure that the '## User Feedback' section is empty/cleared "
-            "(with only the placeholder comment inside). Do not wrap in markdown code blocks."
+            "(with only the placeholder comment inside). Do not wrap in markdown code blocks. "
+            "CRITICAL: Do NOT modify or remove the agent-specific sections (## balance_sheet, ## income_statement, "
+            "## diluted_shares, ## organic growth, ## ebita, ## tax) or their contents. Keep them exactly as they are."
         )
         prompt = f"""
 Ticker: {ticker}
@@ -355,3 +420,67 @@ Please:
             )
         except Exception as e:
             logger.error(f"Failed to curate model learning: {e}")
+
+    def curate_agent(self, ticker: str, agent_name: str, agent_logs: str) -> None:
+        """
+        Curate a specific agent's section within extract_learning.md.
+        """
+        if not ticker or "MagicMock" in str(ticker):
+            ticker = "MOCK"
+
+        if not self.settings.active_workspace_path:
+            logger.warning("No active workspace path set. Skipping curation.")
+            return
+
+        workspace = Path(self.settings.active_workspace_path)
+        extract_learning_path = workspace / f"{ticker}_extract_learning.md"
+
+        self._ensure_files_exist(
+            ticker,
+            workspace / f"{ticker}_wiki.md",
+            extract_learning_path,
+            workspace / f"{ticker}_analyze_learning.md",
+            workspace / f"{ticker}_model_learning.md",
+        )
+
+        content = extract_learning_path.read_text(encoding="utf-8")
+
+        sys_prompt = (
+            "You are Sir Pennyworth's Ingestion & Extraction Learning Curator. "
+            f"Your task is to update the '## {agent_name}' section of the Ingestion & Extraction Learning markdown file "
+            "based on the execution logs of that agent. "
+            "Return the entire updated markdown file. Do not alter any other section of the file. "
+            "Do not wrap the output in markdown code blocks."
+        )
+
+        prompt = f"""
+Ticker: {ticker}
+Agent/Section to update: {agent_name}
+Current Ingestion & Extraction Learning Content:
+\"\"\"
+{content}
+\"\"\"
+
+Execution logs / history of the {agent_name} agent:
+\"\"\"
+{agent_logs}
+\"\"\"
+
+Please update the '## {agent_name}' section in the file. Keep all other sections and mappings exactly as they are.
+The section MUST answer the following questions:
+- Which key words that worked well in the search? (Look at search queries that returned actual matches or were useful)
+- What are line items to watch out for and why? (Note specific names, signs, or footnoted adjustments)
+- What is a question that would be helpful for the user to clarify? (e.g. if certain numbers are ambiguous or conflicting)
+
+Output the FULL markdown file with the updated '## {agent_name}' section. Do not wrap in code blocks.
+"""
+        try:
+            updated_content = self.llm.generate(prompt, system_prompt=sys_prompt)
+            extract_learning_path.write_text(
+                strip_markdown_code_blocks(updated_content), encoding="utf-8"
+            )
+            logger.info(
+                f"Successfully curated {agent_name} section in extract_learning.md"
+            )
+        except Exception as e:
+            logger.error(f"Failed to curate {agent_name} section: {e}")

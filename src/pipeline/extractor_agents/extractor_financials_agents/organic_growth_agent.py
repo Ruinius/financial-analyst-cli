@@ -1,6 +1,7 @@
 import re
 import json
 import logging
+from pathlib import Path
 from src.utils.tools import find_keyword_contexts
 
 logger = logging.getLogger(__name__)
@@ -17,6 +18,20 @@ def run_organic_growth_agent(
 
     simple_growth = 0.0
     organic_growth = 0.0
+
+    # Load extraction learnings
+    learning_context = ""
+    ticker = extractor.settings.active_ticker
+    if ticker:
+        learning_path = (
+            Path(extractor.settings.active_workspace_path)
+            / f"{ticker}_extract_learning.md"
+        )
+        if learning_path.exists():
+            try:
+                learning_context = learning_path.read_text(encoding="utf-8")
+            except Exception:
+                pass
 
     focus_period = (
         "fiscal quarter (three months)"
@@ -38,6 +53,8 @@ def run_organic_growth_agent(
     )
 
     user_content = f"Find simple and organic revenue growth. The reported revenue is {revenue}. You have up to 4 turns."
+    if learning_context:
+        user_content += f'\n\nHere is the active company extraction learning context to guide your extraction decision logic:\n"""\n{learning_context}\n"""'
     if income_statement_content:
         user_content += f'\n\nHere is the already extracted Income Statement for your reference:\n"""\n{income_statement_content}\n"""'
 
@@ -108,6 +125,20 @@ def run_organic_growth_agent(
             )
         else:
             history.append({"role": "user", "content": f"Error: Unknown tool {tool}"})
+
+    # After the loop finishes:
+    try:
+        from src.pipeline.curator_agent import CuratorAgent
+
+        ticker = extractor.settings.active_ticker or "UNK"
+        history_text = ""
+        for h in history:
+            history_text += f"\n\n--- {h['role'].upper()} ---\n{h['content']}"
+
+        curator = CuratorAgent(extractor.settings)
+        curator.curate_agent(ticker, "organic growth", history_text)
+    except Exception as e:
+        logger.error(f"Failed to run curator for organic growth: {e}")
 
     if organic_growth == 0.0 and simple_growth != 0.0:
         organic_growth = simple_growth
