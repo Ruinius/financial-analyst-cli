@@ -85,28 +85,22 @@ class CuratorAgent:
                 "## Lessons to Better Ingest & Extract\n- None\n\n"
                 "## balance_sheet\n"
                 "- Which key words that worked well in the search: None\n"
-                "- What are line items to watch out for and why: None\n"
-                "- What is a question that would be helpful for the user to clarify: None\n\n"
+                "- What are line items to watch out for and why: None\n\n"
                 "## income_statement\n"
                 "- Which key words that worked well in the search: None\n"
-                "- What are line items to watch out for and why: None\n"
-                "- What is a question that would be helpful for the user to clarify: None\n\n"
+                "- What are line items to watch out for and why: None\n\n"
                 "## diluted_shares\n"
                 "- Which key words that worked well in the search: None\n"
-                "- What are line items to watch out for and why: None\n"
-                "- What is a question that would be helpful for the user to clarify: None\n\n"
+                "- What are line items to watch out for and why: None\n\n"
                 "## organic growth\n"
                 "- Which key words that worked well in the search: None\n"
-                "- What are line items to watch out for and why: None\n"
-                "- What is a question that would be helpful for the user to clarify: None\n\n"
+                "- What are line items to watch out for and why: None\n\n"
                 "## ebita\n"
                 "- Which key words that worked well in the search: None\n"
-                "- What are line items to watch out for and why: None\n"
-                "- What is a question that would be helpful for the user to clarify: None\n\n"
+                "- What are line items to watch out for and why: None\n\n"
                 "## tax\n"
                 "- Which key words that worked well in the search: None\n"
-                "- What are line items to watch out for and why: None\n"
-                "- What is a question that would be helpful for the user to clarify: None\n\n"
+                "- What are line items to watch out for and why: None\n\n"
                 "## User Feedback\n"
                 "<!-- Write your feedback here. The Curator Agent will compile it into lessons and clear this section. -->\n",
                 encoding="utf-8",
@@ -128,7 +122,6 @@ class CuratorAgent:
                             f"## {section}\n"
                             "- Which key words that worked well in the search: None\n"
                             "- What are line items to watch out for and why: None\n"
-                            "- What is a question that would be helpful for the user to clarify: None\n"
                         )
                 if sections_to_add:
                     feedback_match = re.search(
@@ -470,7 +463,6 @@ Please update the '## {agent_name}' section in the file. Keep all other sections
 The section MUST answer the following questions:
 - Which key words that worked well in the search? (Look at search queries that returned actual matches or were useful)
 - What are line items to watch out for and why? (Note specific names, signs, or footnoted adjustments)
-- What is a question that would be helpful for the user to clarify? (e.g. if certain numbers are ambiguous or conflicting)
 
 Output the FULL markdown file with the updated '## {agent_name}' section. Do not wrap in code blocks.
 """
