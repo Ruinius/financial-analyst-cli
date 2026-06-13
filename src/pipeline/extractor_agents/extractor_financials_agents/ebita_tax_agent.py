@@ -55,7 +55,9 @@ def run_ebita_and_tax_agent(
         "1. You have a maximum of 4 turns. Search for keyword contexts and chunks first to locate the figures.\n"
         "2. Extract Reported Operating Income, Reported Income Before Taxes, and Reported Tax Provision from the income statement content.\n"
         "3. Identify any non-recurring adjustments (e.g. restructuring, asset impairments, amortization of intangibles).\n"
-        "4. Back out the tax effect of non-operating adjustments at a statutory rate of 25% (21% federal, 4% state/local).\n"
+        "4. Back out the tax effect of non-operating adjustments at a statutory rate of 25% (21% federal, 4% state/local). This includes:\n"
+        "   - Items that take Operating Income to Operating EBITA (e.g., restructuring, amortization).\n"
+        "   - Non-operating items that bridge Income Before Taxes to Operating Income (e.g., interest expense, interest income, non-operating gains/losses).\n"
         "5. Identify any non-recurring tax benefits/credits in the footnotes.\n"
         "6. Calculate clean Operating EBITA = Operating Income + Non-Operating/Non-recurring adjustments.\n"
         "7. Calculate Adjusted Taxes = Reported Tax Provision + Tax effect of adjustments - non-recurring tax benefits.\n"
@@ -63,28 +65,31 @@ def run_ebita_and_tax_agent(
         "   - Verify that any number that subtracts from the revenue is an expense, cost, or loss, and is expressed as a negative number. This includes the Reported Tax Provision (expressed as negative if it is a tax expense, and positive only if it is a tax benefit/credit).\n"
         "   - Verify that any number that effectively increases profit (e.g. revenue, interest income, tax benefits, gains) is expressed as a positive number.\n"
         "   - Pay special attention to ambiguous items: make sure their sign correctly reflects whether they are a net expense (negative) or net income/benefit (positive) in the context of the statements.\n"
-        "   - For the tax effect of non-operating adjustments (tax_adjustments): a positive value indicates a tax benefit/credit or addition (reducing tax expense/provision), and a negative value indicates a tax expense (increasing tax provision).\n"
+        "   - For the tax effect of non-operating adjustments (tax_adjustments): a positive value indicates a tax benefit/credit (reducing tax expense), and a negative value indicates a tax expense (increasing overall tax expense).\n"
         "   - Ensure that EBITA, Adjusted Taxes, and their components in the returned JSON have signs consistent with these rules so that math checks (e.g. Adjusted Taxes = Reported Tax Provision + Tax effect of adjustments - non-recurring tax benefits) work correctly.\n"
         "9. Reasoning rules for tax adjustments direction:\n"
-        "   - When backing out non-operating adjustments (such as amortization and restructuring) to calculate Operating EBITA:\n"
-        "     - If an adjustment is positive (increases EBITA), its associated tax adjustment (tax effect at 25% statutory rate) must increase the Adjusted Taxes.\n"
-        "     - If an adjustment is negative (decreases EBITA), its associated tax adjustment must decrease the Adjusted Taxes.\n"
-        "     - Exception: Write-offs, asset write-downs, or goodwill/asset impairments typically have a tax impact of 0%, so they increase EBITA but have 0.0 associated tax adjustment.\n\n"
+        "   - When backing out non-operating adjustments to calculate Operating EBITA and Adjusted Taxes:\n"
+        "     - EBITA adjustments are positive if they add back an expense (increasing EBITA), and negative if they subtract a gain (decreasing EBITA).\n"
+        "     - Non-operating bridge items (like interest expense or interest income) must be tax-adjusted as well. An interest expense add-back is a positive pre-tax adjustment (since interest expense was subtracted to get Income Before Taxes). An interest income subtraction is a negative pre-tax adjustment.\n"
+        "     - A positive adjustment increases taxable operating profit. Therefore, it increases tax expense (making the tax adjustment a negative value, representing additional tax expense).\n"
+        "     - A negative adjustment decreases taxable operating profit. Therefore, it decreases tax expense (making the tax adjustment a positive value, representing a tax benefit/reduction).\n"
+        "     - Exception: Non-deductible items like goodwill impairments have a tax impact of 0%, so they increase EBITA but have 0.0 associated tax adjustment.\n\n"
         "Example finalize tool call:\n"
         "{\n"
-        '  "thought": "I will finalize the extraction.",\n'
+        '  "thought": "I will finalize the extraction. Operating Income is 2000.0. Operating EBITA is 2100.0 (restructuring of 100.0 added back). Reported pre-tax income is 1600.0 because of -400.0 interest expense. Tax rate is 25%. Restructuring tax effect is -25.0. Interest expense tax effect is -100.0. Total Adjusted Taxes is -400.0 (Reported Tax Provision) + -25.0 + -100.0 = -525.0.",\n'
         '  "tool": "finalize",\n'
         '  "arguments": {\n'
-        '    "operating_income": 2332.0,\n'
-        '    "income_before_taxes": 2406.0,\n'
-        '    "reported_tax_provision": -519.0,\n'
-        '    "operating_ebita": 2336.0,\n'
-        '    "adjusted_taxes": -520.0,\n'
+        '    "operating_income": 2000.0,\n'
+        '    "income_before_taxes": 1600.0,\n'
+        '    "reported_tax_provision": -400.0,\n'
+        '    "operating_ebita": 2100.0,\n'
+        '    "adjusted_taxes": -525.0,\n'
         '    "ebita_adjustments": [\n'
-        '      {"name": "Restructuring", "value": 4.0}\n'
+        '      {"name": "Restructuring", "value": 100.0}\n'
         "    ],\n"
         '    "tax_adjustments": [\n'
-        '      {"name": "Tax effect of restructuring at 25%", "value": 1.0}\n'
+        '      {"name": "Tax effect of restructuring at 25%", "value": -25.0},\n'
+        '      {"name": "Tax effect of interest expense at 25%", "value": -100.0}\n'
         "    ]\n"
         "  }\n"
         "}"

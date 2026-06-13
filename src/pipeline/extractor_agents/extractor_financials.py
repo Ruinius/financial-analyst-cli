@@ -188,16 +188,17 @@ def calculate_deterministic_metrics(
     )
 
     # Taxes
-    income_before_taxes = -inc_bt
+    income_before_taxes = inc_bt
     income_tax_expense = rep_tax
 
     # Compute effective rate using standard formula
     effective_rate = (
-        -(income_tax_expense / income_before_taxes)
+        (income_tax_expense / income_before_taxes)
         if income_before_taxes != 0.0
-        else 0.21
+        else 0.0
     )
-    adjusted_rate = -(adj_taxes / ebita) if ebita != 0.0 else 0.0
+
+    adjusted_rate = (adj_taxes / ebita) if ebita != 0.0 else 0.0
 
     chosen_tax_rate = adjusted_rate if adjusted_rate != 0.0 else effective_rate
     nopat, annualized_nopat, roic = pipeline_math.calculate_roic(
@@ -303,8 +304,6 @@ def calculate_deterministic_metrics(
     output_lines.append(
         f"| **Effective Tax Rate** | **{effective_rate * 100:.2f}%** | -(Reported Tax Provision / Income Before Taxes) |"
     )
-    output_lines.append(f"| EBITA | {ebita} | Starting Point for Adjusted Tax Rate |")
-    output_lines.append(f"| Reported Tax Provision | {income_tax_expense} | |")
     for adj in tax_adjustments:
         name = adj.get("name", "Adjustment")
         val = adj.get("value", 0.0)
@@ -312,7 +311,7 @@ def calculate_deterministic_metrics(
         output_lines.append(f"| {name} | {sign}{val} | |")
     output_lines.append(f"| **Adjusted Taxes** | **{adj_taxes}** | |")
     output_lines.append(
-        f"| **Adjusted Tax Rate** | **{adjusted_rate * 100:.2f}%** | -(Adjusted Taxes / EBITA) |"
+        f"| **Adjusted Tax Rate** | **{adjusted_rate * 100:.2f}%** | (Adjusted Taxes / EBITA) |"
     )
     output_lines.append("\n---\n")
 
@@ -322,7 +321,7 @@ def calculate_deterministic_metrics(
     output_lines.append(f"| **Revenue** | {revenue} | |")
     output_lines.append(f"| **EBITA** | {ebita} | |")
     output_lines.append(f"| **EBITA Margin** | {ebita_margin:.2f}% | |")
-    output_lines.append(f"| **Adjusted Taxes** | **{adj_taxes}** | |")
+    output_lines.append(f"| **Adjusted Tax Rate** | **{adjusted_rate * 100:.2f}%** | |")
     output_lines.append(f"| **NOPAT** | {nopat:.2f} | |")
     output_lines.append(f"| **Invested Capital** | {ic} | |")
     output_lines.append(f"| **Capital Turnover** | {turnover:.2f}x | |")

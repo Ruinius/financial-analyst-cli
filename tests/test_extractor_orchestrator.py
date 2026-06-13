@@ -109,7 +109,8 @@ def test_calculations_logic():
 
 @patch("src.pipeline.extractor_orchestrator.load_config")
 @patch("src.pipeline.extractor_orchestrator.Extractor.extract_single_file")
-def test_extractor_limit(mock_extract, mock_load_config, tmp_path):
+@patch("src.pipeline.curator_agent.CuratorAgent")
+def test_extractor_limit(mock_curator, mock_extract, mock_load_config, tmp_path):
     workspace = tmp_path / "AAPL"
     workspace.mkdir()
     (workspace / "2_parsed_data").mkdir()
@@ -139,7 +140,10 @@ def test_extractor_limit(mock_extract, mock_load_config, tmp_path):
 
 @patch("src.pipeline.extractor_orchestrator.load_config")
 @patch("src.pipeline.extractor_orchestrator.Extractor.extract_single_file")
-def test_extractor_ignores_readme_and_hidden(mock_extract, mock_load_config, tmp_path):
+@patch("src.pipeline.curator_agent.CuratorAgent")
+def test_extractor_ignores_readme_and_hidden(
+    mock_curator, mock_extract, mock_load_config, tmp_path
+):
     workspace = tmp_path / "AAPL"
     workspace.mkdir()
     (workspace / "2_parsed_data").mkdir()
@@ -517,7 +521,10 @@ def test_deterministic_metrics_variations():
 
 @patch("src.pipeline.extractor_orchestrator.load_config")
 @patch("src.pipeline.extractor_orchestrator.Extractor.extract_single_file")
-def test_extractor_files_to_process(mock_extract, mock_load_config, tmp_path):
+@patch("src.pipeline.curator_agent.CuratorAgent")
+def test_extractor_files_to_process(
+    mock_curator, mock_extract, mock_load_config, tmp_path
+):
     workspace = tmp_path / "AAPL"
     workspace.mkdir()
     (workspace / "2_parsed_data").mkdir()

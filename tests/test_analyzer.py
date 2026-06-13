@@ -201,7 +201,8 @@ def mock_workspace(tmp_path):
 
 
 @patch("src.pipeline.analyzer.load_config")
-def test_historical_synthesis(mock_load_config, mock_workspace):
+@patch("src.pipeline.curator_agent.CuratorAgent")
+def test_historical_synthesis(mock_curator, mock_load_config, mock_workspace):
     """Test longitudinal synthesis, compilation, and Q4 deduction logic."""
     mock_settings = MagicMock()
     mock_settings.active_workspace_path = str(mock_workspace)
@@ -265,7 +266,8 @@ def test_baseline_golden_evaluation():
 
 
 @patch("src.pipeline.analyzer.load_config")
-def test_historical_synthesis_limit(mock_load_config, mock_workspace):
+@patch("src.pipeline.curator_agent.CuratorAgent")
+def test_historical_synthesis_limit(mock_curator, mock_load_config, mock_workspace):
     """Test run_analysis with limit parameter."""
     mock_settings = MagicMock()
     mock_settings.active_workspace_path = str(mock_workspace)
