@@ -102,7 +102,17 @@ class DCFViewerHandler(http.server.SimpleHTTPRequestHandler):
 
             # CSRF Protection: Validate Origin
             origin = self.headers.get("Origin")
-            if origin and not (origin.startswith("http://localhost:") or origin.startswith("http://127.0.0.1:")):
+            if origin:
+                try:
+                    parsed_origin = urllib.parse.urlparse(origin)
+                    if parsed_origin.hostname not in ["localhost", "127.0.0.1"]:
+                        raise ValueError()
+                except ValueError:
+                    self.send_response(403)
+                    self.end_headers()
+                    self.wfile.write(b'{"error": "Forbidden Origin"}')
+                    return
+            else:
                 self.send_response(403)
                 self.end_headers()
                 self.wfile.write(b'{"error": "Forbidden Origin"}')
@@ -173,7 +183,16 @@ class DCFViewerHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_OPTIONS(self):
         origin = self.headers.get("Origin")
-        if origin and (origin.startswith("http://localhost:") or origin.startswith("http://127.0.0.1:")):
+        is_valid_origin = False
+        if origin:
+            try:
+                parsed_origin = urllib.parse.urlparse(origin)
+                if parsed_origin.hostname in ["localhost", "127.0.0.1"]:
+                    is_valid_origin = True
+            except ValueError:
+                pass
+
+        if is_valid_origin:
             self.send_response(200)
             self.send_header("Access-Control-Allow-Origin", origin)
             self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
