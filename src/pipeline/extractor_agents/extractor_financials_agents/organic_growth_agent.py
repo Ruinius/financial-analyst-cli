@@ -54,7 +54,7 @@ def run_organic_growth_agent(
 
     user_content = (
         f"Find simple and organic revenue growth. The reported revenue is {revenue}. You have up to 4 turns. "
-        f"(Hint: try searching for keywords like 'organic', 'currency', 'acquisition', or 'growth' first)."
+        f"(Hint: try searching for keywords like 'organic', 'currency', 'acquisition', 'contribute' or 'growth' first)."
     )
     if learning_context:
         user_content += f'\n\nHere is the active company extraction learning context to guide your extraction decision logic:\n"""\n{learning_context}\n"""'

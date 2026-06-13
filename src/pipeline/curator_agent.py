@@ -214,11 +214,19 @@ Please append the newly ingested files to the '## Ingested Sources' list. Do not
         sys_prompt_extract = (
             "You are Sir Pennyworth's Ingestion & Extraction Learning Curator. "
             "Your task is to update the Ingestion & Extraction Learning markdown file with correct fiscal mappings from the logs, "
-            "absorb user feedback, and compile/rewrite the lessons to be concise and accurate. "
+            "absorb user feedback, and compile/rewrite the entire file to be highly succinct and strictly future-AI-actionable. "
+            "You MUST preserve the exact markdown structure of all sections (all headings: ## Fiscal Schedule Mappings, ## Lessons to Better Ingest & Extract, "
+            "## balance_sheet, ## income_statement, ## diluted_shares, ## organic growth, ## ebita, ## tax, and ## User Feedback). "
+            "Keep all contents (including agent-specific sections) highly succinct, dense, and focused ONLY on lessons/rules that will help future AI agent tasks succeed "
+            "(e.g. specific keywords, naming patterns, structural anomalies, or formula logic). Aggressively discard verbose commentary, conversational filler, "
+            "or generic tips (like 'always double check numbers'). Do not delete or rename any section. "
+            "CRITICAL 1: Each section (all headings and subheadings) MUST be kept to less than 10 lines of text/bullets. "
+            "CRITICAL 2: You may include short single-line examples, but you MUST NOT include any example extracted tables (e.g. Markdown tables of balance sheets, income statements, etc.). "
+            "CRITICAL 3: To avoid redundancy, the '## Lessons to Better Ingest & Extract' section must focus ONLY on high-level ingestion/extraction rules (such as fiscal calendar mappings or general period validation). "
+            "DO NOT include or duplicate agent-specific details (like specific keywords, line items, or formulas for balance sheet, income statement, organic growth, diluted shares, ebita, or tax) in the top section; "
+            "keep those details strictly inside their respective agent headings."
             "Return the entire updated markdown file, and ensure that the '## User Feedback' section is empty/cleared "
-            "(with only the placeholder comment inside). Do not wrap in markdown code blocks. "
-            "CRITICAL: Do NOT modify or remove the agent-specific sections (## balance_sheet, ## income_statement, "
-            "## diluted_shares, ## organic growth, ## ebita, ## tax) or their contents. Keep them exactly as they are."
+            "(with only the placeholder comment inside). Do not wrap in markdown code blocks."
         )
         prompt_extract = f"""
 Ticker: {ticker}
@@ -240,8 +248,11 @@ Ingestion logs / Mappings from parsed registry:
 Please:
 1. Update the '## Fiscal Schedule Mappings' block with any newly determined quarter mappings or fiscal year end.
 2. Incorporate any user feedback into the '## Lessons to Better Ingest & Extract' section.
-3. Perform a complete rewrite and compaction of the lessons, keeping it concise and removing outdated or incorrect rules.
-4. Output the full file with '## User Feedback' containing only:
+3. Rewrite and compact all sections of the file (including lessons and agent-specific sections like balance_sheet, income_statement, etc.) to be highly succinct, focused ONLY on lessons/keywords/mappings that will help future AI agent tasks, and eliminate any redundant or conversational/generic text. Maintain the exact markdown structure.
+4. CRITICAL: Limit each section/subheading to less than 10 lines of content.
+5. CRITICAL: Do NOT include any example extracted tables. Short single-line examples are fine.
+6. CRITICAL: Avoid redundancy by keeping '## Lessons to Better Ingest & Extract' strictly to high-level rules. Do not list agent-specific line items or keywords in the top section.
+7. Output the full file with '## User Feedback' containing only:
 ## User Feedback
 <!-- Write your feedback here. The Curator Agent will compile it into lessons and clear this section. -->
 """
@@ -260,11 +271,19 @@ Please:
         sys_prompt = (
             "You are Sir Pennyworth's Ingestion & Extraction Learning Curator. "
             "Your task is to update the Ingestion & Extraction Learning markdown file with new extraction lessons from the run, "
-            "absorb user feedback, and compact the lessons. "
+            "absorb user feedback, and compile/rewrite the entire file to be highly succinct and future-AI-actionable. "
+            "You MUST preserve the exact markdown structure of all sections (all headings: ## Fiscal Schedule Mappings, ## Lessons to Better Ingest & Extract, "
+            "## balance_sheet, ## income_statement, ## diluted_shares, ## organic growth, ## ebita, ## tax, and ## User Feedback). "
+            "Keep all contents (including agent-specific sections) highly succinct, dense, and focused ONLY on lessons/rules that will help future AI agent tasks succeed "
+            "(e.g. specific keywords, line naming adjustments, or calculation tricks). Avoid generic advice or conversational filler. "
+            "Do not delete or rename any section. "
+            "CRITICAL 1: Each section (all headings and subheadings) MUST be kept to less than 10 lines of text/bullets. "
+            "CRITICAL 2: You may include short single-line examples, but you MUST NOT include any example extracted tables (e.g. Markdown tables of balance sheets, income statements, etc.). "
+            "CRITICAL 3: To avoid redundancy, the '## Lessons to Better Ingest & Extract' section must focus ONLY on high-level ingestion/extraction rules (such as fiscal calendar mappings or general period validation). "
+            "DO NOT include or duplicate agent-specific details (like specific keywords, line items, or formulas for balance sheet, income statement, organic growth, diluted shares, ebita, or tax) in the top section; "
+            "keep those details strictly inside their respective agent headings."
             "Return the entire updated markdown file, and ensure that the '## User Feedback' section is empty/cleared "
-            "(with only the placeholder comment inside). Do not wrap in markdown code blocks. "
-            "CRITICAL: Do NOT modify or remove the agent-specific sections (## balance_sheet, ## income_statement, "
-            "## diluted_shares, ## organic growth, ## ebita, ## tax) or their contents. Keep them exactly as they are."
+            "(with only the placeholder comment inside). Do not wrap in markdown code blocks."
         )
         prompt = f"""
 Ticker: {ticker}
@@ -285,8 +304,11 @@ Extraction Run logs / reasoning / items parsed:
 
 Please:
 1. Incorporate any user feedback and new lessons from the extraction run into the '## Lessons to Better Ingest & Extract' section.
-2. Perform a complete rewrite and compaction of the lessons, keeping it concise and removing outdated or incorrect rules.
-3. Output the full file with '## User Feedback' containing only:
+2. Rewrite and compact all sections of the file (including lessons and agent-specific sections like balance_sheet, income_statement, etc.) to be highly succinct, focused ONLY on actionable details that will guide future AI agents, and remove any generic advice or conversational filler. Maintain the exact markdown structure.
+3. CRITICAL: Limit each section/subheading to less than 10 lines of content.
+4. CRITICAL: Do NOT include any example extracted tables. Short single-line examples are fine.
+5. CRITICAL: Avoid redundancy by keeping '## Lessons to Better Ingest & Extract' strictly to high-level rules. Do not list agent-specific line items or keywords in the top section.
+6. Output the full file with '## User Feedback' containing only:
 ## User Feedback
 <!-- Write your feedback here. The Curator Agent will compile it into lessons and clear this section. -->
 """
@@ -335,7 +357,12 @@ Please rewrite and refine the '## Bull Perspective' and '## Bear Perspective' se
         sys_prompt_analyze = (
             "You are Sir Pennyworth's Analysis Learning Curator. "
             "Your task is to update the Analysis Learning markdown file with new analysis lessons, "
-            "absorb user feedback, and compact the lessons. "
+            "absorb user feedback, and compile/rewrite the lessons to be highly succinct and future-AI-actionable. "
+            "Retain ONLY lessons that will help future AI agent tasks analyze this ticker (such as specific reporting segments, "
+            "one-off non-operating items, or unique disclosure details to look for). Eliminate all general platitudes, "
+            "redundant rules, and conversational filler. "
+            "CRITICAL 1: Each section MUST be kept to less than 10 lines of text/bullets. "
+            "CRITICAL 2: You may include short single-line examples, but you MUST NOT include any tables in the lessons. "
             "Return the entire updated markdown file, and ensure that the '## User Feedback' section is empty/cleared "
             "(with only the placeholder comment inside). Do not wrap in markdown code blocks."
         )
@@ -358,8 +385,10 @@ Analysis logs / reasoning / qualitative reports compiled:
 
 Please:
 1. Incorporate any user feedback and new lessons from the analysis run into the '## Lessons to Better Analyze' section.
-2. Perform a complete rewrite and compaction of the lessons, keeping it concise and removing outdated or incorrect rules.
-3. Output the full file with '## User Feedback' containing only:
+2. Perform a complete rewrite and compaction of the lessons. Keep them highly succinct, focused ONLY on actionable information for future AI agents, and remove any generic advice or conversational filler.
+3. CRITICAL: Limit the entire lessons section to less than 10 lines of content.
+4. CRITICAL: Do NOT include any tables. Short single-line examples are fine.
+5. Output the full file with '## User Feedback' containing only:
 ## User Feedback
 <!-- Write your feedback here. The Curator Agent will compile it into lessons and clear this section. -->
 """
@@ -378,7 +407,12 @@ Please:
         sys_prompt = (
             "You are Sir Pennyworth's Modeling Learning Curator. "
             "Your task is to update the Modeling Learning markdown file with new modeling lessons, "
-            "absorb user feedback, and compact the lessons. "
+            "absorb user feedback, and compile/rewrite the lessons to be highly succinct and future-AI-actionable. "
+            "Retain ONLY lessons that will help future AI agent tasks model this ticker (such as WACC adjustments, currency "
+            "conversions, ADR ratios, specific overrides, or growth rate boundaries). Eliminate all generic modeling tips or "
+            "conversational filler. "
+            "CRITICAL 1: Each section MUST be kept to less than 10 lines of text/bullets. "
+            "CRITICAL 2: You may include short single-line examples, but you MUST NOT include any tables in the lessons. "
             "Return the entire updated markdown file, and ensure that the '## User Feedback' section is empty/cleared "
             "(with only the placeholder comment inside). Do not wrap in markdown code blocks."
         )
@@ -401,8 +435,10 @@ Modeling assumptions / overrides / values logged:
 
 Please:
 1. Incorporate any user feedback and new lessons (e.g. currency, WACC adjustments, ADR ratios) into the '## Lessons to Better Model' section.
-2. Perform a complete rewrite and compaction of the lessons, keeping it concise and removing outdated or incorrect rules.
-3. Output the full file with '## User Feedback' containing only:
+2. Perform a complete rewrite and compaction of the lessons. Keep them highly succinct, focused ONLY on actionable information for future AI agents, and remove any generic advice or conversational filler.
+3. CRITICAL: Limit the entire lessons section to less than 10 lines of content.
+4. CRITICAL: Do NOT include any tables. Short single-line examples are fine.
+5. Output the full file with '## User Feedback' containing only:
 ## User Feedback
 <!-- Write your feedback here. The Curator Agent will compile it into lessons and clear this section. -->
 """
@@ -443,7 +479,10 @@ Please:
             f"Your task is to update the '## {agent_name}' section of the Ingestion & Extraction Learning markdown file "
             "based on the execution logs of that agent. "
             "Return the entire updated markdown file. Do not alter any other section of the file. "
-            "Do not wrap the output in markdown code blocks."
+            "Do not wrap the output in markdown code blocks. "
+            "CRITICAL 1: Keep the updated section highly succinct and dense, strictly less than 10 lines of text/bullets in total. "
+            "CRITICAL 2: Retain ONLY messages/rules/tips that will help future AI agent tasks succeed (e.g. specific keywords that yielded matches, unique line items to watch out for). "
+            "CRITICAL 3: Do NOT include any example extracted tables. Do not include conversational filler, general advice, or verbose logs."
         )
 
         prompt = f"""
@@ -461,9 +500,10 @@ Execution logs / history of the {agent_name} agent:
 
 Please update the '## {agent_name}' section in the file. Keep all other sections and mappings exactly as they are.
 The section MUST answer the following questions:
-- Which key words that worked well in the search? (Look at search queries that returned actual matches or were useful)
+- Which key words that worked well in the search? (Focus strictly on search queries that returned actual matches or were useful)
 - What are line items to watch out for and why? (Note specific names, signs, or footnoted adjustments)
 
+Keep the answers extremely short (less than 10 lines total for the entire section), focused strictly on what is useful for future AI agents, and remove all generic advice, chat, or example tables.
 Output the FULL markdown file with the updated '## {agent_name}' section. Do not wrap in code blocks.
 """
         try:
