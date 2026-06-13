@@ -43,3 +43,16 @@ def test_solve_math_unsupported_operators():
 def test_solve_math_unsupported_node():
     with pytest.raises(ValueError, match="Unsupported expression node"):
         solve_math("[1, 2]")
+
+def test_solve_math_exponentiation_limit():
+    with pytest.raises(ValueError, match="Exponentiation limits exceeded"):
+        solve_math("9**9**9")
+
+    with pytest.raises(ValueError, match="Exponentiation limits exceeded"):
+        solve_math("2**10001")
+
+    with pytest.raises(ValueError, match="Exponentiation limits exceeded"):
+        solve_math("10001**2")
+
+    # Should not raise
+    assert solve_math("2**1000") == pytest.approx(1.0715086e+301, rel=1e-5)
