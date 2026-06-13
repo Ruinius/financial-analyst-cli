@@ -82,16 +82,14 @@ def run_income_statement_agent(
     )
     history = []
     initial_prompt = (
-        f"You are the Income Statement Agent. Your goal is to extract the complete statement and save it to the target file. "
-        f"The source file name is '{file_path.name}'. The document is split into chunks with IDs: {sorted_chunk_ids}.\n"
+        f"Starting extraction for source file: '{file_path.name}'.\n"
+        f"Target output path: '{target_output_path.as_posix()}'\n"
+        f"Available chunk IDs: {sorted_chunk_ids}\n"
         f"Note: The chunk IDs are sorted in descending order of number frequency (digit count). "
-        f"Since financial statements (tables) contain many digits, the chunks containing financial statements "
-        f"are highly likely to be near the beginning of this list.\n\n"
-        f"IMPORTANT: We are focused on the {focus_period} time period. Please locate and extract the data specifically corresponding to this focused period.\n\n"
-        f"You do not have the document content in your initial context. You MUST first call the tool `find_keyword_contexts` "
-        f"to locate where the statement is, and then call `get_chunk_by_id` to inspect the contents. "
-        f"Target output path to write to: '{target_output_path.as_posix()}'.\n"
-        f"Once you write/append the content and verify its quality using the quality check tool, call the `finalize` tool to complete."
+        f"The chunks containing financial tables are highly likely to be near the beginning of this list.\n\n"
+        f"To locate where the statement is, please call `find_keyword_contexts` "
+        f"(hint: try searching for keywords like 'revenue', 'profit', or 'tax'), "
+        f"then fetch the content with `get_chunk_by_id`."
     )
 
     if learning_context:
@@ -100,7 +98,7 @@ def run_income_statement_agent(
     history.append({"role": "user", "content": initial_prompt})
 
     system_prompt = (
-        "You are Sir Pennyworth, a senior financial analyst. Your task is to locate and extract the COMPLETE Income Statement from the financial filing.\n"
+        "You are Sir Pennyworth, a senior financial analyst acting as the Income Statement Agent. Your task is to locate and extract the COMPLETE Income Statement.\n"
         f"Specifically, we are focused on the {focus_period} time period. Ensure you extract the statement for this focused period.\n"
         "You must execute actions by outputting a valid JSON object containing 'thought', 'tool', and 'arguments'.\n"
         "Available tools:\n"
@@ -114,7 +112,7 @@ def run_income_statement_agent(
         "{\n"
         '  "thought": "First, I need to search for keywords related to the income statement to find relevant chunks.",\n'
         '  "tool": "find_keyword_contexts",\n'
-        '  "arguments": {"keywords": ["Income Statement", "Operations", "Earnings"]}\n'
+        '  "arguments": {"keywords": ["revenue", "profit", "tax"]}\n'
         "}\n\n"
         "Rules:\n"
         "1. You start with only file name and chunk IDs. You must find relevant chunks using keywords first.\n"

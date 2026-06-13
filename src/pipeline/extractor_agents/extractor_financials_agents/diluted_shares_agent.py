@@ -48,14 +48,17 @@ def run_diluted_shares_agent(
         "{\n"
         '  "thought": "I will search for keyword contexts to locate shares outstanding.",\n'
         '  "tool": "find_keyword_contexts",\n'
-        '  "arguments": {"keywords": ["shares outstanding", "weighted average shares"]}\n'
+        '  "arguments": {"keywords": ["diluted", "share", "basic"]}\n'
         "}\n\n"
         "Rules:\n"
-        "1. You have a maximum of 4 turns. Search for keyword contexts first.\n"
+        "1. You have a maximum of 4 turns. Search for keyword contexts first (hint: potential first keywords to search for include 'diluted', 'share', 'basic').\n"
         "2. When you find the values, call 'finalize' with the basic and diluted shares. You must express the values as float strings in millions of shares, formatted with two decimal places (e.g., '280.00' for 280 million shares, or '283.13' for 283,125,000 shares). Do not write 'million' or include commas in the values."
     )
 
-    user_content = "Start searching for basic and diluted shares outstanding. Remember, you have up to 4 turns."
+    user_content = (
+        "Start searching for basic and diluted shares outstanding. Remember, you have up to 4 turns. "
+        "(Hint: try searching for keywords like 'diluted', 'share', or 'basic' first)."
+    )
     if learning_context:
         user_content += f'\n\nHere is the active company extraction learning context to guide your extraction decision logic:\n"""\n{learning_context}\n"""'
     if income_statement_content:

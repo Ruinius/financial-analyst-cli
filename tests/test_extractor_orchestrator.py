@@ -261,8 +261,11 @@ Analyst discussion of moat and growth
 
 
 @patch("src.pipeline.extractor_orchestrator.load_config")
+@patch("src.pipeline.curator_agent.CuratorAgent")
 @patch("src.pipeline.extractor_orchestrator.LLMClient")
-def test_extract_financials_stages(mock_llm_class, mock_load_config, tmp_path):
+def test_extract_financials_stages(
+    mock_llm_class, mock_curator, mock_load_config, tmp_path
+):
     workspace = tmp_path / "AAPL"
     workspace.mkdir()
     (workspace / "2_parsed_data").mkdir()

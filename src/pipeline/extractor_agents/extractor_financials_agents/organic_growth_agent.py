@@ -46,13 +46,16 @@ def run_organic_growth_agent(
         "- 'find_keyword_contexts': arguments: {'keywords': list, 'window': int}\n"
         "- 'finalize': arguments: {'simple_growth': str, 'organic_growth': str}\n\n"
         "Rules:\n"
-        "1. Search the document for organic growth, constant currency adjustments, acquisitions, and revenue growth using find_keyword_contexts.\n"
+        "1. Search the document for organic growth, constant currency adjustments, acquisitions, and revenue growth using find_keyword_contexts (hint: potential first keywords to search for include 'organic', 'currency', 'acquisition', 'growth').\n"
         "2. If organic growth or constant currency growth is explicitly reported, extract it. Check if there are M&A contributions that should be backed out.\n"
         "3. If organic growth is NOT explicitly reported, compute it: e.g. Organic Growth = Constant Currency Growth (if reported, otherwise simple growth) - (Acquisition revenue / Total revenue).\n"
         "4. Call 'finalize' with your final extracted/calculated growth rates. You must express the values as percentage float strings (e.g., '18.25%' for 18.25% growth, '8.00%' for 8% growth, or '0.50%' for 0.5% growth). Format the percentage with two decimal places."
     )
 
-    user_content = f"Find simple and organic revenue growth. The reported revenue is {revenue}. You have up to 4 turns."
+    user_content = (
+        f"Find simple and organic revenue growth. The reported revenue is {revenue}. You have up to 4 turns. "
+        f"(Hint: try searching for keywords like 'organic', 'currency', 'acquisition', or 'growth' first)."
+    )
     if learning_context:
         user_content += f'\n\nHere is the active company extraction learning context to guide your extraction decision logic:\n"""\n{learning_context}\n"""'
     if income_statement_content:

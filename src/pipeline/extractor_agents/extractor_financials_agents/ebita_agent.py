@@ -59,7 +59,7 @@ def run_ebita_agent(
         "  }\n\n"
         "Rules:\n"
         "1. You have a maximum of 4 turns. Search for keyword contexts and chunks first to locate the figures.\n"
-        "2. Extract Operating Income from the income statement content.\n"
+        "2. Extract Operating Income from the income statement content. Note that if the income statement does not explicitly list it, you must attempt to calculate it starting with a proxy line item that would be close (such as pre-tax income / income before taxes).\n"
         "3. Identify any non-recurring operating adjustments (e.g. restructuring, asset impairments, amortization of acquired intangibles).\n"
         "4. Calculate clean Operating EBITA = Operating Income + EBITA adjustments.\n"
         "5. Standardize positive/negative signs for the calculations and outputs:\n"
@@ -83,8 +83,7 @@ def run_ebita_agent(
 
     user_content = (
         "Start searching for Operating Income and EBITA adjustments. Remember, you have up to 4 turns.\n"
-        "Here are some useful keywords to search for if needed: restructuring, amortization, impairment, "
-        "write-off, non-recurring, one-time."
+        "(hint: try searching for keywords like 'restructur', 'amort', 'impair', 'goodwill', 'conting', 'acquire', 'intangible'), "
     )
     if learning_context:
         user_content += f'\n\nHere is the active company extraction learning context to guide your extraction decision logic:\n"""\n{learning_context}\n"""'
