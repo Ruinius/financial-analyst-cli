@@ -1,3 +1,6 @@
 ## 2024-03-24 - File I/O Bottleneck in Financial Line Item Extraction
 **Learning:** In pipelines extracting large amounts of structured data (like line items in financial reports), reading context from disk *per item* results in an O(N) disk read bottleneck that scales poorly as document size grows.
 **Action:** Always verify if a context or metadata file needs to be read dynamically per item. If the context is stable for the life cycle of the process or can be managed in memory, lazily load it into an instance-level cache (e.g. `self._extract_context_cache`). When updating the context, append to the cached string and write to disk, avoiding full re-reads.
+## 2026-06-14 - Redundant Disk I/O in Financial Extraction Pipeline
+**Learning:** Multiple extraction agents were reading the exact same static dictionary files and learning context files from disk for every line item or document processed, leading to O(N) disk I/O reads that scaled linearly with document size and agent count.
+**Action:** When a piece of context (like a classification dictionary) is static for the duration of a process, implement a memoization/caching pattern at the orchestrator or instance level (e.g., `_dict_cache` in the `Extractor` class) so the file is read from disk only once and fetched from memory subsequently.

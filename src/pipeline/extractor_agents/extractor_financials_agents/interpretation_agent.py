@@ -13,24 +13,6 @@ def update_extract_context(extractor, line_item) -> None:
     pass
 
 
-def get_extract_context(extractor) -> str:
-    if extractor._extract_context_cache is None:
-        ticker = extractor.settings.active_ticker or "UNK"
-        context_path = (
-            Path(extractor.settings.active_workspace_path)
-            / f"{ticker}_extract_learning.md"
-        )
-        if context_path.exists():
-            try:
-                with open(context_path, "r", encoding="utf-8") as f:
-                    extractor._extract_context_cache = f.read()
-            except Exception:
-                extractor._extract_context_cache = ""
-        else:
-            extractor._extract_context_cache = ""
-    return extractor._extract_context_cache
-
-
 def run_interpretation_agent(
     extracted_line_items: list,
     file_path: Path,
@@ -45,16 +27,16 @@ def run_interpretation_agent(
     bs_md = bs_path.read_text(encoding="utf-8") if bs_path.exists() else ""
 
     # Check local dictionary classifications to pass as guidance/override
-    is_dict_path = Path("src/resources/dictionary/income_statement.md")
-    bs_dict_path = Path("src/resources/dictionary/balance_sheet.md")
     local_dict_guidance = ""
-    if is_dict_path.exists():
-        local_dict_guidance += f"--- Income Statement Dictionary ---\n{is_dict_path.read_text(encoding='utf-8')}\n"
-    if bs_dict_path.exists():
-        local_dict_guidance += f"--- Balance Sheet Dictionary ---\n{bs_dict_path.read_text(encoding='utf-8')}\n"
+    is_dict = extractor.get_dictionary("income_statement")
+    if is_dict:
+        local_dict_guidance += f"--- Income Statement Dictionary ---\n{is_dict}\n"
+    bs_dict = extractor.get_dictionary("balance_sheet")
+    if bs_dict:
+        local_dict_guidance += f"--- Balance Sheet Dictionary ---\n{bs_dict}\n"
 
     # Check company context classifications
-    context_content = get_extract_context(extractor)
+    context_content = extractor.get_extract_context()
     company_context_guidance = {}
     if context_content:
         for item in extracted_line_items:

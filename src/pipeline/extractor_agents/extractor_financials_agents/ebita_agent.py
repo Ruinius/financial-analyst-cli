@@ -1,7 +1,6 @@
 import re
 import json
 import logging
-from pathlib import Path
 from src.utils.tools import find_keyword_contexts
 
 logger = logging.getLogger(__name__)
@@ -18,24 +17,13 @@ def run_ebita_agent(
     ebita_adjustments = []
 
     # Load extraction learnings
-    learning_context = ""
-    ticker = extractor.settings.active_ticker
-    if ticker:
-        learning_path = (
-            Path(extractor.settings.active_workspace_path)
-            / f"{ticker}_extract_learning.md"
-        )
-        if learning_path.exists():
-            try:
-                learning_context = learning_path.read_text(encoding="utf-8")
-            except Exception:
-                pass
+    learning_context = extractor.get_extract_context()
 
     # Check local dictionary classifications to pass as guidance/override
-    is_dict_path = Path("src/resources/dictionary/income_statement.md")
     local_dict_guidance = ""
-    if is_dict_path.exists():
-        local_dict_guidance += f"--- Income Statement Dictionary ---\n{is_dict_path.read_text(encoding='utf-8')}\n"
+    is_dict = extractor.get_dictionary("income_statement")
+    if is_dict:
+        local_dict_guidance += f"--- Income Statement Dictionary ---\n{is_dict}\n"
 
     focus_period = (
         "fiscal quarter (three months)"

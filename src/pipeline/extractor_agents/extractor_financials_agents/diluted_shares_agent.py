@@ -1,7 +1,6 @@
 import re
 import json
 import logging
-from pathlib import Path
 from src.utils.tools import find_keyword_contexts
 
 logger = logging.getLogger(__name__)
@@ -19,18 +18,7 @@ def run_diluted_shares_agent(
     diluted_shares = 0.0
 
     # Load extraction learnings
-    learning_context = ""
-    ticker = extractor.settings.active_ticker
-    if ticker:
-        learning_path = (
-            Path(extractor.settings.active_workspace_path)
-            / f"{ticker}_extract_learning.md"
-        )
-        if learning_path.exists():
-            try:
-                learning_context = learning_path.read_text(encoding="utf-8")
-            except Exception:
-                pass
+    learning_context = extractor.get_extract_context()
 
     focus_period = (
         "fiscal quarter (three months)"

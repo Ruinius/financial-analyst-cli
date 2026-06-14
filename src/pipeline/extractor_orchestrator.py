@@ -110,6 +110,37 @@ class Extractor:
         self.settings = load_config()
         self.llm = LLMClient()
         self._extract_context_cache = None
+        self._dict_cache = {}
+
+    def get_extract_context(self) -> str:
+        if self._extract_context_cache is None:
+            ticker = self.settings.active_ticker or "UNK"
+            context_path = (
+                Path(self.settings.active_workspace_path)
+                / f"{ticker}_extract_learning.md"
+            )
+            if context_path.exists():
+                try:
+                    with open(context_path, "r", encoding="utf-8") as f:
+                        self._extract_context_cache = f.read()
+                except Exception:
+                    self._extract_context_cache = ""
+            else:
+                self._extract_context_cache = ""
+        return self._extract_context_cache
+
+    def get_dictionary(self, name: str) -> str:
+        if name not in self._dict_cache:
+            dict_path = Path(f"src/resources/dictionary/{name}.md")
+            if dict_path.exists():
+                try:
+                    with open(dict_path, "r", encoding="utf-8") as f:
+                        self._dict_cache[name] = f.read()
+                except Exception:
+                    self._dict_cache[name] = ""
+            else:
+                self._dict_cache[name] = ""
+        return self._dict_cache[name]
 
     def get_extracted_registry_path(self) -> Path:
         workspace = Path(self.settings.active_workspace_path)
