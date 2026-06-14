@@ -46,9 +46,9 @@ def parse_markdown_to_line_items(
 
     dict_guidance = ""
     if category_default == "income_statement":
-        is_dict_path = Path("src/resources/dictionary/income_statement.md")
-        if is_dict_path.exists():
-            dict_guidance = f"\n\nUse the following Income Statement Dictionary as a guide for classifications and expense/revenue sign mapping:\n{is_dict_path.read_text(encoding='utf-8')}\n"
+        is_dict = extractor.get_dictionary("income_statement")
+        if is_dict:
+            dict_guidance = f"\n\nUse the following Income Statement Dictionary as a guide for classifications and expense/revenue sign mapping:\n{is_dict}\n"
 
     sys_prompt = (
         "You are Sir Pennyworth, a senior financial analyst. "
