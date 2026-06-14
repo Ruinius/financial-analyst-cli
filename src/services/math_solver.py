@@ -28,7 +28,7 @@ def eval_expr(node):
 
         # Security Enhancement: Prevent DoS via large exponentiation
         if op_type == ast.Pow:
-            if left > 10000 or right > 10000:
+            if left > 100 or right > 100:
                 raise ValueError("Exponentiation limits exceeded")
 
         if op_type in ALLOWED_OPERATORS:
