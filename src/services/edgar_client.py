@@ -1,5 +1,6 @@
 import datetime
 import logging
+import re
 from pathlib import Path
 from typing import List
 import httpx
@@ -89,8 +90,9 @@ class EdgarClient:
 
                 # Determine output path
                 # Standard pattern: {accession}_{doc_name}
+                safe_accession = re.sub(r"[^a-zA-Z0-9_-]", "", accession)
                 safe_doc_name = Path(doc_name).name
-                out_path = ingest_dir / f"{accession}_{safe_doc_name}"
+                out_path = ingest_dir / f"{safe_accession}_{safe_doc_name}"
 
                 try:
                     logger.info(
