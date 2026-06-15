@@ -29,7 +29,7 @@ Welcome to the `financial-analyst-cli` project.
   - src/core/: Settings, custom exception classes, and Pydantic schemas.
     - src/core/config.py: Settings model definition, loading/saving utilities, and API key masking.
     - src/core/exceptions.py: Custom exception classes (e.g. ConfigError, WorkspaceError).
-  - src/pipeline/: Execution runner stages (ingest, extract, historical, model).
+  - src/pipeline/: Execution runner stages (ingest, extract, analyze, model).
     - src/pipeline/queue.py: Safe job queue and exponential back-off retry manager.
     - src/pipeline/ingester.py: File parsing, deduplication, chunking, and LLM metadata identification.
     - src/pipeline/curator_agent.py: Curator agent for summarizing learnings and refining qualitative bull/bear views.

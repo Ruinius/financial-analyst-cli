@@ -106,6 +106,7 @@ def mock_workspace(tmp_path):
     def write_extracted(filename, summary_table, moat_rating=None, moat_rat=None):
         out_lines = [
             f"# Extracted Financial Report: {filename}\n",
+            "Analyst Company: **Morningstar**\n",
             "## Chunk Summaries",
             "- Chunk 1: The company reported strong performance.",
             "- Chunk 2: Segment revenues grew.",
@@ -232,6 +233,7 @@ def test_historical_synthesis(mock_curator, mock_load_config, mock_workspace):
 
     # Read analyst views
     views_content = (hist_dir / "analyst_views.md").read_text(encoding="utf-8")
+    assert "Morningstar" in views_content
     assert "Wide" in views_content
     assert "Strong ecosystem" in views_content
 
@@ -260,9 +262,9 @@ def test_baseline_golden_evaluation():
         assert k in extracted_metrics, f"Metric {k} not present in extracted metrics"
         extracted_val = extracted_metrics[k]
         diff = abs(extracted_val - ground_truth_val) / ground_truth_val
-        assert diff <= tolerance, (
-            f"Metric {k} diff {diff:.4f} exceeds tolerance of {tolerance}"
-        )
+        assert (
+            diff <= tolerance
+        ), f"Metric {k} diff {diff:.4f} exceeds tolerance of {tolerance}"
 
 
 @patch("src.pipeline.analyzer.load_config")
@@ -286,3 +288,139 @@ def test_historical_synthesis_limit(mock_curator, mock_load_config, mock_workspa
     assert "2024-Q2" in q_content
     assert "2024-Q3" not in q_content
     assert "2024-Q4" not in q_content
+
+
+@patch("src.pipeline.analyzer.load_config")
+@patch("src.pipeline.curator_agent.CuratorAgent")
+def test_analyzer_duplicate_handling(mock_curator, mock_load_config, tmp_path):
+    ticker = "TEST"
+    workspace = tmp_path / ticker
+    workspace.mkdir()
+
+    parsed_dir = workspace / "2_parsed_data"
+    parsed_dir.mkdir()
+    extracted_dir = workspace / "4_extracted_data"
+    extracted_dir.mkdir()
+    (workspace / "5_historical_analysis").mkdir()
+
+    # We will create two Q1 documents:
+    # 1. 20240125_earnings_announcement.md (EA)
+    # 2. 20240201_10-Q.md (10-Q)
+    csv_rows = [
+        {
+            "file_hash": "h1",
+            "original_filename": "ea.pdf",
+            "new_filename": "20240125_earnings_announcement.md",
+            "document_type": "earnings_announcement",
+            "document_date": "2024-01-25",
+            "fiscal_quarter": "Q1",
+        },
+        {
+            "file_hash": "h2",
+            "original_filename": "10q.pdf",
+            "new_filename": "20240201_10-Q.md",
+            "document_type": "quarterly_filing",
+            "document_date": "2024-02-01",
+            "fiscal_quarter": "Q1",
+        },
+    ]
+
+    fieldnames = [
+        "file_hash",
+        "original_filename",
+        "new_filename",
+        "document_type",
+        "document_date",
+        "fiscal_quarter",
+    ]
+    with open(parsed_dir / "parsed_data.csv", "w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(csv_rows)
+
+    # Write extracted_data.csv with duplicate source file entries
+    with open(
+        extracted_dir / "extracted_data.csv", "w", encoding="utf-8", newline=""
+    ) as f:
+        writer = csv.DictWriter(f, fieldnames=["source_file", "extracted_at"])
+        writer.writeheader()
+        writer.writerow(
+            {"source_file": "20240125_earnings_announcement.md", "extracted_at": "1"}
+        )
+        # 10-Q is listed twice to test file duplication safety
+        writer.writerow({"source_file": "20240201_10-Q.md", "extracted_at": "2"})
+        writer.writerow({"source_file": "20240201_10-Q.md", "extracted_at": "3"})
+
+    def write_extracted(filename, metrics):
+        out_lines = [
+            f"# Extracted Financial Report: {filename}\n",
+            "## Chunk Summaries",
+            "- Chunk 1",
+            "\n---\n",
+            "## Financial Summary",
+            "| Metric | Value | Notes |",
+            "|---|---|---|",
+        ]
+        for k, v in metrics.items():
+            out_lines.append(f"| **{k}** | {v} | |")
+        with open(
+            extracted_dir / f"{Path(filename).stem}_extracted.md", "w", encoding="utf-8"
+        ) as f:
+            f.write("\n".join(out_lines))
+
+    # Case 1: Both documents have EXACT same metrics (complete duplicates)
+    metrics_ea = {
+        "Revenue": "90,000",
+        "EBITA": "20,000",
+        "NOPAT": "16,000",
+        "Invested Capital": "100,000",
+        "Basic Shares Outstanding": "1,000",
+        "Diluted Shares Outstanding": "1,020",
+    }
+    metrics_q = {
+        "Revenue": "90,000",
+        "EBITA": "20,000",
+        "NOPAT": "16,000",
+        "Invested Capital": "100,000",
+        "Basic Shares Outstanding": "1,000",
+        "Diluted Shares Outstanding": "1,020",
+    }
+
+    write_extracted("20240125_earnings_announcement.md", metrics_ea)
+    write_extracted("20240201_10-Q.md", metrics_q)
+
+    mock_settings = MagicMock()
+    mock_settings.active_workspace_path = str(workspace)
+    mock_settings.active_ticker = "TEST"
+    mock_load_config.return_value = mock_settings
+
+    analyzer = Analyzer()
+    analyzer.run_analysis()
+
+    # Verify only one 2024-Q1 row is written because the entries are complete duplicates
+    q_content = (
+        workspace / "5_historical_analysis" / "financials_quarter.md"
+    ).read_text(encoding="utf-8")
+    lines = [line for line in q_content.splitlines() if "2024-Q1" in line]
+    assert len(lines) == 1, f"Expected 1 line for 2024-Q1, got: {lines}"
+
+    # Case 2: Different metrics (not complete duplicates)
+    metrics_q_diff = {
+        "Revenue": "92,000",
+        "EBITA": "20,000",
+        "NOPAT": "16,000",
+        "Invested Capital": "100,000",
+        "Basic Shares Outstanding": "1,000",
+        "Diluted Shares Outstanding": "1,020",
+    }
+    write_extracted("20240201_10-Q.md", metrics_q_diff)
+
+    analyzer = Analyzer()
+    analyzer.run_analysis()
+
+    # Verify both rows are written now since the numbers changed
+    q_content = (
+        workspace / "5_historical_analysis" / "financials_quarter.md"
+    ).read_text(encoding="utf-8")
+    lines = [line for line in q_content.splitlines() if "2024-Q1" in line]
+    assert len(lines) == 2, f"Expected 2 lines for 2024-Q1, got: {lines}"

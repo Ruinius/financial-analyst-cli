@@ -16,6 +16,7 @@ def extract_analyst_report(
     import src.utils.formatting as formatting
     from src.pipeline.extractor_orchestrator import get_chunk_by_id
 
+    analyst_company = "Unknown"
     economic_moat = "Narrow"
     moat_rationale = ""
     margin_outlook = "Stable"
@@ -33,6 +34,7 @@ def extract_analyst_report(
         "- 'find_keyword_contexts': arguments: {'keywords': list, 'window': int (recommended: 250)}\n"
         "- 'get_chunk_by_id': arguments: {'chunk_id': int}\n"
         "- 'finalize': arguments: {\n"
+        "    'analyst_company': str (e.g., 'Morningstar', 'Goldman Sachs', 'J.P. Morgan'. If not explicitly mentioned, try to determine from document text or return 'Unknown'),\n"
         "    'economic_moat': 'None | Narrow | Wide',\n"
         "    'economic_moat_rationale': str,\n"
         "    'margin_outlook': 'Decreasing | Stable | Increasing',\n"
@@ -115,6 +117,7 @@ def extract_analyst_report(
                 )
                 continue
 
+            analyst_company = args.get("analyst_company", analyst_company)
             economic_moat = args.get("economic_moat", economic_moat)
             moat_rationale = args.get("economic_moat_rationale", moat_rationale)
             margin_outlook = args.get("margin_outlook", margin_outlook)
@@ -166,6 +169,7 @@ def extract_analyst_report(
     # Format output
     output_lines = []
     output_lines.append(f"# Extracted Financial Report: {file_path.name}\n")
+    output_lines.append(f"Analyst Company: **{analyst_company}**\n")
     output_lines.append("## Chunk Summaries\n")
     output_lines.extend(summaries)
     output_lines.append("\n---\n")

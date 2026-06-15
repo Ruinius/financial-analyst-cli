@@ -161,7 +161,7 @@ uv run fa run ingest
 uv run fa run extract
 
 # Synthesize multi-period metrics and qualitative trends
-uv run fa run historical
+uv run fa run analyze
 
 # Generate DCF model projections
 uv run fa run model

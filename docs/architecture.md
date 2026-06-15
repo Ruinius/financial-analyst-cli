@@ -136,7 +136,7 @@ sequenceDiagram
     Extract->>Extract: 4. Compute EBITA & tax adjustments using EBITA & Tax Agents and run deterministic computations (Invested Capital, NOPAT, ROIC)
     Extract->>User: Save outputs to 4_extracted_data
     Extract->>User: Curator Agent curates extract learnings and wiki in ticker root
-    User->>CLI: fa run historical
+    User->>CLI: fa run analyze
     CLI->>Queue: Feed extracted data
     Queue->>Hist: Synthesize trends
     Hist->>Hist: Build analyst views, news trends, financials_annual/quarter
@@ -154,7 +154,7 @@ sequenceDiagram
 ## 4. Key Architectural Decisions
 
 1. **Deterministic Job Queue**:
-   To avoid race conditions and resource leaks during file processing and LLM calls, all pipeline commands (`ingest`, `extract`, `historical`) feed into a centralized queue runner. Jobs are completed sequentially with exponential back-off retries.
+   To avoid race conditions and resource leaks during file processing and LLM calls, all pipeline commands (`ingest`, `extract`, `analyze`) feed into a centralized queue runner. Jobs are completed sequentially with exponential back-off retries.
 2. **Hybrid Python-Rust Framework**:
    Core financial valuation and sensitivity modeling (discounting cash flows, compounding, WACC calculations) are written in Rust (`src/rust_core/lib.rs`) for performance, safety, and correctness, compiled as a Python C-extension. Standard pipeline calculations (EBITA, Invested Capital, Tax Rates, and ROIC schedules) are written in pure Python to simplify development, testing, and out-of-the-box execution.
 3. **Chunked LLM Processing**:
@@ -208,5 +208,5 @@ The self-learning mechanism replaces separate config folders with 4 dedicated ro
 ### Curator Agent Logic (`CuratorAgent`)
 The `CuratorAgent` class (in `src/pipeline/curator_agent.py`) executes compaction after each pipeline stage completes:
 1. **User Feedback Extraction**: It scans the file for a `## User Feedback` header, extracts everything underneath it, and filters out placeholder HTML comments.
-2. **LLM Compaction**: It feeds the existing markdown body, new user feedback, and recent stage logs to the LLM, instructing it to keep the learnings highly succinct and focused strictly on actionable information that will help future AI agent tasks (such as search keywords or line item mappings), while discarding conversational filler and generic advice.
+2. **LLM Compaction**: It feeds the existing markdown body, new user feedback, and recent stage logs (or compiled historical analysis outputs in the case of the analyze stage) to the LLM, instructing it to keep the learnings highly succinct and focused strictly on actionable information that will help future AI agent tasks (such as search keywords or line item mappings), while discarding conversational filler and generic advice.
 3. **Rewrite & Clean**: The LLM compiles the feedback into the lessons sections, rewrites the file to be highly succinct, and resets the `## User Feedback` section back to its blank template state.

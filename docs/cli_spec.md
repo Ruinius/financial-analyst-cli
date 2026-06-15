@@ -97,7 +97,7 @@ Extracts financial statement data and qualitative metrics.
   - Passes validated outputs to the Rust core engine to calculate NOPAT, ROIC, and invested capital with full audit trails.
   - The Curator Agent updates the `[TICKER]_extract_learning.md` extraction lessons and clears the manual user feedback section.
 
-#### `fa run historical`
+#### `fa run analyze`
 Synthesizes longitudinal quarterly and annual data trends.
 - **Options**:
   - `--ticker`, `-t`: Limit trend synthesis to this ticker.

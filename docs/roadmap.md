@@ -163,7 +163,7 @@ Config      Ingestion   Extraction  History     Modeling    Interactive
   - [x] Standardize configuration text/vision LLM models to `google/gemma-4-31b-it:free`.
   - [x] In `fa run ingest`, add logs to show which files are ingested and which ones are not (skipped as duplicates or due to limit).
   - [x] In `fa run extract`, show the count of parsed files and prompt the user for the number of files to process (defaulting to all).
-  - [x] In `fa run historical`, show the count of extracted files and prompt the user for the number of files to process (defaulting to all).
+  - [x] In `fa run analyze`, show the count of extracted files and prompt the user for the number of files to process (defaulting to all).
   - [x] In `fa run extract`, add logs to show the verbose chain of thought/pondering text from the LLM while suppressing verbose structured JSON payloads, keeping the CLI output clean and streaming.
   - [x] **Add API provider selection and multi-provider keys**: Added ability to select API provider in config, store provider-specific keys, and dynamically route client requests to Gemini or OpenRouter.
 

@@ -339,8 +339,10 @@ Please:
         wiki_content = wiki_path.read_text(encoding="utf-8")
         sys_prompt_wiki = (
             "You are Sir Pennyworth's Qualitative Wiki Curator. Your job is to update the Bull Perspective and Bear Perspective "
-            "in the Wiki markdown file based strictly on the context of the recent document runs logs. Do not include outside knowledge. "
-            "Return the entire updated markdown file. Do not wrap in markdown code blocks."
+            "in the Wiki markdown file based strictly on the context of the recent document runs logs (which contain historical data tables over time). "
+            "You must analyze the data trends chronologically over time and form a synthesized conclusion. "
+            "For example, it is normal for different analyst reports to disagree, but you should identify and describe the overarching trend, consensus shift, and direction of the trajectory. "
+            "Do not include outside knowledge. Return the entire updated markdown file. Do not wrap in markdown code blocks."
         )
         prompt_wiki = f"""
 Ticker: {ticker}
@@ -349,12 +351,13 @@ Current Wiki Content:
 {wiki_content}
 \"\"\"
 
-Qualitative Analysis Logs / Summarized views from the run:
+Qualitative Analysis Logs / Compiled historical analysis output over time:
 \"\"\"
 {agent_logs}
 \"\"\"
 
-Please rewrite and refine the '## Bull Perspective' and '## Bear Perspective' sections inside the Wiki. Compract and consolidate them based strictly on this latest run context.
+Please rewrite and refine the '## Bull Perspective' and '## Bear Perspective' sections inside the Wiki.
+Analyze the data trends chronologically over time and form a synthesized conclusion. While individual analyst reports may disagree, identify what the overall trajectory is. Compact and consolidate the perspectives based strictly on this latest run context.
 """
         try:
             updated_wiki = self.llm.generate(prompt_wiki, system_prompt=sys_prompt_wiki)

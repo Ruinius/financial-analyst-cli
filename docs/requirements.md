@@ -52,7 +52,7 @@ flowchart TD
     A[EDGAR / Raw Data] -->|fa run edgar| B(1_ingest_data)
     B -->|fa run ingest| C(2_parsed_data / 3_archived_data)
     C -->|fa run extract| D(4_extracted_data)
-    D -->|fa run historical| E(5_historical_analysis)
+    D -->|fa run analyze| E(5_historical_analysis)
     E -->|fa run model| F(6_financial_model / 7_historical_model_json)
 ```
 
@@ -113,7 +113,7 @@ flowchart TD
 - **Step 3D: Manual User Extraction Context**:
   - The file `[TICKER]_extract_learning.md` in the root is used to provide manual user feedback to override/configure custom classifications for operating/non-operating items under the `## User Feedback` section. The Curator Agent reads and rewrites/compacts this feedback into lessons and clears the feedback section.
 
-### 3.4 Step 4: Historical Analysis (`fa run historical`)
+### 3.4 Step 4: Historical Analysis (`fa run analyze`)
 - **Queue**: Identify files in `4_extracted_data/` not yet integrated into `5_historical_analysis/`.
 - **Processing Tasks**:
   - **`analyst_report`**: Update `5_historical_analysis/analyst_views.md`. Track changes in moat, margins, and growth trajectory using a structured table. Keep comments concise and focus on the overall synthesis.
@@ -145,7 +145,7 @@ flowchart TD
 - `fa run edgar`: Fetch filings from SEC EDGAR.
 - `fa run ingest`: Parse and ingest files from `1_ingest_data/`.
 - `fa run extract`: Extract statements and key metrics.
-- `fa run historical`: Update longitudinal analysis files.
+- `fa run analyze`: Update longitudinal analysis files.
 - `fa run model`: Propose and generate valuation models.
 - `fa chat <ticker>`: Open an interactive analyst shell/REPL with Sir Pennyworth, enabling ad-hoc queries, direct statement auditing, and manual model updates.
 - `fa query summary <ticker>` / `assessment <ticker>` / `valuation <ticker>`: Query tables.

@@ -45,12 +45,15 @@ class Analyzer:
             return
 
         extracted_files = []
+        seen_source_files = set()
         with open(extracted_csv, "r", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             for row in reader:
                 source_file = row.get("source_file")
                 if source_file and source_file in doc_metadata:
-                    extracted_files.append(source_file)
+                    if source_file not in seen_source_files:
+                        extracted_files.append(source_file)
+                        seen_source_files.add(source_file)
 
         # Sort extracted files by document_date chronologically
         def get_doc_date(fname):
@@ -101,25 +104,26 @@ class Analyzer:
                 view_entry = self.parse_analyst_report_fields(content)
                 view_entry["date"] = doc_date
                 view_entry["document"] = extracted_filename
-                analyst_views_entries.append(view_entry)
+                if not self._is_duplicate_entry(view_entry, analyst_views_entries):
+                    analyst_views_entries.append(view_entry)
 
             elif doc_type in ["press_release", "news_article", "other"]:
-                news_entries.append(
-                    {
-                        "date": doc_date,
-                        "document": extracted_filename,
-                        "summary": chunk_summaries,
-                    }
-                )
+                news_entry = {
+                    "date": doc_date,
+                    "document": extracted_filename,
+                    "summary": chunk_summaries,
+                }
+                if not self._is_duplicate_entry(news_entry, news_entries):
+                    news_entries.append(news_entry)
 
             elif doc_type == "transcript":
-                transcript_entries.append(
-                    {
-                        "date": doc_date,
-                        "document": extracted_filename,
-                        "summary": chunk_summaries,
-                    }
-                )
+                transcript_entry = {
+                    "date": doc_date,
+                    "document": extracted_filename,
+                    "summary": chunk_summaries,
+                }
+                if not self._is_duplicate_entry(transcript_entry, transcript_entries):
+                    transcript_entries.append(transcript_entry)
 
             # B. Parse quantitative financial data
             if doc_type in [
@@ -136,10 +140,12 @@ class Analyzer:
 
                 if doc_type == "annual_filing" or fiscal_quarter == "FY":
                     fin_metrics["period"] = year
-                    annual_financials.append(fin_metrics)
+                    if not self._is_duplicate_entry(fin_metrics, annual_financials):
+                        annual_financials.append(fin_metrics)
                 else:
                     fin_metrics["period"] = f"{year}-{fiscal_quarter}"
-                    quarterly_financials.append(fin_metrics)
+                    if not self._is_duplicate_entry(fin_metrics, quarterly_financials):
+                        quarterly_financials.append(fin_metrics)
 
         # 3. Deduce Q4 financials if Q1-Q3 and Annual are present
         self.deduce_q4_financials(quarterly_financials, annual_financials)
@@ -164,15 +170,32 @@ class Analyzer:
             analysis_dir / "financials_annual.md", annual_financials, is_quarterly=False
         )
 
-        # Trigger Curator Agent
+        # Trigger Curator Agent with historical analysis files content
         ticker = self.settings.active_ticker or "UNK"
-        logs = (
-            f"Executed historical analysis stage. Processed extracted files: {extracted_files}.\n"
-            f"Analyst views synthesized: {analyst_views_entries}.\n"
-        )
+        analysis_files_content = []
+        for filename in [
+            "analyst_views.md",
+            "news_trend.md",
+            "transcript_trend.md",
+            "financials_quarter.md",
+            "financials_annual.md",
+        ]:
+            file_path = analysis_dir / filename
+            if file_path.exists():
+                try:
+                    content = file_path.read_text(encoding="utf-8")
+                    analysis_files_content.append(
+                        f"--- File: {filename} ---\n{content}\n"
+                    )
+                except Exception as e:
+                    formatting.print_warning(
+                        f"Could not read {filename} for curator: {e}"
+                    )
+
+        curator_context = "\n".join(analysis_files_content)
         from src.pipeline.curator_agent import CuratorAgent
 
-        CuratorAgent(self.settings).curate(ticker, "analyze", logs)
+        CuratorAgent(self.settings).curate(ticker, "analyze", curator_context)
 
     def parse_chunk_summaries(self, content: str) -> str:
         """Extract summaries from the Chunk Summaries section."""
@@ -185,6 +208,7 @@ class Analyzer:
 
     def parse_analyst_report_fields(self, content: str) -> Dict[str, str]:
         """Parse economic moat, margin outlook, and growth outlook sections."""
+        analyst_company = "Unknown"
         moat = "None"
         moat_rationale = ""
         margin_outlook = "Stable"
@@ -193,6 +217,13 @@ class Analyzer:
         growth_outlook = "Stable"
         growth_mag = "0 pp"
         growth_rationale = ""
+
+        # Analyst Company
+        company_match = re.search(
+            r"Analyst Company:\s*\*\*(.*?)\*\*", content, re.IGNORECASE
+        )
+        if company_match:
+            analyst_company = company_match.group(1).strip()
 
         # Moat
         moat_match = re.search(
@@ -255,6 +286,7 @@ class Analyzer:
             growth_rationale = growth_rat_match.group(1).strip()
 
         return {
+            "analyst_company": analyst_company,
             "moat": moat,
             "moat_rationale": moat_rationale,
             "margin_outlook": margin_outlook,
@@ -378,12 +410,13 @@ class Analyzer:
     def write_analyst_views(self, path: Path, entries: List[Dict[str, str]]) -> None:
         lines = [
             "# Analyst Views History\n",
-            "| Date | Document | Economic Moat | Moat Rationale | Margin Outlook | Margin Magnitude | Margin Rationale | Growth Outlook | Growth Magnitude | Growth Rationale |",
-            "|---|---|---|---|---|---|---|---|---|---|",
+            "| Date | Document | Analyst Company | Economic Moat | Moat Rationale | Margin Outlook | Margin Magnitude | Margin Rationale | Growth Outlook | Growth Magnitude | Growth Rationale |",
+            "|---|---|---|---|---|---|---|---|---|---|---|",
         ]
         for e in entries:
+            company = e.get("analyst_company", "Unknown")
             lines.append(
-                f"| {e['date']} | [{e['document']}](../4_extracted_data/{e['document']}) | "
+                f"| {e['date']} | [{e['document']}](../4_extracted_data/{e['document']}) | {company} | "
                 f"{e['moat']} | {e['moat_rationale']} | {e['margin_outlook']} | {e['margin_mag']} | {e['margin_rationale']} | "
                 f"{e['growth_outlook']} | {e['growth_mag']} | {e['growth_rationale']} |"
             )
@@ -444,3 +477,14 @@ class Analyzer:
             )
         with open(path, "w", encoding="utf-8") as f:
             f.write("\n".join(lines) + "\n")
+
+    def _is_duplicate_entry(
+        self, entry: dict, existing_list: list, ignore_keys: set = None
+    ) -> bool:
+        if ignore_keys is None:
+            ignore_keys = {"document", "date"}
+        for existing in existing_list:
+            keys = (set(entry.keys()) | set(existing.keys())) - ignore_keys
+            if all(entry.get(k) == existing.get(k) for k in keys):
+                return True
+        return False

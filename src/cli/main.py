@@ -440,8 +440,8 @@ def run_extract(ticker: str = typer.Option(None, "--ticker", "-t")):
             raise typer.Exit(1)
 
 
-@run_app.command("historical")
-def run_historical(ticker: str = typer.Option(None, "--ticker", "-t")):
+@run_app.command("analyze")
+def run_analyze(ticker: str = typer.Option(None, "--ticker", "-t")):
     """Synthesize longitudinal trends and analyst views."""
     try:
         settings = load_config()
@@ -503,7 +503,7 @@ def run_historical(ticker: str = typer.Option(None, "--ticker", "-t")):
             "Successfully synthesized all longitudinal financial trends and views."
         )
     except Exception as e:
-        formatting.print_error(f"Historical trend synthesis failed: {str(e)}")
+        formatting.print_error(f"Trend synthesis failed: {str(e)}")
         raise typer.Exit(1)
 
 
