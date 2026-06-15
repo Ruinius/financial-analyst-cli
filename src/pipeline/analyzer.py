@@ -81,10 +81,12 @@ class Analyzer:
             doc_date = meta.get("document_date", "")
             fiscal_quarter = meta.get("fiscal_quarter", "N/A")
 
-            # Extract year from document_date
-            year = "YYYY"
-            if len(doc_date) >= 4:
-                year = doc_date[:4]
+            # Extract year from fiscal_year or document_date fallback
+            year = meta.get("fiscal_year", "N/A")
+            if not year or year == "N/A" or year == "YYYY":
+                year = "YYYY"
+                if len(doc_date) >= 4:
+                    year = doc_date[:4]
 
             # Construct extracted report filename
             src_path = Path(src_file)

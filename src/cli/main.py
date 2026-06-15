@@ -246,7 +246,14 @@ def run_edgar(
 
 
 @run_app.command("ingest")
-def run_ingest(ticker: str = typer.Option(None, "--ticker", "-t")):
+def run_ingest(
+    ticker: str = typer.Option(None, "--ticker", "-t"),
+    heal: bool = typer.Option(
+        False,
+        "--heal",
+        help="Run metadata self-healing and Quality Check Agent on existing parsed files",
+    ),
+):
     """Parse and ingest raw files."""
     try:
         settings = load_config()
@@ -263,6 +270,17 @@ def run_ingest(ticker: str = typer.Option(None, "--ticker", "-t")):
             "No active workspace is selected. Use 'fa use <ticker>' first."
         )
         raise typer.Exit(1)
+
+    if heal:
+        formatting.print_info("Starting metadata self-healing stage...")
+        try:
+            ingester = Ingester()
+            ingester.run_self_healing()
+            formatting.print_success("Successfully completed self-healing check.")
+            return
+        except Exception as e:
+            formatting.print_error(f"Self-healing failed: {str(e)}")
+            raise typer.Exit(1)
 
     ingest_dir = Path(settings.active_workspace_path) / "1_ingest_data"
     raw_files = (

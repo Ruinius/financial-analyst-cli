@@ -77,6 +77,7 @@ Downloads financial filings for a specific company from the SEC EDGAR system.
 Ingests, hashes, parses, and structures raw filings from `1_ingest_data/`.
 - **Options**:
   - `--ticker`, `-t`: Limit ingestion to this ticker.
+  - `--heal`: Run metadata self-healing and Quality Check Agent on existing parsed files instead of performing raw ingestion.
 - **Execution**:
   - Validates file hashes against `parsed_data.csv` to prevent duplicates.
   - Converts PDFs/HTML to alignment-preserved markdown.

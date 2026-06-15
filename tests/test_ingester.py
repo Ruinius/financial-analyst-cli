@@ -94,6 +94,7 @@ def test_ingestion_flow(
             "period_end_date": "2023-09-30",
             "document_type": "annual_filing",
             "fiscal_quarter": "FY",
+            "fiscal_year": "2023",
         }
     )
 
@@ -123,6 +124,7 @@ def test_ingestion_flow(
         assert rows[0]["new_filename"] == "20230930_annual_filing.md"
         assert rows[0]["document_type"] == "annual_filing"
         assert rows[0]["fiscal_quarter"] == "FY"
+        assert rows[0]["fiscal_year"] == "2023"
 
 
 def test_job_queue():
@@ -150,7 +152,7 @@ def test_ingestion_limit(
     mock_load_config.return_value = mock_settings
     mock_llm_load_config.return_value = mock_settings
 
-    # Each file processed makes 2 LLM calls (initial identification + quality check)
+    # Each file processed makes 1 LLM call since the second turn was removed
     side_effects = []
     for i in range(3):
         val = json.dumps(
@@ -159,9 +161,10 @@ def test_ingestion_limit(
                 "period_end_date": f"2023-09-2{i}",
                 "document_type": "annual_filing",
                 "fiscal_quarter": "FY",
+                "fiscal_year": f"202{i}",
             }
         )
-        side_effects.extend([val, val])
+        side_effects.append(val)
     mock_llm.side_effect = side_effects
 
     workspace = Path(mock_settings.active_workspace_path)
@@ -182,87 +185,6 @@ def test_ingestion_limit(
 @patch("src.services.llm_client.load_config")
 @patch("src.pipeline.ingester.load_config")
 @patch("src.services.llm_client.LLMClient.generate")
-def test_ingestion_quality_check_correction(
-    mock_llm, mock_load_config, mock_llm_load_config, mock_settings
-):
-    mock_load_config.return_value = mock_settings
-    mock_llm_load_config.return_value = mock_settings
-
-    # First turn: invalid type; second turn: corrected type
-    mock_llm.side_effect = [
-        json.dumps(
-            {
-                "document_date": "2023-09-30",
-                "period_end_date": "2023-09-30",
-                "document_type": "annual_report",  # Invalid
-                "fiscal_quarter": "FY",
-            }
-        ),
-        json.dumps(
-            {
-                "document_date": "2023-09-30",
-                "period_end_date": "2023-09-30",
-                "document_type": "annual_filing",  # Corrected
-                "fiscal_quarter": "FY",
-            }
-        ),
-    ]
-
-    workspace = Path(mock_settings.active_workspace_path)
-    raw_file = workspace / "1_ingest_data" / "filing.htm"
-    raw_file.write_text("<h1>Annual Report</h1>", encoding="utf-8")
-
-    ingester = Ingester()
-    ingester.run_ingestion()
-
-    parsed_file = workspace / "2_parsed_data" / "20230930_annual_filing.md"
-    assert parsed_file.exists()
-
-
-@patch("src.services.llm_client.load_config")
-@patch("src.pipeline.ingester.load_config")
-@patch("src.services.llm_client.LLMClient.generate")
-def test_ingestion_quality_check_fallback(
-    mock_llm, mock_load_config, mock_llm_load_config, mock_settings
-):
-    mock_load_config.return_value = mock_settings
-    mock_llm_load_config.return_value = mock_settings
-
-    # Both turns return invalid document types
-    mock_llm.side_effect = [
-        json.dumps(
-            {
-                "document_date": "2023-09-30",
-                "period_end_date": "2023-09-30",
-                "document_type": "annual_report",
-                "fiscal_quarter": "FY",
-            }
-        ),
-        json.dumps(
-            {
-                "document_date": "2023-09-30",
-                "period_end_date": "2023-09-30",
-                "document_type": "invalid_doc_type",
-                "fiscal_quarter": "FY",
-            }
-        ),
-    ]
-
-    workspace = Path(mock_settings.active_workspace_path)
-    raw_file = workspace / "1_ingest_data" / "filing.htm"
-    raw_file.write_text("<h1>Annual Report</h1>", encoding="utf-8")
-
-    ingester = Ingester()
-    ingester.run_ingestion()
-
-    # Should fallback to 'other'
-    parsed_file = workspace / "2_parsed_data" / "20230930_other.md"
-    assert parsed_file.exists()
-
-
-@patch("src.services.llm_client.load_config")
-@patch("src.pipeline.ingester.load_config")
-@patch("src.services.llm_client.LLMClient.generate")
 def test_ingestion_ignores_readme_and_hidden(
     mock_llm, mock_load_config, mock_llm_load_config, mock_settings
 ):
@@ -275,6 +197,7 @@ def test_ingestion_ignores_readme_and_hidden(
             "period_end_date": "2023-09-30",
             "document_type": "annual_filing",
             "fiscal_quarter": "FY",
+            "fiscal_year": "2023",
         }
     )
 
@@ -323,6 +246,7 @@ def test_ingestion_pdf(
             "period_end_date": "2023-09-30",
             "document_type": "annual_filing",
             "fiscal_quarter": "FY",
+            "fiscal_year": "2023",
         }
     )
 
@@ -359,6 +283,7 @@ def test_ingester_offsets(
             "period_end_date": "2023-09-30",
             "document_type": "annual_filing",
             "fiscal_quarter": "FY",
+            "fiscal_year": "2023",
         }
     )
 
@@ -398,3 +323,87 @@ def test_ingester_offsets(
     idx2, start2, end2 = matches[1]
     start2, end2 = int(start2), int(end2)
     assert content[start2:end2] == "Financial details part 2..."
+
+
+@patch("src.pipeline.ingester.load_config")
+def test_self_healing_logic(mock_load_config, mock_settings):
+    mock_load_config.return_value = mock_settings
+    workspace = Path(mock_settings.active_workspace_path)
+
+    # 1. Create a dummy parsed_data.csv missing the fiscal_year column entirely, and with an incorrect fiscal_quarter
+    parsed_dir = workspace / "2_parsed_data"
+    parsed_dir.mkdir(parents=True, exist_ok=True)
+    csv_path = parsed_dir / "parsed_data.csv"
+
+    fieldnames = [
+        "file_hash",
+        "original_filename",
+        "new_filename",
+        "document_type",
+        "document_date",
+        "fiscal_quarter",
+        "period_end_date",
+    ]
+    with open(csv_path, "w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerow(
+            {
+                "file_hash": "hash123",
+                "original_filename": "report.pdf",
+                "new_filename": "20230930_annual_filing.md",
+                "document_type": "annual_filing",
+                "document_date": "2023-09-30",
+                "fiscal_quarter": "Q1",  # Incorrect, should be FY
+                "period_end_date": "2023-09-30",
+            }
+        )
+
+    # 2. Create a dummy markdown file that has a metadata block but is completely missing the "Fiscal Year" row
+    markdown_content = """# Document Metadata & Chunk Inventory (chunk_id=0)
+
+| Metadata Key | Value |
+| --- | --- |
+| Original Filename | report.pdf |
+| Document Date | 2023-09-30 |
+| Document Type | annual_filing |
+| Fiscal Quarter | Q1 |
+| File Hash | hash123 |
+
+## Chunk Index Table
+| Chunk ID | Character Range | Numbers Frequency | Symbols Frequency |
+| 1 | char 0 to 10 | 0 | 0 |
+"""
+    md_file = parsed_dir / "20230930_annual_filing.md"
+    md_file.write_text(markdown_content, encoding="utf-8")
+
+    ingester = Ingester()
+
+    # Test 1: loading parsed registry should default missing fiscal_year to doc_date[:4] (2023)
+    reg = ingester.load_parsed_registry()
+    assert "hash123" in reg
+    assert reg["hash123"]["fiscal_year"] == "2023"
+
+    # Test 2: overwrite CSV rows
+    ingester.overwrite_csv_rows(
+        [{"file_hash": "hash123", "fiscal_quarter": "FY", "fiscal_year": "2024"}]
+    )
+
+    # Reload and verify CSV was updated
+    reg2 = ingester.load_parsed_registry()
+    assert reg2["hash123"]["fiscal_quarter"] == "FY"
+    assert reg2["hash123"]["fiscal_year"] == "2024"
+
+    # Test 3: heal markdown files (it should insert the Fiscal Year row right after Fiscal Quarter)
+    ingester.heal_markdown_files()
+
+    # Read the markdown file and verify
+    md_updated = md_file.read_text(encoding="utf-8")
+    assert "| Fiscal Quarter | FY |" in md_updated
+    assert "| Fiscal Year | 2024 |" in md_updated
+
+    # Verify the order: Fiscal Year should be right after Fiscal Quarter
+    lines = [line.strip() for line in md_updated.split("\n") if line.strip()]
+    fq_idx = next(i for i, line in enumerate(lines) if "Fiscal Quarter" in line)
+    fy_idx = next(i for i, line in enumerate(lines) if "Fiscal Year" in line)
+    assert fy_idx == fq_idx + 1

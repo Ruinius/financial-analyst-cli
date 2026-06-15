@@ -170,3 +170,6 @@ Config      Ingestion   Extraction  History     Modeling    Interactive
 Next steps:
 
 - Create a check for when the user mistakes a command for a ticker (for example, fa use ingest). Ingest is obviously not a ticker. Ask the user if they are sure.
+- In analyze, by default, the answer is to analyze all the files. The pig should not ask.
+- Need to double check how does the deducing Q4 calculations work
+- Need to double check how to handle earnings announcement vs 10Q. In particular, the organic growth and EBITA margins are important
