@@ -474,3 +474,56 @@ def test_deduce_q4_financials_growth():
     # r4_prior = 2023-Q4 Revenue = 100 (which is also equal to ann_revenue_prior - r1_prior - r2_prior - r3_prior = 400 - 100 - 100 - 100 = 100).
     # So q4_organic_growth = 15 / 100 * 100 = 15.00%.
     assert q4_24["Organic Revenue Growth"] == "15.00%"
+
+
+def test_deduce_q4_financials_growth_fallback():
+    analyzer = Analyzer()
+
+    # 2024 data: Q1-Q3 (Q4 missing, no prior year data)
+    quarterly = [
+        {
+            "period": "2024-Q1",
+            "Revenue": "110.00",
+            "Organic Revenue Growth": "10.00%",
+            "Simple Revenue Growth": "10.00%",
+        },
+        {
+            "period": "2024-Q2",
+            "Revenue": "112.00",
+            "Organic Revenue Growth": "12.00%",
+            "Simple Revenue Growth": "12.00%",
+        },
+        {
+            "period": "2024-Q3",
+            "Revenue": "108.00",
+            "Organic Revenue Growth": "8.00%",
+            "Simple Revenue Growth": "8.00%",
+        },
+    ]
+
+    annual = [
+        {
+            "period": "2024",
+            "Revenue": "445.00",
+            "Organic Revenue Growth": "11.25%",
+            "Simple Revenue Growth": "11.25%",
+        },
+    ]
+
+    analyzer.deduce_q4_financials(quarterly, annual)
+
+    q4_24 = next((q for q in quarterly if q.get("period") == "2024-Q4"), None)
+    assert q4_24 is not None
+
+    # Deduced Revenue: 445 - 110 - 112 - 108 = 115
+    assert q4_24["Revenue"] == "115.00"
+
+    # Fallback growth:
+    # ann_increase = 445 * 11.25% = 50.0625
+    # q1_increase = 110 * 10% = 11.0
+    # q2_increase = 112 * 12% = 13.44
+    # q3_increase = 108 * 8% = 8.64
+    # q4_increase = 50.0625 - 11.0 - 13.44 - 8.64 = 16.9825
+    # q4_growth = 16.9825 / 115 * 100 = 14.767% -> formatted as "14.77%"
+    assert q4_24["Simple Revenue Growth"] == "14.77%"
+    assert q4_24["Organic Revenue Growth"] == "14.77%"

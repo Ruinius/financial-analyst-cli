@@ -386,7 +386,7 @@ class Analyzer:
                     q4_turnover = (q4_rev * 4.0 / q4_ic) if q4_ic != 0.0 else 0.0
                     q4_roic = (q4_nopat * 4.0 / q4_ic * 100.0) if q4_ic != 0.0 else 0.0
 
-                    # Calculate growth rates if prior year data is available
+                    # Calculate growth rates
                     q4_simple_growth = 0.0
                     q4_organic_growth = 0.0
 
@@ -431,6 +431,49 @@ class Analyzer:
                                 - q3_org_increase
                             )
                             q4_organic_growth = (q4_org_increase / r4_prior) * 100.0
+                    else:
+                        # Fallback: calculate using current year values if prior year data is not available
+                        ann_rev = get_float(ann, "Revenue")
+                        r1 = get_float(q1, "Revenue")
+                        r2 = get_float(q2, "Revenue")
+                        r3 = get_float(q3, "Revenue")
+
+                        if q4_rev > 0:
+                            ann_org_growth = get_float(ann, "Organic Revenue Growth")
+                            q1_org_growth = get_float(q1, "Organic Revenue Growth")
+                            q2_org_growth = get_float(q2, "Organic Revenue Growth")
+                            q3_org_growth = get_float(q3, "Organic Revenue Growth")
+
+                            ann_org_increase = ann_rev * (ann_org_growth / 100.0)
+                            q1_org_increase = r1 * (q1_org_growth / 100.0)
+                            q2_org_increase = r2 * (q2_org_growth / 100.0)
+                            q3_org_increase = r3 * (q3_org_growth / 100.0)
+
+                            q4_org_increase = (
+                                ann_org_increase
+                                - q1_org_increase
+                                - q2_org_increase
+                                - q3_org_increase
+                            )
+                            q4_organic_growth = (q4_org_increase / q4_rev) * 100.0
+
+                            ann_simple_growth = get_float(ann, "Simple Revenue Growth")
+                            q1_simple_growth = get_float(q1, "Simple Revenue Growth")
+                            q2_simple_growth = get_float(q2, "Simple Revenue Growth")
+                            q3_simple_growth = get_float(q3, "Simple Revenue Growth")
+
+                            ann_simple_increase = ann_rev * (ann_simple_growth / 100.0)
+                            q1_simple_increase = r1 * (q1_simple_growth / 100.0)
+                            q2_simple_increase = r2 * (q2_simple_growth / 100.0)
+                            q3_simple_increase = r3 * (q3_simple_growth / 100.0)
+
+                            q4_simple_increase = (
+                                ann_simple_increase
+                                - q1_simple_increase
+                                - q2_simple_increase
+                                - q3_simple_increase
+                            )
+                            q4_simple_growth = (q4_simple_increase / q4_rev) * 100.0
 
                     q4_entry = {
                         "period": f"{yr}-Q4",
