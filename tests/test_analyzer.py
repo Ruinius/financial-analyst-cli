@@ -424,3 +424,53 @@ def test_analyzer_duplicate_handling(mock_curator, mock_load_config, tmp_path):
     ).read_text(encoding="utf-8")
     lines = [line for line in q_content.splitlines() if "2024-Q1" in line]
     assert len(lines) == 2, f"Expected 2 lines for 2024-Q1, got: {lines}"
+
+
+def test_deduce_q4_financials_growth():
+    analyzer = Analyzer()
+
+    # 2023 data: Q1-Q4 and Annual
+    quarterly = [
+        {"period": "2023-Q1", "Revenue": "100.00", "Organic Revenue Growth": "10.00%"},
+        {"period": "2023-Q2", "Revenue": "100.00", "Organic Revenue Growth": "10.00%"},
+        {"period": "2023-Q3", "Revenue": "100.00", "Organic Revenue Growth": "10.00%"},
+        {"period": "2023-Q4", "Revenue": "100.00", "Organic Revenue Growth": "10.00%"},
+        # 2024 data: Q1-Q3 (Q4 missing, to be deduced)
+        {"period": "2024-Q1", "Revenue": "110.00", "Organic Revenue Growth": "10.00%"},
+        {"period": "2024-Q2", "Revenue": "112.00", "Organic Revenue Growth": "12.00%"},
+        {"period": "2024-Q3", "Revenue": "108.00", "Organic Revenue Growth": "8.00%"},
+    ]
+
+    annual = [
+        {"period": "2023", "Revenue": "400.00", "Organic Revenue Growth": "10.00%"},
+        {"period": "2024", "Revenue": "445.00", "Organic Revenue Growth": "11.25%"},
+    ]
+
+    analyzer.deduce_q4_financials(quarterly, annual)
+
+    # 2024-Q4 should have been deduced and added to quarterly list
+    q4_24 = next((q for q in quarterly if q.get("period") == "2024-Q4"), None)
+    assert q4_24 is not None
+
+    # Deduced Revenue: 445 - 110 - 112 - 108 = 115
+    assert q4_24["Revenue"] == "115.00"
+
+    # Simple growth: (115 - 100) / 100 * 100 = 15.00%
+    assert q4_24["Simple Revenue Growth"] == "15.00%"
+
+    # Organic growth: (445 * 0.1125 - (110 * 0.1 + 112 * 0.12 + 108 * 0.08)) / (445 - 110 - 112 - 108) ... wait!
+    # Let's verify the base in the formula:
+    # ann_org_increase = ann_revenue_prior * (ann_org_growth / 100.0) = 400 * 10% = 40? Wait, no!
+    # ann_org_growth is for the current year (2024), which compares 2024 to 2023.
+    # So the base is the prior year's annual revenue (2023): ann_revenue_prior = 400.00.
+    # Therefore, ann_org_increase = 400 * (11.25 / 100) = 45.
+    # q1_org_growth = 10.00% for 2024-Q1. The base is 2023-Q1 Revenue = 100.
+    # So q1_org_increase = 100 * (10 / 100) = 10.
+    # q2_org_growth = 12.00% for 2024-Q2. The base is 2023-Q2 Revenue = 100.
+    # So q2_org_increase = 100 * (12 / 100) = 12.
+    # q3_org_growth = 8.00% for 2024-Q3. The base is 2023-Q3 Revenue = 100.
+    # So q3_org_increase = 100 * (8 / 100) = 8.
+    # q4_org_increase = ann_org_increase - q1_org_increase - q2_org_increase - q3_org_increase = 45 - 10 - 12 - 8 = 15.
+    # r4_prior = 2023-Q4 Revenue = 100 (which is also equal to ann_revenue_prior - r1_prior - r2_prior - r3_prior = 400 - 100 - 100 - 100 = 100).
+    # So q4_organic_growth = 15 / 100 * 100 = 15.00%.
+    assert q4_24["Organic Revenue Growth"] == "15.00%"

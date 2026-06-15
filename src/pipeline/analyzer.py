@@ -328,7 +328,10 @@ class Analyzer:
                 yr, qtr = period.split("-")
                 quarters_by_year.setdefault(yr, {})[qtr] = q
 
-        for ann in annual:
+        # Sort annual chronologically to ensure prior years are deduced first
+        annual_sorted = sorted(annual, key=lambda x: x.get("period", ""))
+
+        for ann in annual_sorted:
             yr = ann.get("period", "")
             if not yr or yr == "YYYY":
                 continue
@@ -383,6 +386,52 @@ class Analyzer:
                     q4_turnover = (q4_rev * 4.0 / q4_ic) if q4_ic != 0.0 else 0.0
                     q4_roic = (q4_nopat * 4.0 / q4_ic * 100.0) if q4_ic != 0.0 else 0.0
 
+                    # Calculate growth rates if prior year data is available
+                    q4_simple_growth = 0.0
+                    q4_organic_growth = 0.0
+
+                    prior_yr = str(int(yr) - 1)
+                    prior_qtrs = quarters_by_year.get(prior_yr, {})
+                    prior_ann = next(
+                        (a for a in annual if a.get("period", "") == prior_yr), None
+                    )
+
+                    if (
+                        prior_ann
+                        and "Q1" in prior_qtrs
+                        and "Q2" in prior_qtrs
+                        and "Q3" in prior_qtrs
+                        and "Q4" in prior_qtrs
+                    ):
+                        r1_prior = get_float(prior_qtrs["Q1"], "Revenue")
+                        r2_prior = get_float(prior_qtrs["Q2"], "Revenue")
+                        r3_prior = get_float(prior_qtrs["Q3"], "Revenue")
+                        ann_revenue_prior = get_float(prior_ann, "Revenue")
+                        r4_prior = ann_revenue_prior - r1_prior - r2_prior - r3_prior
+
+                        if r4_prior > 0:
+                            q4_simple_growth = (q4_rev - r4_prior) / r4_prior * 100.0
+
+                            ann_org_growth = get_float(ann, "Organic Revenue Growth")
+                            q1_org_growth = get_float(q1, "Organic Revenue Growth")
+                            q2_org_growth = get_float(q2, "Organic Revenue Growth")
+                            q3_org_growth = get_float(q3, "Organic Revenue Growth")
+
+                            ann_org_increase = ann_revenue_prior * (
+                                ann_org_growth / 100.0
+                            )
+                            q1_org_increase = r1_prior * (q1_org_growth / 100.0)
+                            q2_org_increase = r2_prior * (q2_org_growth / 100.0)
+                            q3_org_increase = r3_prior * (q3_org_growth / 100.0)
+
+                            q4_org_increase = (
+                                ann_org_increase
+                                - q1_org_increase
+                                - q2_org_increase
+                                - q3_org_increase
+                            )
+                            q4_organic_growth = (q4_org_increase / r4_prior) * 100.0
+
                     q4_entry = {
                         "period": f"{yr}-Q4",
                         "date": ann.get("date", ""),
@@ -396,11 +445,12 @@ class Analyzer:
                         "ROIC": f"{q4_roic:.2f}%",
                         "Basic Shares Outstanding": f"{q4_basic:,.0f}",
                         "Diluted Shares Outstanding": f"{q4_diluted:,.0f}",
-                        "Simple Revenue Growth": "0.00%",
-                        "Organic Revenue Growth": "0.00%",
+                        "Simple Revenue Growth": f"{q4_simple_growth:.2f}%",
+                        "Organic Revenue Growth": f"{q4_organic_growth:.2f}%",
                         "Adjusted Tax Rate": ann.get("Adjusted Tax Rate", "0.00%"),
                     }
                     quarterly.append(q4_entry)
+                    quarters_by_year.setdefault(yr, {})["Q4"] = q4_entry
                     formatting.print_success(
                         f"Deduced Q4 financials for FY {yr} successfully."
                     )
