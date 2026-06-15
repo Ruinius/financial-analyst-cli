@@ -18,7 +18,7 @@ def extract_transcript(
 
     # Read from the center outwards
     center = (len(chunk_ids) + 1) / 2
-    sorted_chunk_ids = sorted(chunk_ids, key=lambda x: abs(x - center))
+    sorted_chunk_ids = sorted(chunk_ids, key=lambda x: abs(x - center))[:5]
 
     guidance_or_qa = ""
     stop_early = False

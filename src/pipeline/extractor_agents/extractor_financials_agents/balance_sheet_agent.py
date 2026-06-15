@@ -113,6 +113,12 @@ def run_balance_sheet_agent(
 
     max_turns = 10
     for turn in range(max_turns):
+        if turn == max_turns - 1:
+            # We are on the last turn, append a strict instruction to finalize
+            history[-1]["content"] += (
+                "\n\nCRITICAL: This is your final turn (turn 10 of 10). You must call the 'finalize' tool immediately with your current best estimates. Do not call find_keyword_contexts or get_chunk_by_id again."
+            )
+
         prompt = ""
         for h in history:
             prompt += f"\n\n--- {h['role'].upper()} ---\n{h['content']}"

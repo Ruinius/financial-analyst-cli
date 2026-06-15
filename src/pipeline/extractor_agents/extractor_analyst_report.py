@@ -30,16 +30,16 @@ def extract_analyst_report(
         "assess qualitative trends, and verify source citations from the document.\n"
         "You must execute actions by outputting a valid JSON object containing 'thought', 'tool', and 'arguments'.\n"
         "Available tools:\n"
-        "- 'find_keyword_contexts': arguments: {'keywords': list, 'window': int}\n"
+        "- 'find_keyword_contexts': arguments: {'keywords': list, 'window': int (recommended: 250)}\n"
         "- 'get_chunk_by_id': arguments: {'chunk_id': int}\n"
         "- 'finalize': arguments: {\n"
         "    'economic_moat': 'None | Narrow | Wide',\n"
         "    'economic_moat_rationale': str,\n"
         "    'margin_outlook': 'Decreasing | Stable | Increasing',\n"
-        "    'margin_magnitude': str,\n"
+        "    'margin_magnitude': str (representing the amount of increase or decrease in percentage points, e.g., '+2 pp', '-1 pp', or '0 pp'. This refers to how much increase/decrease or acceleration/deceleration occurs, NOT the absolute value of the margin itself. If not explicitly stated, take a best guess),\n"
         "    'margin_rationale': str,\n"
         "    'growth_outlook': 'Decelerating | Stable | Accelerating',\n"
-        "    'growth_magnitude': str,\n"
+        "    'growth_magnitude': str (representing the amount of acceleration or deceleration in percentage points, e.g., '+2 pp', '-1 pp', or '0 pp'. This refers to how much increase/decrease or acceleration/deceleration occurs, NOT the absolute value of the growth rate itself. If not explicitly stated, take a best guess),\n"
         "    'growth_rationale': str\n"
         "  }\n\n"
         "Rules:\n"
@@ -62,6 +62,12 @@ def extract_analyst_report(
         prompt = ""
         for h in history:
             prompt += f"\n\n--- {h['role'].upper()} ---\n{h['content']}"
+        if turn == 4:
+            prompt += (
+                "\n\n--- USER ---\n"
+                "CRITICAL: This is your final turn. You MUST call the 'finalize' tool now to return your findings. "
+                "Do not call any other tool. Provide your best detailed rationales and ratings based on what you have learned so far."
+            )
         try:
             resp = extractor.llm.generate(
                 prompt, system_prompt=sys_prompt, stream_thinking=True
