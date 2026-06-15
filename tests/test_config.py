@@ -149,6 +149,51 @@ def test_cli_use_command_lowercase_ticker(temp_config):
     assert updated.active_workspace_path == str(target_path)
 
 
+def test_cli_use_command_mistaken_command_cancelled(temp_config):
+    base_dir = temp_config.parent / "workspace"
+    settings = Settings(
+        full_name="Bob",
+        email="bob@example.com",
+        project_name="BobProj",
+        primary_llm_api_key="sk-secret-key-1234",
+        base_workspace_dir=str(base_dir),
+    )
+    save_config(settings)
+
+    # Simulate answering "no" to the prompt
+    result = runner.invoke(app, ["use", "ingest"], input="n\n")
+    assert result.exit_code == 0
+    assert "Workspace switch cancelled" in result.stdout
+
+    # Active ticker should remain unchanged (None)
+    updated = load_config()
+    assert updated.active_ticker is None
+
+
+def test_cli_use_command_mistaken_command_confirmed(temp_config):
+    base_dir = temp_config.parent / "workspace"
+    settings = Settings(
+        full_name="Bob",
+        email="bob@example.com",
+        project_name="BobProj",
+        primary_llm_api_key="sk-secret-key-1234",
+        base_workspace_dir=str(base_dir),
+    )
+    save_config(settings)
+
+    # Simulate answering "yes" to the prompt
+    result = runner.invoke(app, ["use", "ingest"], input="y\n")
+    assert result.exit_code == 0
+    assert "INGEST" in result.stdout
+    assert "Workspace switch cancelled" not in result.stdout
+
+    target_path = base_dir / "INGEST"
+    assert target_path.exists()
+
+    updated = load_config()
+    assert updated.active_ticker == "INGEST"
+
+
 def test_startup_config_auto_detection(monkeypatch, temp_config):
     # Test that auto-init is triggered if config is missing
     from src.cli.main import main

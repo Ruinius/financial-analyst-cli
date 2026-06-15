@@ -459,7 +459,12 @@ def run_extract(ticker: str = typer.Option(None, "--ticker", "-t")):
 
 
 @run_app.command("analyze")
-def run_analyze(ticker: str = typer.Option(None, "--ticker", "-t")):
+def run_analyze(
+    ticker: str = typer.Option(None, "--ticker", "-t"),
+    limit: int = typer.Option(
+        None, "--limit", "-l", help="Limit the number of files to process"
+    ),
+):
     """Synthesize longitudinal trends and analyst views."""
     try:
         settings = load_config()
@@ -499,17 +504,6 @@ def run_analyze(ticker: str = typer.Option(None, "--ticker", "-t")):
     formatting.speak(
         f"Let us synthesize the longitudinal financial trends! I found {extracted_files_count} extracted file(s) ready for analysis."
     )
-
-    response = typer.prompt("How many files would you like to process?", default="all")
-    limit = None
-    if response.strip().lower() != "all":
-        try:
-            limit = int(response.strip())
-        except ValueError:
-            formatting.print_warning(
-                "Invalid number of files entered. Defaulting to processing all files."
-            )
-            limit = None
 
     formatting.print_info("Starting historical trend synthesis stage...")
     try:

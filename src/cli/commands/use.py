@@ -113,6 +113,32 @@ def main_use(
         if not ticker:
             raise ValueError("Ticker symbol cannot be empty.")
 
+        if ticker in {
+            "USE",
+            "RUN",
+            "CHAT",
+            "QUERY",
+            "VIEWER",
+            "CONFIG",
+            "EDGAR",
+            "INGEST",
+            "EXTRACT",
+            "ANALYZE",
+            "MODEL",
+            "INIT",
+            "SHOW",
+            "SET",
+            "HELP",
+        }:
+            formatting.print_warning(
+                f"'{ticker}' is a command or subcommand name, not a typical company ticker."
+            )
+            if not typer.confirm(
+                f"Are you sure you want to switch workspace to '{ticker}'?"
+            ):
+                formatting.print_info("Workspace switch cancelled.")
+                raise typer.Exit(0)
+
         settings = load_config()
 
         # Calculate active path

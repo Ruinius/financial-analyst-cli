@@ -163,13 +163,11 @@ Config      Ingestion   Extraction  History     Modeling    Interactive
   - [x] Standardize configuration text/vision LLM models to `google/gemma-4-31b-it:free`.
   - [x] In `fa run ingest`, add logs to show which files are ingested and which ones are not (skipped as duplicates or due to limit).
   - [x] In `fa run extract`, show the count of parsed files and prompt the user for the number of files to process (defaulting to all).
-  - [x] In `fa run analyze`, show the count of extracted files and prompt the user for the number of files to process (defaulting to all).
+  - [x] In `fa run analyze`, show the count of extracted files and process all files by default without prompting (supporting an optional `--limit` flag).
   - [x] In `fa run extract`, add logs to show the verbose chain of thought/pondering text from the LLM while suppressing verbose structured JSON payloads, keeping the CLI output clean and streaming.
   - [x] **Add API provider selection and multi-provider keys**: Added ability to select API provider in config, store provider-specific keys, and dynamically route client requests to Gemini or OpenRouter.
+  - [x] **Mistaken command validation check in `fa use`**: Added validation check that warns the user and prompts for confirmation if they mistake a command/subcommand name for a ticker.
 
 Next steps:
 
-- Create a check for when the user mistakes a command for a ticker (for example, fa use ingest). Ingest is obviously not a ticker. Ask the user if they are sure.
-- In analyze, by default, the answer is to analyze all the files. The pig should not ask.
-- Need to double check how does the deducing Q4 calculations work
 - Need to double check how to handle earnings announcement vs 10Q. In particular, the organic growth and EBITA margins are important
