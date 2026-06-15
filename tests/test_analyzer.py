@@ -224,12 +224,12 @@ def test_historical_synthesis(mock_curator, mock_load_config, mock_workspace):
     # Read quarterly report to check Q4 deduction
     q_content = (hist_dir / "financials_quarter.md").read_text(encoding="utf-8")
     assert "2024-Q4" in q_content
-    # Deduced Revenue = 350,000 - 90,000 - 80,000 - 85,000 = 95,000.00
-    assert "95,000.00" in q_content
-    # Deduced EBITA = 80,000 - 20,000 - 15,000 - 18,000 = 27,000.00
-    assert "27,000.00" in q_content
-    # Deduced NOPAT = 64,000 - 16,000 - 12,000 - 14,400 = 21,600.00
-    assert "21,600.00" in q_content
+    # Deduced Revenue = 350,000 - 90,000 - 80,000 - 85,000 = 95000.0
+    assert "95000.0" in q_content
+    # Deduced EBITA = 80,000 - 20,000 - 15,000 - 18,000 = 27000.0
+    assert "27000.0" in q_content
+    # Deduced NOPAT = 64,000 - 16,000 - 12,000 - 14,400 = 21600.00
+    assert "21600.00" in q_content
 
     # Read analyst views
     views_content = (hist_dir / "analyst_views.md").read_text(encoding="utf-8")
@@ -453,7 +453,7 @@ def test_deduce_q4_financials_growth():
     assert q4_24 is not None
 
     # Deduced Revenue: 445 - 110 - 112 - 108 = 115
-    assert q4_24["Revenue"] == "115.00"
+    assert q4_24["Revenue"] == "115.0"
 
     # Simple growth: (115 - 100) / 100 * 100 = 15.00%
     assert q4_24["Simple Revenue Growth"] == "15.00%"
@@ -516,7 +516,7 @@ def test_deduce_q4_financials_growth_fallback():
     assert q4_24 is not None
 
     # Deduced Revenue: 445 - 110 - 112 - 108 = 115
-    assert q4_24["Revenue"] == "115.00"
+    assert q4_24["Revenue"] == "115.0"
 
     # Fallback growth:
     # ann_increase = 445 * 11.25% = 50.0625

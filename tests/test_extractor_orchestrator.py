@@ -301,8 +301,11 @@ def test_extract_financials_stages(
                 return '{"line_items": [{"line_name": "Cash", "value": "500", "category": "current_assets", "exact_snippet": "Cash 500"}]}'
         if "basic and diluted shares" in sys_lower:
             return '{"thought": "Finalizing", "tool": "finalize", "arguments": {"basic_shares": "100.0", "diluted_shares": "110.0"}}'
-        if "simple revenue growth and organic revenue growth" in sys_lower:
-            return '{"thought": "Finalizing", "tool": "finalize", "arguments": {"simple_growth": "10%", "organic_growth": "8%"}}'
+        if (
+            "simple revenue growth, organic revenue growth, and total revenue"
+            in sys_lower
+        ):
+            return '{"thought": "Finalizing", "tool": "finalize", "arguments": {"simple_growth": "10%", "organic_growth": "8%", "revenue": "1000.0"}}'
         if "statement interpretation agent" in sys_lower:
             return '{"line_items": [{"line_name": "Revenue", "value": 1000.0, "category": "income_statement", "operating": true, "calculated": false}, {"line_name": "Cash", "value": 500.0, "category": "current_assets", "operating": true, "calculated": false}]}'
         if "ebita adjustments" in sys_lower:
@@ -392,11 +395,12 @@ Revenue of $1000. Cash of $500. Shares outstanding basic shares diluted shares o
     assert basic_shares == 100.0
     assert diluted_shares == 110.0
 
-    simple_growth, organic_growth = run_organic_growth_agent(
-        content, 1000.0, extractor, is_quarterly=False
+    simple_growth, organic_growth, revenue_val = run_organic_growth_agent(
+        content, extractor, is_quarterly=False
     )
     assert simple_growth == 0.10
     assert organic_growth == 0.08
+    assert revenue_val == 1000.0
 
     # 5. Test calculate_deterministic_metrics
     op_inc, ebita, ebita_adjustments = run_ebita_agent(
@@ -427,6 +431,7 @@ Revenue of $1000. Cash of $500. Shares outstanding basic shares diluted shares o
         tax_adjustments=tax_adjustments,
         extractor=extractor,
         summaries=summaries,
+        revenue=revenue_val,
     )
     assert success is True
 
@@ -507,6 +512,7 @@ def test_deterministic_metrics_variations():
                 ],
                 extractor=mock_extractor,
                 summaries=[],
+                revenue=10000.0,
             )
 
             # Assertions to verify correct logic was run without exceptions

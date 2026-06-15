@@ -8,15 +8,15 @@ logger = logging.getLogger(__name__)
 
 def run_organic_growth_agent(
     content: str,
-    revenue: float,
     extractor,
     income_statement_content: str = "",
     is_quarterly: bool = True,
-) -> tuple[float, float]:
+) -> tuple[float, float, float]:
     from src.pipeline.extractor_orchestrator import clean_val
 
     simple_growth = 0.0
     organic_growth = 0.0
+    revenue = 0.0
 
     # Load extraction learnings
     learning_context = extractor.get_extract_context()
@@ -27,22 +27,23 @@ def run_organic_growth_agent(
         else "fiscal year (twelve months)"
     )
     sys_prompt = (
-        "You are Sir Pennyworth, a senior financial analyst. Your goal is to determine the simple revenue growth and organic revenue growth.\n"
-        f"Specifically, we are focused on the {focus_period} time period. Find the growth rates corresponding to this focused period.\n"
+        "You are Sir Pennyworth, a senior financial analyst. Your goal is to determine the simple revenue growth, organic revenue growth, and total revenue.\n"
+        f"Specifically, we are focused on the {focus_period} time period. Find the values corresponding to this focused period.\n"
         "You must execute actions by outputting a valid JSON object containing 'thought', 'tool', and 'arguments'.\n"
         "Available tools:\n"
         "- 'find_keyword_contexts': arguments: {'keywords': list, 'window': int}\n"
-        "- 'finalize': arguments: {'simple_growth': str, 'organic_growth': str}\n\n"
+        "- 'finalize': arguments: {'simple_growth': str, 'organic_growth': str, 'revenue': str}\n\n"
         "Rules:\n"
         "1. Search the document for organic growth, constant currency adjustments, acquisitions, and revenue growth using find_keyword_contexts (hint: potential first keywords to search for include 'organic', 'currency', 'acquisition', 'growth').\n"
         "2. If organic growth or constant currency growth is explicitly reported, extract it. Check if there are M&A contributions that should be backed out.\n"
         "3. If organic growth is NOT explicitly reported, compute it: e.g. Organic Growth = Constant Currency Growth (if reported, otherwise simple growth) - (Acquisition revenue / Total revenue).\n"
-        "4. Call 'finalize' with your final extracted/calculated growth rates. You must express the values as percentage float strings (e.g., '18.25%' for 18.25% growth, '8.00%' for 8% growth, or '0.50%' for 0.5% growth). Format the percentage with two decimal places."
+        "4. Determine the correct total revenue value from the income statement content.\n"
+        "5. Call 'finalize' with your final extracted/calculated growth rates and total revenue. You must express the growth values as percentage float strings (e.g., '18.25%' for 18.25% growth, '8.00%' for 8% growth, or '0.50%' for 0.5% growth). Format the percentage with two decimal places. For revenue, provide the total revenue number as a string (e.g., '9829' or '9829.0')."
     )
 
     user_content = (
-        f"Find simple and organic revenue growth. The reported revenue is {revenue}. You have up to 4 turns. "
-        f"(Hint: try searching for keywords like 'organic', 'currency', 'acquisition', 'contribute' or 'growth' first)."
+        "Find the total revenue, simple revenue growth, and organic revenue growth. You have up to 4 turns. "
+        "(Hint: try searching for keywords like 'organic', 'currency', 'acquisition', 'contribute' or 'growth' first)."
     )
     if learning_context:
         user_content += f'\n\nHere is the active company extraction learning context to guide your extraction decision logic:\n"""\n{learning_context}\n"""'
@@ -103,6 +104,7 @@ def run_organic_growth_agent(
 
             simple_growth = clean_growth_val(str(args.get("simple_growth", "0")))
             organic_growth = clean_growth_val(str(args.get("organic_growth", "0")))
+            revenue = clean_val(str(args.get("revenue", "0")))
             break
         elif tool == "find_keyword_contexts":
             kw = args.get("keywords", [])
@@ -133,4 +135,4 @@ def run_organic_growth_agent(
 
     if organic_growth == 0.0 and simple_growth != 0.0:
         organic_growth = simple_growth
-    return simple_growth, organic_growth
+    return simple_growth, organic_growth, revenue

@@ -182,6 +182,7 @@ def calculate_deterministic_metrics(
     tax_adjustments: list,
     extractor,
     summaries: list,
+    revenue: float = 0.0,
 ) -> bool:
     # Check time period and multiplier
     metadata = extractor.get_document_metadata(file_path.name)
@@ -205,12 +206,10 @@ def calculate_deterministic_metrics(
     multiplier = 4.0 if time_period == "Q" else 1.0
 
     # Calculations
-    revenue = 0.0
-    for item in extracted_line_items:
-        n = item.line_name.lower()
-        if "revenue" in n or "sales" in n:
-            revenue = item.value
-            break
+    if revenue <= 0.0:
+        raise ValueError(
+            "Revenue must be greater than 0.0 and extracted correctly by the agent."
+        )
 
     ebita_margin = (ebita / revenue) * 100.0 if revenue > 0.0 else 0.0
 
@@ -490,14 +489,6 @@ def extract_financials(
     if is_path.exists():
         income_statement_content = is_path.read_text(encoding="utf-8")
 
-    # Find revenue to supply to organic growth agent
-    revenue = 0.0
-    for item in extracted_line_items:
-        n = item.line_name.lower()
-        if "revenue" in n or "sales" in n:
-            revenue = item.value
-            break
-
     # Phase 3: Diluted Shares, Organic Growth, EBITA, and Adjusted Tax Agents
     basic_shares, diluted_shares = run_diluted_shares_agent(
         content,
@@ -506,9 +497,8 @@ def extract_financials(
         is_quarterly=is_quarterly,
     )
 
-    simple_growth, organic_growth = run_organic_growth_agent(
+    simple_growth, organic_growth, revenue = run_organic_growth_agent(
         content,
-        revenue,
         extractor,
         income_statement_content=income_statement_content,
         is_quarterly=is_quarterly,
@@ -548,6 +538,7 @@ def extract_financials(
         tax_adjustments=tax_adjustments,
         extractor=extractor,
         summaries=summaries,
+        revenue=revenue,
     )
 
     return success
