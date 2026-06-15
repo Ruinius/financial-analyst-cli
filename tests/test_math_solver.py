@@ -44,6 +44,7 @@ def test_solve_math_unsupported_node():
     with pytest.raises(ValueError, match="Unsupported expression node"):
         solve_math("[1, 2]")
 
+
 def test_solve_math_exponentiation_limit():
     with pytest.raises(ValueError, match="Exponentiation limits exceeded"):
         solve_math("9**9**9")
@@ -55,4 +56,4 @@ def test_solve_math_exponentiation_limit():
         solve_math("101**2")
 
     # Should not raise
-    assert solve_math("2**100") == pytest.approx(1.2676506e+30, rel=1e-5)
+    assert solve_math("2**100") == pytest.approx(1.2676506e30, rel=1e-5)

@@ -482,8 +482,9 @@ def test_deterministic_metrics_variations():
         ),
     ]
 
-    with patch("builtins.open", MagicMock()), patch(
-        "src.utils.formatting.print_success", MagicMock()
+    with (
+        patch("builtins.open", MagicMock()),
+        patch("src.utils.formatting.print_success", MagicMock()),
     ):
         # We also patch Path.mkdir so it doesn't try to create directories
         with patch("pathlib.Path.mkdir", MagicMock()):

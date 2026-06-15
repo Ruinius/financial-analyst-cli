@@ -1,9 +1,8 @@
 from unittest.mock import patch, MagicMock
-import pytest
-from pathlib import Path
 
 from src.core.config import Settings
 from src.services.edgar_client import EdgarClient
+
 
 @patch("src.services.edgar_client.load_config")
 @patch("httpx.Client.get")

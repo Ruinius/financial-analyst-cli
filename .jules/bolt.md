@@ -4,3 +4,6 @@
 ## 2026-06-14 - Redundant Disk I/O in Financial Extraction Pipeline
 **Learning:** Multiple extraction agents were reading the exact same static dictionary files and learning context files from disk for every line item or document processed, leading to O(N) disk I/O reads that scaled linearly with document size and agent count.
 **Action:** When a piece of context (like a classification dictionary) is static for the duration of a process, implement a memoization/caching pattern at the orchestrator or instance level (e.g., `_dict_cache` in the `Extractor` class) so the file is read from disk only once and fetched from memory subsequently.
+## 2024-05-19 - Regex anti-pattern on large string blocks
+**Learning:** Using `re.search` with `re.DOTALL` to extract sub-strings between deterministic boundary markers (like `<!-- CHUNK_START: X -->`) from extremely large megabyte-sized document strings creates a significant measurable performance bottleneck, resulting in O(N^2) or high constant-factor O(N) regex evaluation times.
+**Action:** Always use primitive `str.find()` with string slicing instead of regex when the start and end markers are exact, deterministic string values. This bypasses regex compilation and matching overhead on massive strings and speeds up extraction by several orders of magnitude.
