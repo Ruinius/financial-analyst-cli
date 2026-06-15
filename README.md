@@ -47,10 +47,21 @@ I am constantly learning and growing. I am incredibly grateful for any comments,
 
 ---
 
+## Project Status & Roadmap
+
+* **Completed**: Finished editing the `ingest`, `extract`, and `analyze` stages with a focus on financial statements.
+* **Next Step**: Build and refine the `model` and `viewer` stages, which should be much easier.
+* **Short-Term Goal**: Work on scheduling and concurrency to make this system fully autonomous.
+  * **Autonomous Final State**: Each quarter, the AI agent will run autonomously to ingest the latest financial statements and whatever the user feeds into the ingestion folder. The latest financial model and perspective will then be automatically generated and made available for review.
+* **Far-Future Goal**: Build a portfolio builder and evolver with a strong value investing and slow investing perspective.
+
+---
+
 ## Table of Contents
 
 - [Why a Financial Analyst CLI?](#why-a-financial-analyst-cli)
 - [A Personal Growth Journey](#a-personal-growth-journey)
+- [Project Status & Roadmap](#project-status--roadmap)
 - [Core Features](#core-features)
 - [Installation & Setup](#installation--setup)
 - [First-Time Configuration](#first-time-configuration)
