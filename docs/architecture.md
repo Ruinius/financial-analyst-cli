@@ -201,7 +201,7 @@ The self-learning mechanism replaces separate config folders with 4 dedicated ro
 
 ### Workspace LLMWiki Files
 - `[TICKER]_wiki.md`: Stores structural company registries (e.g., Ingested Sources list) and qualitative perspectives (Bull & Bear) extracted strictly from recent document context without outside knowledge pollution.
-- `[TICKER]_extract_learning.md`: Stores the fiscal schedule end-dates (Q1, Q2, Q3, FY) and extraction lessons (e.g., handling ambiguous table rows or subtotal overlaps).
+- `[TICKER]_extract_learning.md`: Stores the fiscal schedule end-dates (Q1, Q2, Q3, FY) and extraction lessons (e.g., handling ambiguous table rows or subtotal overlaps) across financials, analyst reports, transcripts, and other document types.
 - `[TICKER]_analyze_learning.md`: Stores qualitative/trend analysis lessons.
 - `[TICKER]_model_learning.md`: Stores modeling lessons (e.g., ADR conversion ratios, base currencies, WACC inputs).
 

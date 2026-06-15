@@ -101,6 +101,15 @@ class CuratorAgent:
                 "## tax\n"
                 "- Which key words that worked well in the search: None\n"
                 "- What are line items to watch out for and why: None\n\n"
+                "## analyst_report\n"
+                "- Which key words that worked well in the search: None\n"
+                "- What are line items to watch out for and why: None\n\n"
+                "## transcript\n"
+                "- Which key words that worked well in the search: None\n"
+                "- What are line items to watch out for and why: None\n\n"
+                "## other\n"
+                "- Which key words that worked well in the search: None\n"
+                "- What are line items to watch out for and why: None\n\n"
                 "## User Feedback\n"
                 "<!-- Write your feedback here. The Curator Agent will compile it into lessons and clear this section. -->\n",
                 encoding="utf-8",
@@ -116,6 +125,9 @@ class CuratorAgent:
                     "organic growth",
                     "ebita",
                     "tax",
+                    "analyst_report",
+                    "transcript",
+                    "other",
                 ]:
                     if f"## {section}" not in content:
                         sections_to_add.append(
@@ -216,14 +228,14 @@ Please append the newly ingested files to the '## Ingested Sources' list. Do not
             "Your task is to update the Ingestion & Extraction Learning markdown file with correct fiscal mappings from the logs, "
             "absorb user feedback, and compile/rewrite the entire file to be highly succinct and strictly future-AI-actionable. "
             "You MUST preserve the exact markdown structure of all sections (all headings: ## Fiscal Schedule Mappings, ## Lessons to Better Ingest & Extract, "
-            "## balance_sheet, ## income_statement, ## diluted_shares, ## organic growth, ## ebita, ## tax, and ## User Feedback). "
+            "## balance_sheet, ## income_statement, ## diluted_shares, ## organic growth, ## ebita, ## tax, ## analyst_report, ## transcript, ## other, and ## User Feedback). "
             "Keep all contents (including agent-specific sections) highly succinct, dense, and focused ONLY on lessons/rules that will help future AI agent tasks succeed "
             "(e.g. specific keywords, naming patterns, structural anomalies, or formula logic). Aggressively discard verbose commentary, conversational filler, "
             "or generic tips (like 'always double check numbers'). Do not delete or rename any section. "
             "CRITICAL 1: Each section (all headings and subheadings) MUST be kept to less than 10 lines of text/bullets. "
             "CRITICAL 2: You may include short single-line examples, but you MUST NOT include any example extracted tables (e.g. Markdown tables of balance sheets, income statements, etc.). "
             "CRITICAL 3: To avoid redundancy, the '## Lessons to Better Ingest & Extract' section must focus ONLY on high-level ingestion/extraction rules (such as fiscal calendar mappings or general period validation). "
-            "DO NOT include or duplicate agent-specific details (like specific keywords, line items, or formulas for balance sheet, income statement, organic growth, diluted shares, ebita, or tax) in the top section; "
+            "DO NOT include or duplicate agent-specific details (like specific keywords, line items, or formulas for balance sheet, income statement, organic growth, diluted shares, ebita, tax, analyst report, transcript, or other) in the top section; "
             "keep those details strictly inside their respective agent headings."
             "Return the entire updated markdown file, and ensure that the '## User Feedback' section is empty/cleared "
             "(with only the placeholder comment inside). Do not wrap in markdown code blocks."
@@ -273,14 +285,14 @@ Please:
             "Your task is to update the Ingestion & Extraction Learning markdown file with new extraction lessons from the run, "
             "absorb user feedback, and compile/rewrite the entire file to be highly succinct and future-AI-actionable. "
             "You MUST preserve the exact markdown structure of all sections (all headings: ## Fiscal Schedule Mappings, ## Lessons to Better Ingest & Extract, "
-            "## balance_sheet, ## income_statement, ## diluted_shares, ## organic growth, ## ebita, ## tax, and ## User Feedback). "
+            "## balance_sheet, ## income_statement, ## diluted_shares, ## organic growth, ## ebita, ## tax, ## analyst_report, ## transcript, ## other, and ## User Feedback). "
             "Keep all contents (including agent-specific sections) highly succinct, dense, and focused ONLY on lessons/rules that will help future AI agent tasks succeed "
             "(e.g. specific keywords, line naming adjustments, or calculation tricks). Avoid generic advice or conversational filler. "
             "Do not delete or rename any section. "
             "CRITICAL 1: Each section (all headings and subheadings) MUST be kept to less than 10 lines of text/bullets. "
             "CRITICAL 2: You may include short single-line examples, but you MUST NOT include any example extracted tables (e.g. Markdown tables of balance sheets, income statements, etc.). "
             "CRITICAL 3: To avoid redundancy, the '## Lessons to Better Ingest & Extract' section must focus ONLY on high-level ingestion/extraction rules (such as fiscal calendar mappings or general period validation). "
-            "DO NOT include or duplicate agent-specific details (like specific keywords, line items, or formulas for balance sheet, income statement, organic growth, diluted shares, ebita, or tax) in the top section; "
+            "DO NOT include or duplicate agent-specific details (like specific keywords, line items, or formulas for balance sheet, income statement, organic growth, diluted shares, ebita, tax, analyst report, transcript, or other) in the top section; "
             "keep those details strictly inside their respective agent headings."
             "Return the entire updated markdown file, and ensure that the '## User Feedback' section is empty/cleared "
             "(with only the placeholder comment inside). Do not wrap in markdown code blocks."

@@ -23,6 +23,13 @@ def extract_other(
     significant_news_or_developments = ""
     stop_early = False
 
+    history = [
+        {
+            "role": "user",
+            "content": f"Start extracting significant news or developments from other documents. Document chunks available: {chunk_ids}.",
+        }
+    ]
+
     for chunk_id in sorted_chunk_ids:
         chunk_body = get_chunk_by_id(content, chunk_id)
         if not chunk_body:
@@ -64,10 +71,18 @@ Return a valid JSON object matching this structure:
 Note: Set 'all_required_info_found' to true if you have found significant news or special developments; otherwise false.
 """
 
+        history.append(
+            {
+                "role": "user",
+                "content": f"Processing Chunk {chunk_id} Content:\n{chunk_body[:2000]}",
+            }
+        )
+
         try:
             ex_resp = extractor.llm.generate(
                 extract_prompt, system_prompt=extract_sys, stream_thinking=True
             )
+            history.append({"role": "assistant", "content": ex_resp})
             json_match = re.search(r"\{.*\}", ex_resp, re.DOTALL)
             if json_match:
                 ex_data = json.loads(json_match.group(0))
@@ -108,6 +123,20 @@ Note: Set 'all_required_info_found' to true if you have found significant news o
 
     with open(out_file_path, "w", encoding="utf-8") as f:
         f.write("\n".join(output_lines))
+
+    # Invoke Curator Agent to curate lessons
+    try:
+        from src.pipeline.curator_agent import CuratorAgent
+
+        ticker = extractor.settings.active_ticker or "UNK"
+        history_text = ""
+        for h in history:
+            history_text += f"\n\n--- {h['role'].upper()} ---\n{h['content']}"
+
+        curator = CuratorAgent(extractor.settings)
+        curator.curate_agent(ticker, "other", history_text)
+    except Exception as e:
+        logger.error(f"Failed to run curator for other: {e}")
 
     formatting.print_success(f"Extracted: {file_path.name} -> {out_file_path.name}")
     return True

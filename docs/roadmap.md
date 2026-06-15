@@ -166,3 +166,7 @@ Config      Ingestion   Extraction  History     Modeling    Interactive
   - [x] In `fa run historical`, show the count of extracted files and prompt the user for the number of files to process (defaulting to all).
   - [x] In `fa run extract`, add logs to show the verbose chain of thought/pondering text from the LLM while suppressing verbose structured JSON payloads, keeping the CLI output clean and streaming.
   - [x] **Add API provider selection and multi-provider keys**: Added ability to select API provider in config, store provider-specific keys, and dynamically route client requests to Gemini or OpenRouter.
+
+Next steps:
+
+- Create a check for when the user mistakes a command for a ticker (for example, fa use ingest). Ingest is obviously not a ticker. Ask the user if they are sure.

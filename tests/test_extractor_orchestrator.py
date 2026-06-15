@@ -591,6 +591,9 @@ def test_curator_agent_curate_and_self_healing(mock_llm_class, tmp_path):
     assert "## organic growth" in content
     assert "## ebita" in content
     assert "## tax" in content
+    assert "## analyst_report" in content
+    assert "## transcript" in content
+    assert "## other" in content
 
     # 2. Test self-healing on an old format file
     old_content = (
@@ -610,6 +613,9 @@ def test_curator_agent_curate_and_self_healing(mock_llm_class, tmp_path):
     assert "## balance_sheet" in healed_content
     assert "## income_statement" in healed_content
     assert "## tax" in healed_content
+    assert "## analyst_report" in healed_content
+    assert "## transcript" in healed_content
+    assert "## other" in healed_content
     assert "## User Feedback" in healed_content
 
     # 3. Test curate_agent method

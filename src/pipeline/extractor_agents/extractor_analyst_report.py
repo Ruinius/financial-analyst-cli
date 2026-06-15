@@ -43,9 +43,12 @@ def extract_analyst_report(
         "    'growth_rationale': str\n"
         "  }\n\n"
         "Rules:\n"
-        "1. You have a maximum of 5 turns to complete this synthesis.\n"
-        "2. Locate discussions on moat, margin, and growth outlooks using find_keyword_contexts first, or fetch chunk content directly.\n"
-        "3. Verify and compile your findings. When done, call 'finalize'."
+        "1. You have a maximum of 5 turns to complete this synthesis. Do not call 'finalize' on the first turn.\n"
+        "2. Locate discussions on moat, margin, and growth outlooks using find_keyword_contexts first, or fetch chunk content directly via get_chunk_by_id.\n"
+        "3. CRITICAL: The rationale arguments (`economic_moat_rationale`, `margin_rationale`, and `growth_rationale`) MUST NOT be empty or generic. "
+        "Each rationale must be a detailed paragraph summarizing the qualitative drivers, evidence, and specific citations "
+        "(citing chunk numbers) found in the text. For example, detail switching costs, CAGR, or specific drivers for the moat, margin, and growth outlooks. "
+        "Verify your findings, populate all rationales fully, and call 'finalize'."
     )
 
     history = [
@@ -88,6 +91,24 @@ def extract_analyst_report(
         args = action.get("arguments", {})
 
         if tool == "finalize":
+            r_moat = args.get("economic_moat_rationale", "").strip()
+            r_margin = args.get("margin_rationale", "").strip()
+            r_growth = args.get("growth_rationale", "").strip()
+
+            if (not r_moat or not r_margin or not r_growth) and turn < 4:
+                history.append(
+                    {
+                        "role": "user",
+                        "content": (
+                            "Error: You called 'finalize' but some rationale fields are empty or missing. "
+                            "You MUST provide detailed, non-empty rationales explaining the moat, margin, and growth outlooks based on the document text. "
+                            "If the document does not explicitly discuss margins or growth, state that clearly in the rationale field instead of leaving it blank. "
+                            "Please populate all rationales fully and call 'finalize' again."
+                        ),
+                    }
+                )
+                continue
+
             economic_moat = args.get("economic_moat", economic_moat)
             moat_rationale = args.get("economic_moat_rationale", moat_rationale)
             margin_outlook = args.get("margin_outlook", margin_outlook)
@@ -164,6 +185,20 @@ def extract_analyst_report(
 
     with open(out_file_path, "w", encoding="utf-8") as f:
         f.write("\n".join(output_lines))
+
+    # Invoke Curator Agent to curate lessons
+    try:
+        from src.pipeline.curator_agent import CuratorAgent
+
+        ticker = extractor.settings.active_ticker or "UNK"
+        history_text = ""
+        for h in history:
+            history_text += f"\n\n--- {h['role'].upper()} ---\n{h['content']}"
+
+        curator = CuratorAgent(extractor.settings)
+        curator.curate_agent(ticker, "analyst_report", history_text)
+    except Exception as e:
+        logger.error(f"Failed to run curator for analyst_report: {e}")
 
     formatting.print_success(f"Extracted: {file_path.name} -> {out_file_path.name}")
     return True
