@@ -7,3 +7,6 @@
 ## 2024-05-19 - Regex anti-pattern on large string blocks
 **Learning:** Using `re.search` with `re.DOTALL` to extract sub-strings between deterministic boundary markers (like `<!-- CHUNK_START: X -->`) from extremely large megabyte-sized document strings creates a significant measurable performance bottleneck, resulting in O(N^2) or high constant-factor O(N) regex evaluation times.
 **Action:** Always use primitive `str.find()` with string slicing instead of regex when the start and end markers are exact, deterministic string values. This bypasses regex compilation and matching overhead on massive strings and speeds up extraction by several orders of magnitude.
+## 2026-06-16 - Inefficient Regex Evaluation Loop Over Large Documents
+**Learning:** Performing a regex `search` on a large document inside a loop that iterates over hundreds of extracted items results in an O(N) evaluation bottleneck. The engine unnecessarily scans the long context text repeatedly for every line item.
+**Action:** When extracting multiple key-value associations from a single context string, pre-parse the entire string once using `re.finditer` to build a lookup dictionary. Then iterate over the items using O(1) dictionary lookups instead of invoking `re.search` on the full string each time.
