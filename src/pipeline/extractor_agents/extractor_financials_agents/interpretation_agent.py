@@ -39,16 +39,21 @@ def run_interpretation_agent(
     context_content = extractor.get_extract_context()
     company_context_guidance = {}
     if context_content:
-        for item in extracted_line_items:
-            rule_match = re.search(
-                rf"-\s*{re.escape(item.line_name)}\s*:\s*(operating|non-operating)",
-                context_content,
-                re.IGNORECASE,
+        # Pre-parse all guidance rules from context to avoid O(N) regex searches
+        guidance_rules = {}
+        for match in re.finditer(
+            r"-\s*(.*?)\s*:\s*(operating|non-operating)", context_content, re.IGNORECASE
+        ):
+            guidance_rules[match.group(1).strip().lower()] = (
+                match.group(2).lower() == "operating"
             )
-            if rule_match:
-                company_context_guidance[item.line_name] = (
-                    rule_match.group(1).lower() == "operating"
-                )
+
+        for item in extracted_line_items:
+            line_name_lower = item.line_name.lower()
+            if line_name_lower in guidance_rules:
+                company_context_guidance[item.line_name] = guidance_rules[
+                    line_name_lower
+                ]
 
     # Serialize items for LLM (omitting operating and calculated fields so the agent makes judgment calls without default bias)
     items_data = []
