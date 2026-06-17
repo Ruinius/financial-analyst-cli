@@ -28,19 +28,24 @@ def find_keyword_contexts(content: str, keywords: list, window: int = 200) -> li
     first_start = min(starts.values()) if starts else len(content)
     chunk_spans.insert(0, (0, 0, first_start))
 
+    import bisect
+
+    chunk_starts = [x[1] for x in chunk_spans]
+
     def get_chunk_for_pos(pos: int) -> int:
-        for cid, start, end in chunk_spans:
+        if not chunk_spans:
+            return 0
+        idx = bisect.bisect_right(chunk_starts, pos) - 1
+        if idx >= 0:
+            cid, start, end = chunk_spans[idx]
             if start <= pos <= end:
                 return cid
-        best_cid = 0
-        for cid, start, end in chunk_spans:
-            if start <= pos:
-                best_cid = cid
-            else:
-                break
-        return best_cid
+            # If not strictly within, return the closest previous chunk (or 0)
+            return cid
+        return 0
 
     snippets = []
+    seen = set()
     content_lower = content.lower()
     for kw in keywords:
         kw_lower = kw.lower()
@@ -54,9 +59,11 @@ def find_keyword_contexts(content: str, keywords: list, window: int = 200) -> li
             snippet = content[start_idx:end_idx].strip()
 
             chunk_id = get_chunk_for_pos(pos)
-            snippet_item = {"chunk_id": chunk_id, "snippet": snippet}
-            if snippet_item not in snippets:
-                snippets.append(snippet_item)
+            # Use tuple for O(1) set lookup instead of O(N) dict list lookup
+            seen_key = (chunk_id, snippet)
+            if seen_key not in seen:
+                seen.add(seen_key)
+                snippets.append({"chunk_id": chunk_id, "snippet": snippet})
 
             start = pos + len(kw)
             if start >= len(content):
