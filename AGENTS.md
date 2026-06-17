@@ -49,6 +49,9 @@ Welcome to the `financial-analyst-cli` project.
         - ebita_agent.py: Agent specialized in Operating EBITA adjustments and calculations.
         - tax_agent.py: Agent specialized in Adjusted Taxes adjustments and calculations.
     - src/pipeline/analyzer.py: Longitudinal trend synthesis, analyst view compiling, and Q4 deduction engine.
+    - src/pipeline/modeler.py: Redirect wrapper module for backward compatibility.
+    - src/pipeline/modeler_orchestrator.py: Orchestrates DCF financial modeling and base assumptions.
+    - src/pipeline/modeler_agents/: Directory containing specialized modeling agents.
   - src/services/: SEC client, LLM wrapper, web search, and AST-sandboxed math solver.
     - src/services/edgar_client.py: SEC EDGAR download API client.
     - src/services/llm_client.py: Unified client for text & vision LLMs.

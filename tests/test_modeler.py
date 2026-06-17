@@ -2,7 +2,7 @@ import pytest
 import json
 from unittest.mock import patch, MagicMock
 
-from src.pipeline.modeler import Modeler
+from src.pipeline.modeler_orchestrator import Modeler
 
 
 @pytest.fixture
@@ -36,7 +36,7 @@ def mock_workspace(tmp_path):
     return workspace
 
 
-@patch("src.pipeline.modeler.load_config")
+@patch("src.pipeline.modeler_orchestrator.load_config")
 @patch("src.services.market_data.get_market_profile")
 def test_calculate_default_assumptions(
     mock_get_profile, mock_load_config, mock_workspace
@@ -72,7 +72,7 @@ def test_calculate_default_assumptions(
     assert assumptions["wacc"] > 0.0
 
 
-@patch("src.pipeline.modeler.load_config")
+@patch("src.pipeline.modeler_orchestrator.load_config")
 def test_generate_financial_model(mock_load_config, mock_workspace):
     mock_settings = MagicMock()
     mock_settings.active_workspace_path = str(mock_workspace)

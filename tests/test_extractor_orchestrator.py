@@ -207,8 +207,11 @@ This is chunk 2 content
 
 
 @patch("src.pipeline.extractor_orchestrator.load_config")
+@patch("src.pipeline.curator_agent.CuratorAgent")
 @patch("src.pipeline.extractor_orchestrator.LLMClient")
-def test_extract_different_document_types(mock_llm_class, mock_load_config, tmp_path):
+def test_extract_different_document_types(
+    mock_llm_class, mock_curator, mock_load_config, tmp_path
+):
     workspace = tmp_path / "AAPL"
     workspace.mkdir()
     (workspace / "2_parsed_data").mkdir()
