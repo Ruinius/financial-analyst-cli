@@ -131,7 +131,7 @@ class LLMClient:
                                         if reasoning:
                                             if not has_started_thinking:
                                                 console.print(
-                                                    "[italic dim]Sir Pennyworth is pondering... [/italic dim]",
+                                                    "💬 [italic dim]Sir Pennyworth is pondering... [/italic dim]",
                                                     end="",
                                                 )
                                                 has_started_thinking = True
@@ -149,7 +149,7 @@ class LLMClient:
                                                 if "</think>" not in accumulated:
                                                     if not has_started_thinking:
                                                         console.print(
-                                                            "[italic dim]Sir Pennyworth is pondering... [/italic dim]",
+                                                            "💬 [italic dim]Sir Pennyworth is pondering... [/italic dim]",
                                                             end="",
                                                         )
                                                         has_started_thinking = True
@@ -190,7 +190,7 @@ class LLMClient:
 
                                                     if not has_started_content:
                                                         console.print(
-                                                            "[dim]Extracting metrics... [/dim]",
+                                                            "\n💬 [Sir Pennyworth's Response]: ",
                                                             end="",
                                                         )
                                                         has_started_content = True
@@ -198,21 +198,16 @@ class LLMClient:
                                                     actual_content = accumulated.split(
                                                         "</think>", 1
                                                     )[1]
-                                                    new_content_len = (
-                                                        len(actual_content)
-                                                        - printed_content_len
-                                                    )
-                                                    if new_content_len > 0:
+                                                    unprinted = actual_content[
+                                                        printed_content_len:
+                                                    ]
+                                                    if unprinted:
                                                         console.print(
-                                                            "."
-                                                            * (
-                                                                new_content_len // 5
-                                                                or 1
-                                                            ),
+                                                            unprinted,
                                                             end="",
                                                         )
-                                                        printed_content_len = len(
-                                                            actual_content
+                                                        printed_content_len += len(
+                                                            unprinted
                                                         )
                                                     console.file.flush()
                                             else:
@@ -224,11 +219,21 @@ class LLMClient:
                                                             console.print()
                                                             has_started_thinking = False
                                                         console.print(
-                                                            "[dim]Extracting metrics... [/dim]",
+                                                            "\n💬 [Sir Pennyworth's Response]: ",
                                                             end="",
                                                         )
                                                         has_started_content = True
-                                                    console.print(".", end="")
+                                                    unprinted = accumulated[
+                                                        printed_content_len:
+                                                    ]
+                                                    if unprinted:
+                                                        console.print(
+                                                            unprinted,
+                                                            end="",
+                                                        )
+                                                        printed_content_len += len(
+                                                            unprinted
+                                                        )
                                                     console.file.flush()
                                     except Exception:
                                         pass

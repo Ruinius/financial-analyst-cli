@@ -68,7 +68,7 @@ def test_print_success(monkeypatch):
     assert len(prints) == 1
     assert (
         prints[0]
-        == f"[bold {COLOR_SUCCESS}]✓ Success:[/bold {COLOR_SUCCESS}] Operation completed"
+        == f"[bold {COLOR_SUCCESS}]✔ SUCCESS:[/bold {COLOR_SUCCESS}] Operation completed"
     )
 
 
@@ -83,7 +83,7 @@ def test_print_error(monkeypatch):
     print_error("Failed task")
 
     assert len(prints) == 1
-    assert prints[0] == f"[bold {COLOR_ERROR}]✗ Error:[/bold {COLOR_ERROR}] Failed task"
+    assert prints[0] == f"[bold {COLOR_ERROR}]✘ ERROR:[/bold {COLOR_ERROR}] Failed task"
 
 
 def test_print_warning(monkeypatch):
@@ -97,7 +97,7 @@ def test_print_warning(monkeypatch):
     print_warning("Be careful")
 
     assert len(prints) == 1
-    assert prints[0] == f"[bold {COLOR_WARN}]⚠ Warning:[/bold {COLOR_WARN}] Be careful"
+    assert prints[0] == f"[bold {COLOR_WARN}]⚠ WARNING:[/bold {COLOR_WARN}] Be careful"
 
 
 def test_print_info(monkeypatch):
@@ -111,4 +111,4 @@ def test_print_info(monkeypatch):
     print_info("Some info")
 
     assert len(prints) == 1
-    assert prints[0] == "[bold cyan]ℹ Info:[/bold cyan] Some info"
+    assert prints[0] == "[bold cyan]ℹ INFO:[/bold cyan] Some info"

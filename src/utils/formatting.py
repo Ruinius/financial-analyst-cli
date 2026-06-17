@@ -44,19 +44,19 @@ def speak(message: str, title: str = "Sir Pennyworth", show_art: bool = True) ->
 
 def print_success(message: str) -> None:
     """Print a success message with green styling."""
-    console.print(f"[bold {COLOR_SUCCESS}]✓ Success:[/bold {COLOR_SUCCESS}] {message}")
+    console.print(f"[bold {COLOR_SUCCESS}]✔ SUCCESS:[/bold {COLOR_SUCCESS}] {message}")
 
 
 def print_error(message: str) -> None:
     """Print an error message with red styling."""
-    console.print(f"[bold {COLOR_ERROR}]✗ Error:[/bold {COLOR_ERROR}] {message}")
+    console.print(f"[bold {COLOR_ERROR}]✘ ERROR:[/bold {COLOR_ERROR}] {message}")
 
 
 def print_warning(message: str) -> None:
     """Print a warning message with gold styling."""
-    console.print(f"[bold {COLOR_WARN}]⚠ Warning:[/bold {COLOR_WARN}] {message}")
+    console.print(f"[bold {COLOR_WARN}]⚠ WARNING:[/bold {COLOR_WARN}] {message}")
 
 
 def print_info(message: str) -> None:
     """Print an info message with cyan styling."""
-    console.print(f"[bold cyan]ℹ Info:[/bold cyan] {message}")
+    console.print(f"[bold cyan]ℹ INFO:[/bold cyan] {message}")
