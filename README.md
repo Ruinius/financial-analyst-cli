@@ -132,7 +132,7 @@ When you execute `fa` for the first time, Sir Pennyworth guides you through an i
 
 1. **User Identity**: Full name, email, and project name (crucial for declaring SEC EDGAR user-agent headers).
 2. **LLM API Credentials**: Select your API provider (`openrouter`, `gemini`, or `deepseek`) and input the corresponding API key.
-3. **Model Selection**: Select your preferred Text-to-Text Model ID (e.g., `google/gemma-4-31b-it:free`, `gemini-2.5-flash`, or `deepseek-v4-flash`).
+3. **Model Selection**: Select your preferred models for each provider (saved in `.env` as `GEMINI_MODEL`, `OPENROUTER_MODEL`, and `DEEPSEEK_MODEL`). The active text model ID automatically syncs depending on your selected provider.
 4. **Workspace Path**: Specify a directory where company analyses will be run.
 
 ---
@@ -237,6 +237,9 @@ uv run fa config init
 
 # Display current configuration profile
 uv run fa config show
+
+# Directly set provider, keys, or model preferences without the interactive wizard
+uv run fa config set --provider gemini --gemini-model gemini-3-flash-preview
 ```
 
 ---

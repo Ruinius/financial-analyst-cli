@@ -1,6 +1,6 @@
 from pathlib import Path
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from src.core.exceptions import ConfigNotFoundError, ConfigError
 
@@ -26,6 +26,16 @@ class Settings(BaseModel):
         "google/gemma-4-31b-it:free", description="Text-to-Text Model ID"
     )
 
+    gemini_model: Optional[str] = Field(
+        "gemini-2.5-flash", description="Gemini model preference"
+    )
+    openrouter_model: Optional[str] = Field(
+        "google/gemma-4-31b-it:free", description="OpenRouter model preference"
+    )
+    deepseek_model: Optional[str] = Field(
+        "deepseek-v4-flash", description="DeepSeek model preference"
+    )
+
     base_workspace_dir: str = Field(
         ..., description="Base directory containing workspaces"
     )
@@ -33,6 +43,52 @@ class Settings(BaseModel):
     active_workspace_path: Optional[str] = Field(
         None, description="Active company workspace directory path"
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_and_sync_models(cls, data: dict) -> dict:
+        if not isinstance(data, dict):
+            return data
+
+        # Normalize keys to lowercase since load_config parses keys as lower()
+        provider = data.get("api_provider") or "openrouter"
+        provider = provider.lower()
+
+        text_model = data.get("text_model_id")
+
+        # Determine defaults for each provider model
+        default_gemini = "gemini-2.5-flash"
+        default_openrouter = "google/gemma-4-31b-it:free"
+        default_deepseek = "deepseek-v4-flash"
+
+        # Populate provider-specific models if they are not explicitly specified
+        if "gemini_model" not in data or not data["gemini_model"]:
+            if provider == "gemini" and text_model:
+                data["gemini_model"] = text_model
+            else:
+                data["gemini_model"] = default_gemini
+
+        if "openrouter_model" not in data or not data["openrouter_model"]:
+            if provider == "openrouter" and text_model:
+                data["openrouter_model"] = text_model
+            else:
+                data["openrouter_model"] = default_openrouter
+
+        if "deepseek_model" not in data or not data["deepseek_model"]:
+            if provider == "deepseek" and text_model:
+                data["deepseek_model"] = text_model
+            else:
+                data["deepseek_model"] = default_deepseek
+
+        # Now sync text_model_id to the active provider's preference
+        if provider == "gemini":
+            data["text_model_id"] = data["gemini_model"]
+        elif provider == "deepseek":
+            data["text_model_id"] = data["deepseek_model"]
+        else:
+            data["text_model_id"] = data["openrouter_model"]
+
+        return data
 
 
 def config_exists() -> bool:

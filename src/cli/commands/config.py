@@ -124,7 +124,13 @@ def config_show():
         table.add_row(
             "Primary LLM API Key (Legacy)", mask_key(settings.primary_llm_api_key or "")
         )
-        table.add_row("Text-to-Text Model ID", settings.text_model_id)
+        table.add_row("Gemini Model", settings.gemini_model or "gemini-2.5-flash")
+        table.add_row(
+            "OpenRouter Model",
+            settings.openrouter_model or "google/gemma-4-31b-it:free",
+        )
+        table.add_row("DeepSeek Model", settings.deepseek_model or "deepseek-v4-flash")
+        table.add_row("Text-to-Text Model ID (Active)", settings.text_model_id)
         table.add_row("Base Workspace Dir", settings.base_workspace_dir)
 
         table.add_row("Active Ticker", settings.active_ticker or "[None]")
@@ -152,8 +158,17 @@ def config_set(
     deepseek_key: str = typer.Option(
         None, "--deepseek-key", help="Set the DeepSeek API Key"
     ),
+    gemini_model: str = typer.Option(
+        None, "--gemini-model", help="Set the Gemini Model ID"
+    ),
+    openrouter_model: str = typer.Option(
+        None, "--openrouter-model", help="Set the OpenRouter Model ID"
+    ),
+    deepseek_model: str = typer.Option(
+        None, "--deepseek-model", help="Set the DeepSeek Model ID"
+    ),
 ):
-    """Set the API provider and/or keys directly without the interactive wizard."""
+    """Set the API provider, keys, and/or models directly without the interactive wizard."""
     try:
         settings = load_config()
     except Exception:
@@ -171,27 +186,15 @@ def config_set(
             )
             raise typer.Exit(1)
         settings.api_provider = p
-        # Dynamically switch default models if they are set to other provider's defaults
+        # Dynamically switch active model to the provider's configured model
         if p == "gemini":
-            if (
-                "gemma" in settings.text_model_id.lower()
-                or "google" in settings.text_model_id.lower()
-                or "deepseek" in settings.text_model_id.lower()
-            ):
-                settings.text_model_id = "gemini-2.5-flash"
+            settings.text_model_id = settings.gemini_model or "gemini-2.5-flash"
         elif p == "openrouter":
-            if (
-                "gemini" in settings.text_model_id.lower()
-                or "deepseek" in settings.text_model_id.lower()
-            ):
-                settings.text_model_id = "google/gemma-4-31b-it:free"
+            settings.text_model_id = (
+                settings.openrouter_model or "google/gemma-4-31b-it:free"
+            )
         elif p == "deepseek":
-            if (
-                "gemini" in settings.text_model_id.lower()
-                or "gemma" in settings.text_model_id.lower()
-                or "google" in settings.text_model_id.lower()
-            ):
-                settings.text_model_id = "deepseek-v4-flash"
+            settings.text_model_id = settings.deepseek_model or "deepseek-v4-flash"
 
         updated = True
 
@@ -211,6 +214,24 @@ def config_set(
         settings.deepseek_api_key = deepseek_key.strip()
         if settings.api_provider == "deepseek":
             settings.primary_llm_api_key = deepseek_key.strip()
+        updated = True
+
+    if gemini_model is not None:
+        settings.gemini_model = gemini_model.strip()
+        if settings.api_provider == "gemini":
+            settings.text_model_id = gemini_model.strip()
+        updated = True
+
+    if openrouter_model is not None:
+        settings.openrouter_model = openrouter_model.strip()
+        if settings.api_provider == "openrouter":
+            settings.text_model_id = openrouter_model.strip()
+        updated = True
+
+    if deepseek_model is not None:
+        settings.deepseek_model = deepseek_model.strip()
+        if settings.api_provider == "deepseek":
+            settings.text_model_id = deepseek_model.strip()
         updated = True
 
     if not updated:

@@ -31,6 +31,9 @@ def test_settings_model():
     assert settings.full_name == "Alice"
     assert settings.email == "alice@example.com"
     assert settings.text_model_id == "google/gemma-4-31b-it:free"
+    assert settings.gemini_model == "gemini-2.5-flash"
+    assert settings.openrouter_model == "google/gemma-4-31b-it:free"
+    assert settings.deepseek_model == "deepseek-v4-flash"
 
 
 def test_save_load_config(temp_config):
@@ -100,6 +103,9 @@ def test_cli_config_show(temp_config):
     assert result.exit_code == 0
     assert "Bob" in result.stdout
     assert "sk-...1234" in result.stdout
+    assert "Gemini Model" in result.stdout
+    assert "OpenRouter Model" in result.stdout
+    assert "DeepSeek Model" in result.stdout
 
 
 def test_cli_use_command(temp_config):
@@ -391,6 +397,29 @@ def test_cli_config_set(temp_config):
     assert updated.deepseek_api_key == "sk-ds-new-deepseek-key"
     assert updated.primary_llm_api_key == "sk-ds-new-deepseek-key"
     assert updated.text_model_id == "deepseek-v4-flash"
+
+    # test setting provider-specific models directly
+    result = runner.invoke(
+        app,
+        [
+            "config",
+            "set",
+            "--gemini-model",
+            "gemini-test-custom",
+            "--openrouter-model",
+            "openrouter-test-custom",
+            "--deepseek-model",
+            "deepseek-test-custom",
+        ],
+    )
+    assert result.exit_code == 0
+    assert "updated successfully" in result.stdout.lower()
+
+    updated = load_config()
+    assert updated.gemini_model == "gemini-test-custom"
+    assert updated.openrouter_model == "openrouter-test-custom"
+    assert updated.deepseek_model == "deepseek-test-custom"
+    assert updated.text_model_id == "deepseek-test-custom"
 
 
 def test_initialize_config_flow_deepseek(monkeypatch, temp_config):

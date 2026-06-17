@@ -163,9 +163,9 @@ Views or mutates settings.
 - **`fa config init`**
   - Interactively initializes credentials, directories, and LLM providers.
 - **`fa config show`**
-  - Displays current config with sensitive API keys masked (e.g. `sk-...abcd`).
-- **`fa config set [--provider PROVIDER] [--openrouter-key KEY] [--gemini-key KEY]`**
-  - Directly updates configuration parameters such as the active API provider, OpenRouter API key, or Gemini API key without running the interactive wizard.
+  - Displays current config (including provider-specific models and active text model) with sensitive API keys masked (e.g. `sk-...abcd`).
+- **`fa config set [--provider PROVIDER] [--openrouter-key KEY] [--gemini-key KEY] [--deepseek-key KEY] [--gemini-model MODEL] [--openrouter-model MODEL] [--deepseek-model MODEL]`**
+  - Directly updates configuration parameters such as the active API provider, API keys, or provider-specific models without running the interactive wizard.
 
 ---
 

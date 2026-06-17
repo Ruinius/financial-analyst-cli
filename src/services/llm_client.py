@@ -54,22 +54,37 @@ class LLMClient:
     ) -> str:
         """Generate a response from the LLM model."""
         if not model:
-            model = self.settings.text_model_id
+            if self.provider == "gemini":
+                model = (
+                    getattr(self.settings, "gemini_model", None) or "gemini-2.5-flash"
+                )
+            elif self.provider == "deepseek":
+                model = (
+                    getattr(self.settings, "deepseek_model", None)
+                    or "deepseek-v4-flash"
+                )
+            else:
+                model = (
+                    getattr(self.settings, "openrouter_model", None)
+                    or "google/gemma-4-31b-it:free"
+                )
 
-        # Safeguard: if using Gemini provider but model is Gemma/OpenRouter default, fallback to gemini-2.5-flash
+        # Safeguard: if using Gemini provider but model is Gemma/OpenRouter/DeepSeek, fallback
         if self.provider == "gemini" and (
             "gemma" in model.lower()
             or "google" in model.lower()
             or "deepseek" in model.lower()
         ):
-            model = "gemini-2.5-flash"
-        # Safeguard: if using DeepSeek provider but model is Gemma/Google/Gemini, fallback to deepseek-v4-flash
+            model = getattr(self.settings, "gemini_model", None) or "gemini-2.5-flash"
+        # Safeguard: if using DeepSeek provider but model is Gemma/Google/Gemini, fallback
         elif self.provider == "deepseek" and (
             "gemma" in model.lower()
             or "google" in model.lower()
             or "gemini" in model.lower()
         ):
-            model = "deepseek-v4-flash"
+            model = (
+                getattr(self.settings, "deepseek_model", None) or "deepseek-v4-flash"
+            )
 
         messages = []
         if system_prompt:
