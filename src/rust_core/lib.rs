@@ -17,7 +17,12 @@ pub fn calculate_dcf(
     wacc: f64,
     free_cash_flow_base: f64,
     shares_outstanding: f64,
-    net_debt: f64,
+    cash: f64,
+    short_term_investments: f64,
+    debt: f64,
+    preferred_equity: f64,
+    minority_interest: f64,
+    other_financial: f64,
 ) -> PyResult<String> {
     let mut projected_cash_flows = Vec::new();
     let mut current_fcf = free_cash_flow_base;
@@ -38,6 +43,7 @@ pub fn calculate_dcf(
     let pv_terminal_value = terminal_value / (1.0 + wacc).powi(projected_cash_flows.len() as i32);
 
     let enterprise_value = pv_cash_flows + pv_terminal_value;
+    let net_debt = debt + preferred_equity + minority_interest - cash - short_term_investments - other_financial;
     let equity_value = enterprise_value - net_debt;
     let intrinsic_value_per_share = if shares_outstanding > 0.0 {
         equity_value / shares_outstanding

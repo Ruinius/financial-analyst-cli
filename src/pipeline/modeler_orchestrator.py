@@ -308,6 +308,9 @@ class Modeler:
         from src.pipeline.modeler_agents.wacc_agent import run_wacc_agent
         from src.pipeline.modeler_agents.growth_agent import run_growth_agent
         from src.pipeline.modeler_agents.margin_agent import run_margin_agent
+        from src.pipeline.modeler_agents.non_operating_agent import (
+            run_non_operating_agent,
+        )
 
         llm = LLMClient()
         wacc_results = run_wacc_agent(
@@ -322,8 +325,32 @@ class Modeler:
         )
 
         wacc = wacc_results["wacc"]
-        net_debt = wacc_results["net_debt"]
         wacc_explanation = wacc_results.get("explanation", "")
+
+        # For non-operating categories (agentic calculation)
+        non_op_results = run_non_operating_agent(
+            ticker=ticker,
+            workspace=workspace,
+            llm=llm,
+        )
+
+        cash = non_op_results["cash"]
+        short_term_investments = non_op_results["short_term_investments"]
+        debt = non_op_results["debt"]
+        preferred_equity = non_op_results["preferred_equity"]
+        minority_interest = non_op_results["minority_interest"]
+        other_financial = non_op_results["other_financial"]
+        non_operating_explanation = non_op_results.get("explanation", "")
+
+        # Calculate net_debt for backward compatibility
+        net_debt = (
+            debt
+            + preferred_equity
+            + minority_interest
+            - cash
+            - short_term_investments
+            - other_financial
+        )
 
         # For Growth rates (agentic calculation)
         growth_results = run_growth_agent(
@@ -386,10 +413,17 @@ class Modeler:
             "shares_outstanding": shares_out,
             "market_cap": market_cap,
             "share_price": share_price,
+            "cash": cash,
+            "short_term_investments": short_term_investments,
+            "debt": debt,
+            "preferred_equity": preferred_equity,
+            "minority_interest": minority_interest,
+            "other_financial": other_financial,
             "net_debt": net_debt,
             "wacc_explanation": wacc_explanation,
             "growth_explanation": growth_results.get("explanation", ""),
             "margin_explanation": margin_results.get("explanation", ""),
+            "non_operating_explanation": non_operating_explanation,
         }
 
         return assumptions
@@ -469,7 +503,12 @@ class Modeler:
             wacc=wacc,
             free_cash_flow_base=fcf_base,
             shares_outstanding=assumptions["shares_outstanding"],
-            net_debt=assumptions["net_debt"],
+            cash=assumptions.get("cash", 0.0),
+            short_term_investments=assumptions.get("short_term_investments", 0.0),
+            debt=assumptions.get("debt", 0.0),
+            preferred_equity=assumptions.get("preferred_equity", 0.0),
+            minority_interest=assumptions.get("minority_interest", 0.0),
+            other_financial=assumptions.get("other_financial", 0.0),
         )
         dcf_result = json.loads(dcf_result_str)
 
@@ -503,6 +542,10 @@ class Modeler:
         if margin_explanation_str:
             margin_explanation_str = f"\n{margin_explanation_str}\n"
 
+        non_operating_explanation_str = assumptions.get("non_operating_explanation", "")
+        if non_operating_explanation_str:
+            non_operating_explanation_str = f"\n{non_operating_explanation_str}\n"
+
         md_content = f"""# Financial Model: {ticker}
 Date: {today}
 
@@ -517,6 +560,7 @@ Date: {today}
 {wacc_explanation_str}
 {growth_explanation_str}
 {margin_explanation_str}
+{non_operating_explanation_str}
 ## Valuation
 - **Enterprise Value**: ${dcf_result["enterprise_value"]:,.0f}
 - **Intrinsic Value Per Share**: ${dcf_result["intrinsic_value_per_share"]:.2f}

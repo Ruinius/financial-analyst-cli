@@ -38,6 +38,7 @@ def mock_workspace(tmp_path):
 
 @patch("src.pipeline.modeler_agents.margin_agent.run_margin_agent")
 @patch("src.pipeline.modeler_agents.growth_agent.run_growth_agent")
+@patch("src.pipeline.modeler_agents.non_operating_agent.run_non_operating_agent")
 @patch("src.pipeline.modeler_agents.wacc_agent.run_wacc_agent")
 @patch("src.pipeline.modeler_orchestrator.load_config")
 @patch("src.services.market_data.get_market_profile")
@@ -45,6 +46,7 @@ def test_calculate_default_assumptions(
     mock_get_profile,
     mock_load_config,
     mock_run_wacc_agent,
+    mock_run_non_operating_agent,
     mock_run_growth_agent,
     mock_run_margin_agent,
     mock_workspace,
@@ -54,6 +56,17 @@ def test_calculate_default_assumptions(
         "wacc": 0.08,
         "net_debt": 50.0,
         "explanation": "Calculated mock WACC",
+    }
+
+    # Mock run_non_operating_agent
+    mock_run_non_operating_agent.return_value = {
+        "cash": 10.0,
+        "short_term_investments": 0.0,
+        "debt": 60.0,
+        "preferred_equity": 0.0,
+        "minority_interest": 0.0,
+        "other_financial": 0.0,
+        "explanation": "Calculated mock non-operating categories",
     }
 
     # Mock run_growth_agent
@@ -100,6 +113,12 @@ def test_calculate_default_assumptions(
     assert assumptions["capital_turnover"] == 2.0
     assert assumptions["wacc"] == 0.08
     assert assumptions["net_debt"] == 50.0
+    assert assumptions["cash"] == 10.0
+    assert assumptions["short_term_investments"] == 0.0
+    assert assumptions["debt"] == 60.0
+    assert assumptions["preferred_equity"] == 0.0
+    assert assumptions["minority_interest"] == 0.0
+    assert assumptions["other_financial"] == 0.0
 
 
 @patch("src.pipeline.modeler_orchestrator.load_config")
@@ -122,6 +141,12 @@ def test_generate_financial_model(mock_load_config, mock_workspace):
         "base_revenue": 1000.0,
         "base_ic": 500.0,
         "shares_outstanding": 100,
+        "cash": 10.0,
+        "short_term_investments": 0.0,
+        "debt": 60.0,
+        "preferred_equity": 0.0,
+        "minority_interest": 0.0,
+        "other_financial": 0.0,
         "net_debt": 50.0,
     }
 
@@ -387,3 +412,55 @@ def test_run_margin_agent(mock_llm_class, mock_curator_class, tmp_path):
     mock_curator_class.return_value.curate_model_agent.assert_called_once_with(
         "MOCK", "Margin", ANY
     )
+
+
+@patch("src.pipeline.curator_agent.CuratorAgent")
+@patch("src.services.llm_client.LLMClient")
+def test_run_non_operating_agent(mock_llm_class, mock_curator_class, tmp_path):
+    from src.pipeline.modeler_agents.non_operating_agent import run_non_operating_agent
+
+    mock_llm = MagicMock()
+    mock_llm.generate.return_value = json.dumps(
+        {
+            "cash": 20.0,
+            "short_term_investments": 10.0,
+            "debt": 100.0,
+            "preferred_equity": 5.0,
+            "minority_interest": 0.0,
+            "other_financial": -2.0,
+            "explanation": "Mocked successful extraction.",
+        }
+    )
+
+    mock_workspace = tmp_path / "MOCK"
+    mock_workspace.mkdir(parents=True)
+    extracted_dir = mock_workspace / "4_extracted_data"
+    extracted_dir.mkdir(parents=True)
+
+    # Write mock *_extracted.md and *_balance_sheet.md
+    extracted_file = extracted_dir / "20260617_MOCK_10Q_extracted.md"
+    extracted_file.write_text(
+        "#### Non-Operating Assets\n- Cash: 20\n- ST Investments: 10\n"
+        "#### Non-Operating Liabilities\n- Debt: 100\n",
+        encoding="utf-8",
+    )
+
+    bs_file = extracted_dir / "20260617_MOCK_10Q_balance_sheet.md"
+    bs_file.write_text("Balance sheet details", encoding="utf-8")
+
+    res = run_non_operating_agent(
+        ticker="MOCK",
+        workspace=mock_workspace,
+        llm=mock_llm,
+    )
+
+    assert res["cash"] == 20.0
+    assert res["short_term_investments"] == 10.0
+    assert res["debt"] == 100.0
+    assert res["preferred_equity"] == 5.0
+    assert res["minority_interest"] == 0.0
+    assert res["other_financial"] == -2.0
+    assert res["explanation"] == "Mocked successful extraction."
+
+    mock_curator_class.assert_called_once()
+    mock_curator_class.return_value.curate_model_agent.assert_called_once()

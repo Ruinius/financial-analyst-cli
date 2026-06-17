@@ -8,7 +8,12 @@ def calculate_dcf(
     wacc: float,
     free_cash_flow_base: float,
     shares_outstanding: float,
-    net_debt: float,
+    cash: float,
+    short_term_investments: float,
+    debt: float,
+    preferred_equity: float,
+    minority_interest: float,
+    other_financial: float,
 ) -> str:
     projected_cash_flows = []
     current_fcf = free_cash_flow_base
@@ -29,6 +34,14 @@ def calculate_dcf(
     pv_terminal_value = terminal_value / ((1.0 + wacc) ** len(projected_cash_flows))
 
     enterprise_value = pv_cash_flows + pv_terminal_value
+    net_debt = (
+        debt
+        + preferred_equity
+        + minority_interest
+        - cash
+        - short_term_investments
+        - other_financial
+    )
     equity_value = enterprise_value - net_debt
     intrinsic_value_per_share = (
         equity_value / shares_outstanding if shares_outstanding > 0.0 else 0.0

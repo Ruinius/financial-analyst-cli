@@ -19,5 +19,5 @@
 - [x] The Margin agent should start with model_learning, financial_quarter, analyst_views, news_trend, transcript_trend markdowns. The agent has access to a tool that can pull any extracted markdowns.
 - [x] After the Margin submissions, the curator_agent should be called and update model_learning and include a section called ## Margin
 - [x] the Margin assumptions needs to be documented in the model markdown file at the top.
-- [ ] Replace net_debt with the non-operating categories in the balance_sheet dictionary. There should be 5-6 categories.
-- [ ] We need a single turn agent to pull the values for the non-operating categories based on the non-operating assets and non-operating liabilities section in the latest quarterly, annual, or earnings announcement extracted markdown, the latest balance_sheet from the same, and the dictionary.
+- [x] Replace net_debt with the non-operating categories in the balance_sheet dictionary. There should be 5-6 categories.
+- [x] We need a single turn agent to pull the values for the non-operating categories based on the non-operating assets and non-operating liabilities section in the latest quarterly, annual, or earnings announcement extracted markdown, the latest balance_sheet from the same, and the dictionary.

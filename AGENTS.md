@@ -55,6 +55,7 @@ Welcome to the `financial-analyst-cli` project.
       - wacc_agent.py: Agent specialized in WACC calculation and beta de-levering/re-levering.
       - growth_agent.py: Agent specialized in estimating future revenue growth rates (near-term, mid-term Year 5, terminal).
       - margin_agent.py: Agent specialized in estimating future EBITA margins (base, Year 5 target, terminal).
+      - non_operating_agent.py: Agent specialized in extracting the 6 non-operating categories from the latest balance sheet.
   - src/services/: SEC client, LLM wrapper, web search, and AST-sandboxed math solver.
     - src/services/edgar_client.py: SEC EDGAR download API client.
     - src/services/llm_client.py: Unified client for text & vision LLMs.
