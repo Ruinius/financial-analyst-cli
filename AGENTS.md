@@ -53,6 +53,7 @@ Welcome to the `financial-analyst-cli` project.
     - src/pipeline/modeler_orchestrator.py: Orchestrates DCF financial modeling and base assumptions.
     - src/pipeline/modeler_agents/: Directory containing specialized modeling agents.
       - wacc_agent.py: Agent specialized in WACC calculation and beta de-levering/re-levering.
+      - growth_agent.py: Agent specialized in estimating future revenue growth rates (near-term, mid-term Year 5, terminal).
   - src/services/: SEC client, LLM wrapper, web search, and AST-sandboxed math solver.
     - src/services/edgar_client.py: SEC EDGAR download API client.
     - src/services/llm_client.py: Unified client for text & vision LLMs.

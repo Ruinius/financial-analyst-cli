@@ -306,6 +306,7 @@ class Modeler:
         # For WACC (agentic calculation)
         from src.services.llm_client import LLMClient
         from src.pipeline.modeler_agents.wacc_agent import run_wacc_agent
+        from src.pipeline.modeler_agents.growth_agent import run_growth_agent
 
         llm = LLMClient()
         wacc_results = run_wacc_agent(
@@ -322,6 +323,17 @@ class Modeler:
         wacc = wacc_results["wacc"]
         net_debt = wacc_results["net_debt"]
         wacc_explanation = wacc_results.get("explanation", "")
+
+        # For Growth rates (agentic calculation)
+        growth_results = run_growth_agent(
+            ticker=ticker,
+            workspace=workspace,
+            base_growth_rate=l4q_growth,
+            target_growth_yr5=l4q_growth + growth_magnitude,
+            terminal_growth_rate=0.04 if moat == "Wide" else 0.03,
+            llm=llm,
+            learning_context=learning_context,
+        )
 
         # Turnovers
         l4q_turnovers = []
@@ -345,11 +357,11 @@ class Modeler:
             "base_wacc": wacc,
             "capital_turnover": mct,
             "base_capital_turnover": mct,
-            "revenue_growth_rate": l4q_growth + growth_magnitude,
-            "base_growth_rate": l4q_growth,
+            "revenue_growth_rate": growth_results["revenue_growth_rate"],
+            "base_growth_rate": growth_results["base_growth_rate"],
             "margin_yr5": base_margin + margin_magnitude,
             "base_margin": base_margin,
-            "terminal_growth_rate": 0.04 if moat == "Wide" else 0.03,
+            "terminal_growth_rate": growth_results["terminal_growth_rate"],
             "base_terminal_growth": 0.04 if moat == "Wide" else 0.03,
             "adjusted_tax_rate": l4q_tax,
             "base_adjusted_tax_rate": l4q_tax,
@@ -362,6 +374,7 @@ class Modeler:
             "share_price": share_price,
             "net_debt": net_debt,
             "wacc_explanation": wacc_explanation,
+            "growth_explanation": growth_results.get("explanation", ""),
         }
 
         return assumptions
@@ -464,6 +477,10 @@ class Modeler:
         if wacc_explanation_str:
             wacc_explanation_str = f"\n{wacc_explanation_str}\n"
 
+        growth_explanation_str = assumptions.get("growth_explanation", "")
+        if growth_explanation_str:
+            growth_explanation_str = f"\n{growth_explanation_str}\n"
+
         md_content = f"""# Financial Model: {ticker}
 Date: {today}
 
@@ -475,6 +492,7 @@ Date: {today}
 - **Capital Turnover**: {mct}x
 
 {wacc_explanation_str}
+{growth_explanation_str}
 ## Valuation
 - **Enterprise Value**: ${dcf_result["enterprise_value"]:,.0f}
 - **Intrinsic Value Per Share**: ${dcf_result["intrinsic_value_per_share"]:.2f}

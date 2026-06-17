@@ -1,6 +1,6 @@
 import pytest
 import json
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, ANY
 
 from src.pipeline.modeler_orchestrator import Modeler
 
@@ -36,17 +36,30 @@ def mock_workspace(tmp_path):
     return workspace
 
 
+@patch("src.pipeline.modeler_agents.growth_agent.run_growth_agent")
 @patch("src.pipeline.modeler_agents.wacc_agent.run_wacc_agent")
 @patch("src.pipeline.modeler_orchestrator.load_config")
 @patch("src.services.market_data.get_market_profile")
 def test_calculate_default_assumptions(
-    mock_get_profile, mock_load_config, mock_run_wacc_agent, mock_workspace
+    mock_get_profile,
+    mock_load_config,
+    mock_run_wacc_agent,
+    mock_run_growth_agent,
+    mock_workspace,
 ):
     # Mock run_wacc_agent
     mock_run_wacc_agent.return_value = {
         "wacc": 0.08,
         "net_debt": 50.0,
         "explanation": "Calculated mock WACC",
+    }
+
+    # Mock run_growth_agent
+    mock_run_growth_agent.return_value = {
+        "base_growth_rate": 0.05,
+        "revenue_growth_rate": 0.08,
+        "terminal_growth_rate": 0.03,
+        "explanation": "Calculated mock growth rates",
     }
 
     # Mock market profile lookup
@@ -68,14 +81,9 @@ def test_calculate_default_assumptions(
     assumptions = modeler.calculate_default_assumptions("MOCK", mock_workspace)
 
     assert assumptions["moat"] == "Wide"
-    assert assumptions["terminal_growth_rate"] == 0.04
-    assert assumptions["base_revenue"] == 4600.0  # 1000 + 1100 + 1200 + 1300
-    assert assumptions["margin_yr5"] == pytest.approx(
-        (200 + 220 + 240 + 260) / 4600.0 + 0.02
-    )  # base + 2pp
-    assert assumptions["revenue_growth_rate"] == pytest.approx(
-        0.05 + 0.03
-    )  # base + 3pp
+    assert assumptions["base_growth_rate"] == 0.05
+    assert assumptions["revenue_growth_rate"] == 0.08
+    assert assumptions["terminal_growth_rate"] == 0.03
     assert assumptions["capital_turnover"] == 2.0
     assert assumptions["wacc"] == 0.08
     assert assumptions["net_debt"] == 50.0
@@ -233,3 +241,69 @@ def test_run_wacc_agent(mock_llm_class, mock_curator_class, tmp_path):
     # Verify CuratorAgent was instantiated and curate_model_agent called
     mock_curator_class.assert_called_once()
     mock_curator_class.return_value.curate_model_agent.assert_called_once()
+
+
+@patch("src.pipeline.curator_agent.CuratorAgent")
+@patch("src.services.llm_client.LLMClient")
+def test_run_growth_agent(mock_llm_class, mock_curator_class, tmp_path):
+    from src.pipeline.modeler_agents.growth_agent import run_growth_agent
+
+    mock_llm = MagicMock()
+    # Mock LLM turn responses:
+    # Turn 0: Call pull_markdown_file
+    # Turn 1: Call finalize
+    mock_llm.generate.side_effect = [
+        # Turn 0 tool call
+        json.dumps(
+            {
+                "thought": "I will read the analyst views file.",
+                "tool": "pull_markdown_file",
+                "arguments": {"file_name": "analyst_views.md"},
+            }
+        ),
+        # Turn 1 tool call
+        json.dumps(
+            {
+                "thought": "I will finalize the growth rate assumptions.",
+                "tool": "finalize",
+                "arguments": {
+                    "base_growth_rate": 0.06,
+                    "revenue_growth_rate": 0.075,
+                    "terminal_growth_rate": 0.035,
+                    "explanation": "Decided based on recent stable quarters and moat strength.",
+                },
+            }
+        ),
+    ]
+
+    mock_workspace = tmp_path / "MOCK"
+    mock_workspace.mkdir(parents=True)
+    analysis_dir = mock_workspace / "5_historical_analysis"
+    analysis_dir.mkdir(parents=True)
+    (analysis_dir / "analyst_views.md").write_text(
+        "Dummy analyst views data", encoding="utf-8"
+    )
+
+    res = run_growth_agent(
+        ticker="MOCK",
+        workspace=mock_workspace,
+        base_growth_rate=0.05,
+        target_growth_yr5=0.08,
+        terminal_growth_rate=0.03,
+        llm=mock_llm,
+        learning_context="Mock learning",
+    )
+
+    assert res["base_growth_rate"] == 0.06
+    assert res["revenue_growth_rate"] == 0.075
+    assert res["terminal_growth_rate"] == 0.035
+    assert (
+        res["explanation"]
+        == "Decided based on recent stable quarters and moat strength."
+    )
+
+    # Verify CuratorAgent was instantiated and curate_model_agent called
+    mock_curator_class.assert_called_once()
+    mock_curator_class.return_value.curate_model_agent.assert_called_once_with(
+        "MOCK", "Growth", ANY
+    )

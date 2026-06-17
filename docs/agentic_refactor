@@ -11,10 +11,10 @@
 - [x] The WACC agent should start with share_price, market_cap, beta, and model_learning, latest income_statement, latest balance_sheet, latest extracted and financials_quarter markdowns. The agent has access to a tool that can pull any income_statement, balance_sheet, and extracted markdowns.
 - [x] After the WACC calculations, the curator_agent should be called and update model_learning and include a section called ## WACC
 - [x] the WACC calculation needs to be documented in the model markdown file at the top.
-- [ ] Growth rates need to be an agent with four turns that really thinks about what the right three growth rates should be with a rationale.
-- [ ] The Growth agent should start with model_learning, financial_quarter, analyst_views, news_trend, transcript_trend markdowns. The agent has access to a tool that can pull any extracted markdowns.
-- [ ] the Growth assumptions needs to be documented in the model markdown file at the top.
-- [ ] After the Growth submissions, the curator_agent should be called and update model_learning and include a section called ## Growth
+- [x] Growth rates need to be an agent with four turns that really thinks about what the right three growth rates should be with a rationale.
+- [x] The Growth agent should start with model_learning, financial_quarter, analyst_views, news_trend, transcript_trend markdowns. The agent has access to a tool that can pull any extracted markdowns.
+- [x] the Growth assumptions needs to be documented in the model markdown file at the top.
+- [x] After the Growth submissions, the curator_agent should be called and update model_learning and include a section called ## Growth
 - [ ] Margins should also be an agent with four turns that really thinks about what the right three future margins should be with a rationale.
 - [ ] The Margin agent should start with model_learning, financial_quarter, analyst_views, news_trend, transcript_trend markdowns. The agent has access to a tool that can pull any extracted markdowns.
 - [ ] After the Margin submissions, the curator_agent should be called and update model_learning and include a section called ## Margin
