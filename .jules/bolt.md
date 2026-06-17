@@ -10,3 +10,6 @@
 ## 2026-06-16 - Inefficient Regex Evaluation Loop Over Large Documents
 **Learning:** Performing a regex `search` on a large document inside a loop that iterates over hundreds of extracted items results in an O(N) evaluation bottleneck. The engine unnecessarily scans the long context text repeatedly for every line item.
 **Action:** When extracting multiple key-value associations from a single context string, pre-parse the entire string once using `re.finditer` to build a lookup dictionary. Then iterate over the items using O(1) dictionary lookups instead of invoking `re.search` on the full string each time.
+## 2024-06-17 - Eliminate O(N²) List Containment and Scan
+**Learning:** Using `in` for dict containment inside a growing list (`if snippet_item not in snippets`) results in severe O(N²) degradation on large keyword search spaces. Additionally, using linear scan repeatedly over all chunks per match compounds the performance issue.
+**Action:** Replace list lookup with tuple `seen` set for O(1) deduplication, and replace linear positional chunk lookups with O(log N) `bisect.bisect_right`.
