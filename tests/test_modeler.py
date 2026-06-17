@@ -36,11 +36,19 @@ def mock_workspace(tmp_path):
     return workspace
 
 
+@patch("src.pipeline.modeler_agents.wacc_agent.run_wacc_agent")
 @patch("src.pipeline.modeler_orchestrator.load_config")
 @patch("src.services.market_data.get_market_profile")
 def test_calculate_default_assumptions(
-    mock_get_profile, mock_load_config, mock_workspace
+    mock_get_profile, mock_load_config, mock_run_wacc_agent, mock_workspace
 ):
+    # Mock run_wacc_agent
+    mock_run_wacc_agent.return_value = {
+        "wacc": 0.08,
+        "net_debt": 50.0,
+        "explanation": "Calculated mock WACC",
+    }
+
     # Mock market profile lookup
     mock_get_profile.return_value = {
         "valid": True,
@@ -69,7 +77,8 @@ def test_calculate_default_assumptions(
         0.05 + 0.03
     )  # base + 3pp
     assert assumptions["capital_turnover"] == 2.0
-    assert assumptions["wacc"] > 0.0
+    assert assumptions["wacc"] == 0.08
+    assert assumptions["net_debt"] == 50.0
 
 
 @patch("src.pipeline.modeler_orchestrator.load_config")
@@ -112,3 +121,115 @@ def test_generate_financial_model(mock_load_config, mock_workspace):
     assert "enterprise_value" in data["valuation"]
     assert "projections" in data
     assert len(data["projections"]) == 10
+
+
+def test_calculate_wacc_formula():
+    from src.pipeline.modeler_agents.wacc_agent import calculate_wacc_formula
+
+    res = calculate_wacc_formula(
+        risk_free_rate=0.04,
+        equity_risk_premium=0.05,
+        beta=1.0,
+        share_price=100.0,
+        shares_outstanding=10.0,
+        total_debt=500.0,
+        cash_and_equivalents=100.0,
+        interest_expense=25.0,
+        pretax_cost_of_debt=0.0,
+        tax_rate=0.20,
+        market_cap=0.0,
+    )
+
+    assert res["unlevered_beta"] == pytest.approx(1.0 / (1.0 + 0.8 * 0.5))
+    assert res["cost_debt_pretax"] == pytest.approx(0.05)
+    assert res["cost_debt_aftertax"] == pytest.approx(0.04)
+    assert res["cost_equity"] == pytest.approx(0.09)
+    assert res["weight_equity"] == pytest.approx(1000.0 / 1500.0)
+    assert res["weight_debt"] == pytest.approx(500.0 / 1500.0)
+    assert res["wacc_raw"] == pytest.approx((2 / 3) * 0.09 + (1 / 3) * 0.04)
+    assert res["wacc_final"] == pytest.approx(res["wacc_raw"])
+
+
+@patch("src.pipeline.curator_agent.CuratorAgent")
+@patch("src.services.llm_client.LLMClient")
+def test_run_wacc_agent(mock_llm_class, mock_curator_class, tmp_path):
+    from src.pipeline.modeler_agents.wacc_agent import run_wacc_agent
+
+    mock_llm = MagicMock()
+    # Mock LLM turn responses:
+    # Turn 0: Call pull_markdown_file
+    # Turn 1: Call calculate_wacc
+    # Turn 2: Call finalize
+    mock_llm.generate.side_effect = [
+        # Turn 0 tool call
+        json.dumps(
+            {
+                "thought": "I will read the extracted balance sheet file.",
+                "tool": "pull_markdown_file",
+                "arguments": {"file_name": "latest_balance_sheet.md"},
+            }
+        ),
+        # Turn 1 tool call
+        json.dumps(
+            {
+                "thought": "I have the file. I will calculate WACC now.",
+                "tool": "calculate_wacc",
+                "arguments": {
+                    "risk_free_rate": 0.04,
+                    "equity_risk_premium": 0.05,
+                    "beta": 1.1,
+                    "share_price": 150.0,
+                    "shares_outstanding": 10.0,
+                    "total_debt": 200.0,
+                    "cash_and_equivalents": 50.0,
+                    "interest_expense": 10.0,
+                    "pretax_cost_of_debt": 0.0,
+                    "tax_rate": 0.20,
+                },
+            }
+        ),
+        # Turn 2 tool call
+        json.dumps(
+            {
+                "thought": "I will finalize the WACC results.",
+                "tool": "finalize",
+                "arguments": {
+                    "wacc": 0.085,
+                    "total_debt": 200.0,
+                    "cash_and_equivalents": 50.0,
+                    "pretax_cost_of_debt": 0.05,
+                    "cost_of_equity": 0.10,
+                    "unlevered_beta": 0.95,
+                    "explanation": "Calculated successfully using agent tool pipeline.",
+                },
+            }
+        ),
+    ]
+
+    mock_workspace = tmp_path / "MOCK"
+    mock_workspace.mkdir(parents=True)
+    extracted_dir = mock_workspace / "4_extracted_data"
+    extracted_dir.mkdir(parents=True)
+    (extracted_dir / "latest_balance_sheet.md").write_text(
+        "Dummy balance sheet data", encoding="utf-8"
+    )
+
+    res = run_wacc_agent(
+        ticker="MOCK",
+        workspace=mock_workspace,
+        share_price=150.0,
+        market_cap=1500000000,
+        beta=1.1,
+        tax_rate=0.20,
+        llm=mock_llm,
+        learning_context="Mock learning",
+    )
+
+    assert res["wacc"] == 0.085
+    assert res["net_debt"] == 150.0
+    assert res["unlevered_beta"] == 0.95
+    assert res["explanation"] == "Calculated successfully using agent tool pipeline."
+
+    # Verify CuratorAgent was instantiated and curate_model_agent called
+    mock_curator_class.assert_called_once()
+    mock_curator_class.return_value.curate_model_agent.assert_called_once()

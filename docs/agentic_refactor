@@ -7,10 +7,10 @@
 - [x] This section is going to be agents heavy. Let's create modeler_agents folder to house all the agents and leave a modeler_orchestrator in the original folder.
 - [x] shares_outstanding should be taken from the latest quarter diluted shares outstanding or the most recent quarter have has a number
 - [x] Capital turnover can stay a script
-- [ ] the WACC calculation here is far too simple. We need to use the full formula that delevers the beta. We need to use agentic AI here with four turns, similar to the organic growth agent. This agent needs to find all the values to feed into a WACC calculator tool.
-- [ ] The WACC agent should start with share_price, market_cap, beta, and model_learning, latest income_statement, latest balance_sheet, latest extracted and financials_quarter markdowns. The agent has access to a tool that can pull any income_statement, balance_sheet, and extracted markdowns.
-- [ ] After the WACC calculations, the curator_agent should be called and update model_learning and include a section called ## WACC
-- [ ] the WACC calculation needs to be documented in the model markdown file at the top.
+- [x] the WACC calculation here is far too simple. We need to use the full formula that delevers the beta. We need to use agentic AI here with four turns, similar to the organic growth agent. This agent needs to find all the values to feed into a WACC calculator tool.
+- [x] The WACC agent should start with share_price, market_cap, beta, and model_learning, latest income_statement, latest balance_sheet, latest extracted and financials_quarter markdowns. The agent has access to a tool that can pull any income_statement, balance_sheet, and extracted markdowns.
+- [x] After the WACC calculations, the curator_agent should be called and update model_learning and include a section called ## WACC
+- [x] the WACC calculation needs to be documented in the model markdown file at the top.
 - [ ] Growth rates need to be an agent with four turns that really thinks about what the right three growth rates should be with a rationale.
 - [ ] The Growth agent should start with model_learning, financial_quarter, analyst_views, news_trend, transcript_trend markdowns. The agent has access to a tool that can pull any extracted markdowns.
 - [ ] the Growth assumptions needs to be documented in the model markdown file at the top.

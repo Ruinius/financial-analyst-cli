@@ -194,7 +194,9 @@ class Modeler:
                 pass
 
         # Phase 5 Implementation will be built out here
-        assumptions = self.calculate_default_assumptions(active_ticker, workspace)
+        assumptions = self.calculate_default_assumptions(
+            active_ticker, workspace, learning_context
+        )
         assumptions = self.estimate_llm_assumptions(
             active_ticker, workspace, assumptions, learning_context
         )
@@ -212,7 +214,7 @@ class Modeler:
         formatting.print_success(f"Modeling finished for {active_ticker}.")
 
     def calculate_default_assumptions(
-        self, ticker: str, workspace: Path
+        self, ticker: str, workspace: Path, learning_context: str = ""
     ) -> Dict[str, Any]:
         """Develop deterministic estimators for base WACC, capital turnover, and growth rates."""
         analysis_dir = workspace / "5_historical_analysis"
@@ -301,16 +303,25 @@ class Modeler:
         g_mag_match = re.search(r"([+-]?\d+)\s*pp", growth_mag_str)
         growth_magnitude = (float(g_mag_match.group(1)) / 100.0) if g_mag_match else 0
 
-        # For WACC (simplistic)
-        rf = 0.042
-        erp = 0.05
+        # For WACC (agentic calculation)
+        from src.services.llm_client import LLMClient
+        from src.pipeline.modeler_agents.wacc_agent import run_wacc_agent
 
-        debt = 0  # Need to fetch from extracted data if possible
-        cash = 0
+        llm = LLMClient()
+        wacc_results = run_wacc_agent(
+            ticker=ticker,
+            workspace=workspace,
+            share_price=share_price,
+            market_cap=market_cap,
+            beta=raw_beta,
+            tax_rate=l4q_tax,
+            llm=llm,
+            learning_context=learning_context,
+        )
 
-        cost_equity = rf + raw_beta * erp
-        wacc_raw = cost_equity  # Simple unlevered WACC for now
-        wacc = max(0.06, min(0.15, wacc_raw))
+        wacc = wacc_results["wacc"]
+        net_debt = wacc_results["net_debt"]
+        wacc_explanation = wacc_results.get("explanation", "")
 
         # Turnovers
         l4q_turnovers = []
@@ -349,7 +360,8 @@ class Modeler:
             "shares_outstanding": shares_out,
             "market_cap": market_cap,
             "share_price": share_price,
-            "net_debt": debt - cash,
+            "net_debt": net_debt,
+            "wacc_explanation": wacc_explanation,
         }
 
         return assumptions
@@ -448,6 +460,10 @@ class Modeler:
         # Create output Markdown
         md_path = model_dir / f"{today}_{ticker}_model.md"
 
+        wacc_explanation_str = assumptions.get("wacc_explanation", "")
+        if wacc_explanation_str:
+            wacc_explanation_str = f"\n{wacc_explanation_str}\n"
+
         md_content = f"""# Financial Model: {ticker}
 Date: {today}
 
@@ -458,6 +474,7 @@ Date: {today}
 - **Margin Yr5**: {target_margin_yr5 * 100:.2f}%
 - **Capital Turnover**: {mct}x
 
+{wacc_explanation_str}
 ## Valuation
 - **Enterprise Value**: ${dcf_result["enterprise_value"]:,.0f}
 - **Intrinsic Value Per Share**: ${dcf_result["intrinsic_value_per_share"]:.2f}

@@ -165,10 +165,45 @@ class CuratorAgent:
             model.write_text(
                 f"# Modeling Learning: {ticker}\n\n"
                 "## Lessons to Better Model\n- None\n\n"
+                "## WACC\n"
+                "- Which key words that worked well in the search: None\n"
+                "- What are line items to watch out for and why: None\n\n"
+                "## Growth\n"
+                "- Which key words that worked well in the search: None\n"
+                "- What are line items to watch out for and why: None\n\n"
+                "## Margin\n"
+                "- Which key words that worked well in the search: None\n"
+                "- What are line items to watch out for and why: None\n\n"
                 "## User Feedback\n"
                 "<!-- Write your feedback here. The Curator Agent will compile it into lessons and clear this section. -->\n",
                 encoding="utf-8",
             )
+        else:
+            try:
+                content = model.read_text(encoding="utf-8")
+                sections_to_add = []
+                for section in ["WACC", "Growth", "Margin"]:
+                    if f"## {section}" not in content:
+                        sections_to_add.append(
+                            f"## {section}\n"
+                            "- Which key words that worked well in the search: None\n"
+                            "- What are line items to watch out for and why: None\n"
+                        )
+                if sections_to_add:
+                    feedback_match = re.search(
+                        r"## User Feedback", content, re.IGNORECASE
+                    )
+                    if feedback_match:
+                        prefix = content[: feedback_match.start()]
+                        suffix = content[feedback_match.start() :]
+                        new_content = (
+                            prefix + "\n".join(sections_to_add) + "\n\n" + suffix
+                        )
+                    else:
+                        new_content = content + "\n\n" + "\n".join(sections_to_add)
+                    model.write_text(new_content, encoding="utf-8")
+            except Exception as e:
+                logger.error(f"Failed to run self-healing on model learning file: {e}")
 
     def _get_feedback_and_content(self, file_path: Path) -> Tuple[str, str]:
         if not file_path.exists():
@@ -531,3 +566,72 @@ Output the FULL markdown file with the updated '## {agent_name}' section. Do not
             )
         except Exception as e:
             logger.error(f"Failed to curate {agent_name} section: {e}")
+
+    def curate_model_agent(self, ticker: str, agent_name: str, agent_logs: str) -> None:
+        """
+        Curate a specific modeling agent's section within model_learning.md.
+        """
+        if not ticker or "MagicMock" in str(ticker):
+            ticker = "MOCK"
+
+        if not self.settings.active_workspace_path:
+            logger.warning("No active workspace path set. Skipping curation.")
+            return
+
+        workspace = Path(self.settings.active_workspace_path)
+        model_learning_path = workspace / f"{ticker}_model_learning.md"
+
+        self._ensure_files_exist(
+            ticker,
+            workspace / f"{ticker}_wiki.md",
+            workspace / f"{ticker}_extract_learning.md",
+            workspace / f"{ticker}_analyze_learning.md",
+            model_learning_path,
+        )
+
+        content = model_learning_path.read_text(encoding="utf-8")
+
+        sys_prompt = (
+            "You are Sir Pennyworth's Modeling Learning Curator. "
+            f"Your task is to update the '## {agent_name}' section of the Modeling Learning markdown file "
+            "based on the execution logs of that modeling agent. "
+            "Return the entire updated markdown file. Do not alter any other section of the file. "
+            "Do not wrap the output in markdown code blocks. "
+            "CRITICAL 1: Keep the updated section highly succinct and dense, strictly less than 10 lines of text/bullets in total. "
+            "CRITICAL 2: Retain ONLY messages/rules/tips that will help future AI agent tasks succeed (e.g. specific line items, accounting treatments, WACC parameters). "
+            "CRITICAL 3: Do NOT include any example tables. Do not include conversational filler, general advice, or verbose logs."
+        )
+
+        prompt = f"""
+Ticker: {ticker}
+Agent/Section to update: {agent_name}
+Current Modeling Learning Content:
+\"\"\"
+{content}
+\"\"\"
+
+Execution logs / history of the {agent_name} agent:
+\"\"\"
+{agent_logs}
+\"\"\"
+
+Please update the '## {agent_name}' section in the file. Keep all other sections and mappings exactly as they are.
+The section MUST answer the following questions:
+- Which key words that worked well in the search? (Focus strictly on search queries that returned actual matches or were useful)
+- What are line items to watch out for and why? (Note specific names, values, or WACC adjustments)
+
+Keep the answers extremely short (less than 10 lines total for the entire section), focused strictly on what is useful for future AI agents, and remove all generic advice, chat, or example tables.
+Output the FULL markdown file with the updated '## {agent_name}' section. Do not wrap in code blocks.
+"""
+        try:
+            updated_content = self.llm.generate(prompt, system_prompt=sys_prompt)
+            model_learning_path.write_text(
+                strip_markdown_code_blocks(updated_content), encoding="utf-8"
+            )
+            logger.info(
+                f"Successfully curated {agent_name} section in model_learning.md"
+            )
+        except Exception as e:
+            logger.error(
+                f"Failed to curate {agent_name} section in model_learning: {e}"
+            )
