@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Dict, Any
 
 from src.services.llm_client import LLMClient
+from src.core.exceptions import LLMError
 
 logger = logging.getLogger(__name__)
 
@@ -86,8 +87,8 @@ def calculate_wacc_formula(
     # Formula: WACC = (Weight_Equity * Re) + (Weight_Debt * Rd_aftertax)
     wacc_raw = (weight_equity * cost_of_equity) + (weight_debt * cost_of_debt_aftertax)
 
-    # Cap WACC between 6% and 15% as per orchestrator rules
-    wacc_final = max(0.06, min(0.15, wacc_raw))
+    # Cap WACC between 6% and 11% as per orchestrator rules
+    wacc_final = max(0.06, min(0.11, wacc_raw))
 
     # 8. Generate Detailed Explanation
     explanation = (
@@ -114,7 +115,7 @@ def calculate_wacc_formula(
         f"- Weight of Equity (E / V) = {weight_equity * 100:.2f}%\n"
         f"- Weight of Debt (D / V) = {weight_debt * 100:.2f}%\n"
         f"- **WACC (Raw)** = (Weight_Equity * Re) + (Weight_Debt * Rd_aftertax) = **{wacc_raw * 100:.2f}%**\n"
-        f"- **WACC (Final capped)** = **{wacc_final * 100:.2f}%** (capped between 6.00% and 15.00%)\n"
+        f"- **WACC (Final capped)** = **{wacc_final * 100:.2f}%** (capped between 6.00% and 11.00%)\n"
     )
 
     return {
@@ -258,7 +259,9 @@ def run_wacc_agent(
             resp = llm.generate(prompt_str, system_prompt=sys_prompt).strip()
         except Exception as e:
             logger.error(f"WACC Agent failed at turn {turn}: {e}")
-            break
+            raise LLMError(
+                f"WACC Agent failed during LLM generation at turn {turn}: {e}"
+            ) from e
 
         history.append({"role": "assistant", "content": resp})
 
@@ -363,6 +366,10 @@ def run_wacc_agent(
 
         else:
             history.append({"role": "user", "content": f"Error: Unknown tool '{tool}'"})
+    else:
+        raise LLMError(
+            "WACC Agent failed to finalize WACC calculations within the maximum turn limit."
+        )
 
     # Trigger Curator Agent to capture lessons in model_learning.md
     try:

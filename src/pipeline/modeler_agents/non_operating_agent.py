@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Dict, Any
 
 from src.services.llm_client import LLMClient
+from src.core.exceptions import LLMError, WorkspaceError
 
 logger = logging.getLogger(__name__)
 
@@ -50,20 +51,12 @@ def run_non_operating_agent(
             extracted_content = content
             break
 
-    # If no file found, fallback to defaults
+    # If no file found, raise WorkspaceError
     if not latest_extracted_file:
-        logger.warning(
-            f"No extracted financial files found containing non-operating sections for {ticker}."
+        raise WorkspaceError(
+            f"No extracted financial files found containing non-operating sections for {ticker}. "
+            "Please run extraction and historical synthesis first."
         )
-        return {
-            "cash": 0.0,
-            "short_term_investments": 0.0,
-            "debt": 0.0,
-            "preferred_equity": 0.0,
-            "minority_interest": 0.0,
-            "other_financial": 0.0,
-            "explanation": "Default backup non-operating values (0.0) used because no matching extracted files were found.",
-        }
 
     # Extract non-operating sections from the extracted file
     non_op_assets_section = ""
@@ -164,8 +157,14 @@ Extract the non-operating categories and return the JSON object matching this st
             final_results["explanation"] = str(data.get("explanation", ""))
         else:
             logger.error("LLM did not return a valid JSON in non-operating agent.")
+            raise LLMError(
+                "Non-Operating Agent failed: LLM response did not contain a valid JSON object."
+            )
     except Exception as e:
         logger.error(f"Non-Operating Agent failed: {e}")
+        if isinstance(e, LLMError):
+            raise
+        raise LLMError(f"Non-Operating Agent failed: {e}") from e
 
     # Trigger Curator Agent to capture lessons in model_learning.md
     try:

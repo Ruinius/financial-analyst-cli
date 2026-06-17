@@ -28,7 +28,7 @@ Welcome to the `financial-analyst-cli` project.
     - src/cli/commands/use.py: Workspace switcher command that updates active ticker and initializes 7 folders.
   - src/core/: Settings, custom exception classes, and Pydantic schemas.
     - src/core/config.py: Settings model definition, loading/saving utilities, and API key masking.
-    - src/core/exceptions.py: Custom exception classes (e.g. ConfigError, WorkspaceError).
+    - src/core/exceptions.py: Custom exception classes (e.g. ConfigError, WorkspaceError, LLMError).
   - src/pipeline/: Execution runner stages (ingest, extract, analyze, model).
     - src/pipeline/queue.py: Safe job queue and exponential back-off retry manager.
     - src/pipeline/ingester.py: File parsing, deduplication, chunking, and LLM metadata identification.

@@ -26,3 +26,9 @@ class InvalidWorkspaceError(WorkspaceError):
     """Raised when a workspace path is invalid or cannot be initialized."""
 
     pass
+
+
+class LLMError(CLIError):
+    """Raised when an LLM call fails or returns an invalid/malformed response."""
+
+    pass

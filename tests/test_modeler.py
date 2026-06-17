@@ -464,3 +464,238 @@ def test_run_non_operating_agent(mock_llm_class, mock_curator_class, tmp_path):
 
     mock_curator_class.assert_called_once()
     mock_curator_class.return_value.curate_model_agent.assert_called_once()
+
+
+def test_calculate_wacc_formula_capping():
+    from src.pipeline.modeler_agents.wacc_agent import calculate_wacc_formula
+
+    # Test that WACC is capped at 11% instead of 15%
+    # Using high raw beta & equity risk premium to push WACC above 11%
+    res = calculate_wacc_formula(
+        risk_free_rate=0.05,
+        equity_risk_premium=0.10,
+        beta=2.0,
+        share_price=100.0,
+        shares_outstanding=10.0,
+        total_debt=500.0,
+        cash_and_equivalents=100.0,
+        interest_expense=50.0,
+        pretax_cost_of_debt=0.0,
+        tax_rate=0.20,
+        market_cap=0.0,
+    )
+
+    # Raw equity cost = 0.05 + 2.0 * 0.10 = 0.25 (25%)
+    # Weight of equity is 2/3, weight of debt is 1/3, after tax cost of debt is 0.1 * 0.8 = 0.08
+    # Raw WACC = 2/3 * 0.25 + 1/3 * 0.08 = 0.1667 + 0.0267 = 0.1933 (19.33%)
+    # This should be capped at 11% (0.11)
+    assert res["wacc_raw"] > 0.15
+    assert res["wacc_final"] == pytest.approx(0.11)
+
+
+@patch("src.pipeline.curator_agent.CuratorAgent")
+def test_run_wacc_agent_llm_failure(mock_curator, tmp_path):
+    from src.pipeline.modeler_agents.wacc_agent import run_wacc_agent
+    from src.core.exceptions import LLMError
+
+    mock_llm = MagicMock()
+    mock_llm.generate.side_effect = Exception("API error")
+
+    with pytest.raises(LLMError) as exc_info:
+        run_wacc_agent(
+            ticker="MOCK",
+            workspace=tmp_path,
+            share_price=150.0,
+            market_cap=1500000000,
+            beta=1.1,
+            tax_rate=0.20,
+            llm=mock_llm,
+        )
+    assert "WACC Agent failed during LLM generation" in str(exc_info.value)
+
+
+@patch("src.pipeline.curator_agent.CuratorAgent")
+def test_run_wacc_agent_finalize_failure(mock_curator, tmp_path):
+    from src.pipeline.modeler_agents.wacc_agent import run_wacc_agent
+    from src.core.exceptions import LLMError
+
+    mock_llm = MagicMock()
+    # Provide 4 responses that never call the 'finalize' tool
+    mock_llm.generate.return_value = json.dumps(
+        {
+            "thought": "Let's read a file",
+            "tool": "pull_markdown_file",
+            "arguments": {"file_name": "none.md"},
+        }
+    )
+
+    with pytest.raises(LLMError) as exc_info:
+        run_wacc_agent(
+            ticker="MOCK",
+            workspace=tmp_path,
+            share_price=150.0,
+            market_cap=1500000000,
+            beta=1.1,
+            tax_rate=0.20,
+            llm=mock_llm,
+        )
+    assert "failed to finalize WACC calculations within the maximum turn limit" in str(
+        exc_info.value
+    )
+
+
+@patch("src.pipeline.curator_agent.CuratorAgent")
+def test_run_growth_agent_llm_failure(mock_curator, tmp_path):
+    from src.pipeline.modeler_agents.growth_agent import run_growth_agent
+    from src.core.exceptions import LLMError
+
+    mock_llm = MagicMock()
+    mock_llm.generate.side_effect = Exception("API error")
+
+    with pytest.raises(LLMError):
+        run_growth_agent(
+            ticker="MOCK",
+            workspace=tmp_path,
+            base_growth_rate=0.05,
+            target_growth_yr5=0.08,
+            terminal_growth_rate=0.03,
+            llm=mock_llm,
+        )
+
+
+@patch("src.pipeline.curator_agent.CuratorAgent")
+def test_run_growth_agent_finalize_failure(mock_curator, tmp_path):
+    from src.pipeline.modeler_agents.growth_agent import run_growth_agent
+    from src.core.exceptions import LLMError
+
+    mock_llm = MagicMock()
+    mock_llm.generate.return_value = json.dumps(
+        {
+            "thought": "Let's read a file",
+            "tool": "pull_markdown_file",
+            "arguments": {"file_name": "none.md"},
+        }
+    )
+
+    with pytest.raises(LLMError) as exc_info:
+        run_growth_agent(
+            ticker="MOCK",
+            workspace=tmp_path,
+            base_growth_rate=0.05,
+            target_growth_yr5=0.08,
+            terminal_growth_rate=0.03,
+            llm=mock_llm,
+        )
+    assert "failed to finalize growth rate assumptions" in str(exc_info.value)
+
+
+@patch("src.pipeline.curator_agent.CuratorAgent")
+def test_run_margin_agent_llm_failure(mock_curator, tmp_path):
+    from src.pipeline.modeler_agents.margin_agent import run_margin_agent
+    from src.core.exceptions import LLMError
+
+    mock_llm = MagicMock()
+    mock_llm.generate.side_effect = Exception("API error")
+
+    with pytest.raises(LLMError):
+        run_margin_agent(
+            ticker="MOCK",
+            workspace=tmp_path,
+            base_margin=0.20,
+            margin_yr5=0.23,
+            terminal_margin=0.23,
+            llm=mock_llm,
+        )
+
+
+@patch("src.pipeline.curator_agent.CuratorAgent")
+def test_run_margin_agent_finalize_failure(mock_curator, tmp_path):
+    from src.pipeline.modeler_agents.margin_agent import run_margin_agent
+    from src.core.exceptions import LLMError
+
+    mock_llm = MagicMock()
+    mock_llm.generate.return_value = json.dumps(
+        {
+            "thought": "Let's read a file",
+            "tool": "pull_markdown_file",
+            "arguments": {"file_name": "none.md"},
+        }
+    )
+
+    with pytest.raises(LLMError) as exc_info:
+        run_margin_agent(
+            ticker="MOCK",
+            workspace=tmp_path,
+            base_margin=0.20,
+            margin_yr5=0.23,
+            terminal_margin=0.23,
+            llm=mock_llm,
+        )
+    assert "failed to finalize EBITA margin assumptions" in str(exc_info.value)
+
+
+@patch("src.pipeline.curator_agent.CuratorAgent")
+def test_run_non_operating_agent_missing_files(mock_curator, tmp_path):
+    from src.pipeline.modeler_agents.non_operating_agent import run_non_operating_agent
+    from src.core.exceptions import WorkspaceError
+
+    mock_llm = MagicMock()
+
+    # Empty workspace, no extracted financial files
+    with pytest.raises(WorkspaceError) as exc_info:
+        run_non_operating_agent(
+            ticker="MOCK",
+            workspace=tmp_path,
+            llm=mock_llm,
+        )
+    assert (
+        "No extracted financial files found containing non-operating sections"
+        in str(exc_info.value)
+    )
+
+
+@patch("src.pipeline.curator_agent.CuratorAgent")
+def test_run_non_operating_agent_llm_failure(mock_curator, tmp_path):
+    from src.pipeline.modeler_agents.non_operating_agent import run_non_operating_agent
+    from src.core.exceptions import LLMError
+
+    mock_llm = MagicMock()
+    mock_llm.generate.side_effect = Exception("API error")
+
+    # Create dummy files so file-finding check passes
+    extracted_dir = tmp_path / "4_extracted_data"
+    extracted_dir.mkdir(parents=True)
+    (extracted_dir / "20260617_MOCK_10Q_extracted.md").write_text(
+        "#### Non-Operating Assets\n- Cash: 20\n", encoding="utf-8"
+    )
+
+    with pytest.raises(LLMError):
+        run_non_operating_agent(
+            ticker="MOCK",
+            workspace=tmp_path,
+            llm=mock_llm,
+        )
+
+
+@patch("src.pipeline.curator_agent.CuratorAgent")
+def test_run_non_operating_agent_invalid_json(mock_curator, tmp_path):
+    from src.pipeline.modeler_agents.non_operating_agent import run_non_operating_agent
+    from src.core.exceptions import LLMError
+
+    mock_llm = MagicMock()
+    mock_llm.generate.return_value = "invalid response, no json here"
+
+    # Create dummy files so file-finding check passes
+    extracted_dir = tmp_path / "4_extracted_data"
+    extracted_dir.mkdir(parents=True)
+    (extracted_dir / "20260617_MOCK_10Q_extracted.md").write_text(
+        "#### Non-Operating Assets\n- Cash: 20\n", encoding="utf-8"
+    )
+
+    with pytest.raises(LLMError) as exc_info:
+        run_non_operating_agent(
+            ticker="MOCK",
+            workspace=tmp_path,
+            llm=mock_llm,
+        )
+    assert "LLM response did not contain a valid JSON object" in str(exc_info.value)

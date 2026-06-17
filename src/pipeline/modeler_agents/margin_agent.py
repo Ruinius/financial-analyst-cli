@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Dict, Any
 
 from src.services.llm_client import LLMClient
+from src.core.exceptions import LLMError
 
 logger = logging.getLogger(__name__)
 
@@ -141,7 +142,9 @@ def run_margin_agent(
             resp = llm.generate(prompt_str, system_prompt=sys_prompt).strip()
         except Exception as e:
             logger.error(f"Margin Agent failed at turn {turn}: {e}")
-            break
+            raise LLMError(
+                f"Margin Agent failed during LLM generation at turn {turn}: {e}"
+            ) from e
 
         history.append({"role": "assistant", "content": resp})
 
@@ -190,6 +193,10 @@ def run_margin_agent(
 
         else:
             history.append({"role": "user", "content": f"Error: Unknown tool '{tool}'"})
+    else:
+        raise LLMError(
+            "Margin Agent failed to finalize EBITA margin assumptions within the maximum turn limit."
+        )
 
     # Trigger Curator Agent to capture lessons in model_learning.md
     try:
