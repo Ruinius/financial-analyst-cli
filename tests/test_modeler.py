@@ -36,6 +36,7 @@ def mock_workspace(tmp_path):
     return workspace
 
 
+@patch("src.pipeline.modeler_agents.margin_agent.run_margin_agent")
 @patch("src.pipeline.modeler_agents.growth_agent.run_growth_agent")
 @patch("src.pipeline.modeler_agents.wacc_agent.run_wacc_agent")
 @patch("src.pipeline.modeler_orchestrator.load_config")
@@ -45,6 +46,7 @@ def test_calculate_default_assumptions(
     mock_load_config,
     mock_run_wacc_agent,
     mock_run_growth_agent,
+    mock_run_margin_agent,
     mock_workspace,
 ):
     # Mock run_wacc_agent
@@ -60,6 +62,14 @@ def test_calculate_default_assumptions(
         "revenue_growth_rate": 0.08,
         "terminal_growth_rate": 0.03,
         "explanation": "Calculated mock growth rates",
+    }
+
+    # Mock run_margin_agent
+    mock_run_margin_agent.return_value = {
+        "base_margin": 0.21,
+        "margin_yr5": 0.24,
+        "terminal_margin": 0.23,
+        "explanation": "Calculated mock margins",
     }
 
     # Mock market profile lookup
@@ -84,6 +94,9 @@ def test_calculate_default_assumptions(
     assert assumptions["base_growth_rate"] == 0.05
     assert assumptions["revenue_growth_rate"] == 0.08
     assert assumptions["terminal_growth_rate"] == 0.03
+    assert assumptions["base_margin"] == 0.21
+    assert assumptions["margin_yr5"] == 0.24
+    assert assumptions["terminal_margin"] == 0.23
     assert assumptions["capital_turnover"] == 2.0
     assert assumptions["wacc"] == 0.08
     assert assumptions["net_debt"] == 50.0
@@ -103,6 +116,7 @@ def test_generate_financial_model(mock_load_config, mock_workspace):
         "base_growth_rate": 0.05,
         "margin_yr5": 0.25,
         "base_margin": 0.20,
+        "terminal_margin": 0.23,
         "terminal_growth_rate": 0.04,
         "adjusted_tax_rate": 0.21,
         "base_revenue": 1000.0,
@@ -306,4 +320,70 @@ def test_run_growth_agent(mock_llm_class, mock_curator_class, tmp_path):
     mock_curator_class.assert_called_once()
     mock_curator_class.return_value.curate_model_agent.assert_called_once_with(
         "MOCK", "Growth", ANY
+    )
+
+
+@patch("src.pipeline.curator_agent.CuratorAgent")
+@patch("src.services.llm_client.LLMClient")
+def test_run_margin_agent(mock_llm_class, mock_curator_class, tmp_path):
+    from src.pipeline.modeler_agents.margin_agent import run_margin_agent
+
+    mock_llm = MagicMock()
+    # Mock LLM turn responses:
+    # Turn 0: Call pull_markdown_file
+    # Turn 1: Call finalize
+    mock_llm.generate.side_effect = [
+        # Turn 0 tool call
+        json.dumps(
+            {
+                "thought": "I will read the analyst views file.",
+                "tool": "pull_markdown_file",
+                "arguments": {"file_name": "analyst_views.md"},
+            }
+        ),
+        # Turn 1 tool call
+        json.dumps(
+            {
+                "thought": "I will finalize the margin assumptions.",
+                "tool": "finalize",
+                "arguments": {
+                    "base_margin": 0.22,
+                    "margin_yr5": 0.25,
+                    "terminal_margin": 0.24,
+                    "explanation": "Decided based on recent stable operating trends and cost cutting.",
+                },
+            }
+        ),
+    ]
+
+    mock_workspace = tmp_path / "MOCK"
+    mock_workspace.mkdir(parents=True)
+    analysis_dir = mock_workspace / "5_historical_analysis"
+    analysis_dir.mkdir(parents=True)
+    (analysis_dir / "analyst_views.md").write_text(
+        "Dummy analyst views data", encoding="utf-8"
+    )
+
+    res = run_margin_agent(
+        ticker="MOCK",
+        workspace=mock_workspace,
+        base_margin=0.20,
+        margin_yr5=0.23,
+        terminal_margin=0.23,
+        llm=mock_llm,
+        learning_context="Mock learning",
+    )
+
+    assert res["base_margin"] == 0.22
+    assert res["margin_yr5"] == 0.25
+    assert res["terminal_margin"] == 0.24
+    assert (
+        res["explanation"]
+        == "Decided based on recent stable operating trends and cost cutting."
+    )
+
+    # Verify CuratorAgent was instantiated and curate_model_agent called
+    mock_curator_class.assert_called_once()
+    mock_curator_class.return_value.curate_model_agent.assert_called_once_with(
+        "MOCK", "Margin", ANY
     )

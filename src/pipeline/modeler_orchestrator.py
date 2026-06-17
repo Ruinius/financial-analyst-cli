@@ -307,6 +307,7 @@ class Modeler:
         from src.services.llm_client import LLMClient
         from src.pipeline.modeler_agents.wacc_agent import run_wacc_agent
         from src.pipeline.modeler_agents.growth_agent import run_growth_agent
+        from src.pipeline.modeler_agents.margin_agent import run_margin_agent
 
         llm = LLMClient()
         wacc_results = run_wacc_agent(
@@ -335,6 +336,18 @@ class Modeler:
             learning_context=learning_context,
         )
 
+        # For Margins (agentic calculation)
+        base_margin_init = l4q_ebita / l4q_rev if l4q_rev > 0 else 0
+        margin_results = run_margin_agent(
+            ticker=ticker,
+            workspace=workspace,
+            base_margin=base_margin_init,
+            margin_yr5=base_margin_init + margin_magnitude,
+            terminal_margin=base_margin_init + margin_magnitude,
+            llm=llm,
+            learning_context=learning_context,
+        )
+
         # Turnovers
         l4q_turnovers = []
         for q in l4q:
@@ -350,7 +363,7 @@ class Modeler:
             mct = round(avg_turnover, 1)
 
         base_rev = l4q_rev
-        base_margin = l4q_ebita / l4q_rev if l4q_rev > 0 else 0
+        base_margin = margin_results["base_margin"]
 
         assumptions = {
             "wacc": wacc,
@@ -359,8 +372,9 @@ class Modeler:
             "base_capital_turnover": mct,
             "revenue_growth_rate": growth_results["revenue_growth_rate"],
             "base_growth_rate": growth_results["base_growth_rate"],
-            "margin_yr5": base_margin + margin_magnitude,
+            "margin_yr5": margin_results["margin_yr5"],
             "base_margin": base_margin,
+            "terminal_margin": margin_results["terminal_margin"],
             "terminal_growth_rate": growth_results["terminal_growth_rate"],
             "base_terminal_growth": 0.04 if moat == "Wide" else 0.03,
             "adjusted_tax_rate": l4q_tax,
@@ -375,6 +389,7 @@ class Modeler:
             "net_debt": net_debt,
             "wacc_explanation": wacc_explanation,
             "growth_explanation": growth_results.get("explanation", ""),
+            "margin_explanation": margin_results.get("explanation", ""),
         }
 
         return assumptions
@@ -393,6 +408,7 @@ class Modeler:
         rev = assumptions["base_revenue"]
         base_margin = assumptions["base_margin"]
         target_margin_yr5 = assumptions["margin_yr5"]
+        terminal_margin = assumptions.get("terminal_margin", target_margin_yr5)
         target_growth_yr5 = assumptions["revenue_growth_rate"]
         l4q_growth = assumptions["base_growth_rate"]
         terminal_growth = assumptions["terminal_growth_rate"]
@@ -411,7 +427,9 @@ class Modeler:
                 g = target_growth_yr5 + (terminal_growth - target_growth_yr5) * (
                     (yr - 5) / 5.0
                 )
-                m = target_margin_yr5
+                m = target_margin_yr5 + (terminal_margin - target_margin_yr5) * (
+                    (yr - 5) / 5.0
+                )
 
             growth_rates.append(g)
 
@@ -481,6 +499,10 @@ class Modeler:
         if growth_explanation_str:
             growth_explanation_str = f"\n{growth_explanation_str}\n"
 
+        margin_explanation_str = assumptions.get("margin_explanation", "")
+        if margin_explanation_str:
+            margin_explanation_str = f"\n{margin_explanation_str}\n"
+
         md_content = f"""# Financial Model: {ticker}
 Date: {today}
 
@@ -489,10 +511,12 @@ Date: {today}
 - **Revenue Growth Rate**: {target_growth_yr5 * 100:.2f}%
 - **Terminal Growth Rate**: {terminal_growth * 100:.2f}%
 - **Margin Yr5**: {target_margin_yr5 * 100:.2f}%
+- **Terminal Margin**: {terminal_margin * 100:.2f}%
 - **Capital Turnover**: {mct}x
 
 {wacc_explanation_str}
 {growth_explanation_str}
+{margin_explanation_str}
 ## Valuation
 - **Enterprise Value**: ${dcf_result["enterprise_value"]:,.0f}
 - **Intrinsic Value Per Share**: ${dcf_result["intrinsic_value_per_share"]:.2f}
