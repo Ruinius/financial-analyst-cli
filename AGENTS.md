@@ -12,7 +12,7 @@ Welcome to the `financial-analyst-cli` project.
   - .jules/sentinel.md: Learnings and preventions from path traversal vulnerabilities in local viewer server.
 - Cargo.toml: Cargo configuration for the Rust Core calculation engine.
 - docs/architecture.md: System architecture, folder structure, and software design decisions.
-- docs/agentic_refactor: Plan and agent specification for transitioning to the multi-agent financial extraction system.
+- docs/agentic_refactor.md: Backlog and plan specifications for code refactoring ideas.
 - docs/cli_spec.md: CLI command hierarchy, options, parameters, and user experience specification.
 - docs/requirements.md: Scope of capabilities and product requirements translated from financial-analyst-skills.
 - docs/roadmap.md: Six-phase development plan for implementing the Financial Analyst CLI.

@@ -66,20 +66,26 @@ financial-analyst-cli/
 │   │   ├── ingester.py             # File ingestion, hashing & chunking
 │   │   ├── document_types.json     # Mapping definitions for supported report types
 │   │   ├── extractor_orchestrator.py # Routing extraction jobs to sub-extractors
-│   │   └── extractor_agents/        # Folder containing specialized extractors and agents
-│   │       ├── extractor_financials.py # Specialized coordinator for 10K, 10Q, 20F, etc.
-│   │       ├── extractor_analyst_report.py # Specialized extractor for analyst reports
-│   │       ├── extractor_transcript.py # Specialized extractor for transcripts
-│   │       ├── extractor_other.py   # Specialized extractor for other types
-│   │       └── extractor_financials_agents/ # Nested financial sub-agents
-│   │           ├── income_statement_agent.py # Income Statement extraction agent
-│   │           ├── balance_sheet_agent.py # Balance Sheet extraction agent
-│   │           ├── interpretation_agent.py # Financial statement interpretation agent
-│   │           ├── diluted_shares_agent.py # Basic/diluted shares extraction agent
-│   │           ├── organic_growth_agent.py # Organic revenue growth agent
-│   │           └── ebita_tax_agent.py # EBITA adjustments & adjusted tax agent
+│   │   ├── extractor_agents/        # Folder containing specialized extractors and agents
+│   │   │   ├── extractor_financials.py # Specialized coordinator for 10K, 10Q, 20F, etc.
+│   │   │   ├── extractor_analyst_report.py # Specialized extractor for analyst reports
+│   │   │   ├── extractor_transcript.py # Specialized extractor for transcripts
+│   │   │   ├── extractor_other.py   # Specialized extractor for other types
+│   │   │   └── extractor_financials_agents/ # Nested financial sub-agents
+│   │   │       ├── income_statement_agent.py # Income Statement extraction agent
+│   │   │       ├── balance_sheet_agent.py # Balance Sheet extraction agent
+│   │   │       ├── interpretation_agent.py # Financial statement interpretation agent
+│   │   │       ├── diluted_shares_agent.py # Basic/diluted shares extraction agent
+│   │   │       ├── organic_growth_agent.py # Organic revenue growth agent
+│   │   │       └── ebita_tax_agent.py # EBITA adjustments & adjusted tax agent
 │   │   ├── analyzer.py             # Historical synthesis & trend tracking
-│   │   └── modeler.py              # Assumption processing & model generation
+│   │   ├── modeler.py              # Redirect wrapper module
+│   │   ├── modeler_orchestrator.py # Orchestrates DCF financial modeling
+│   │   └── modeler_agents/         # Directory containing specialized modeling agents
+│   │       ├── wacc_agent.py       # WACC calculation and beta de-levering/re-levering
+│   │       ├── growth_agent.py     # Estimating future revenue growth rates
+│   │       ├── margin_agent.py     # Estimating future EBITA margins
+│   │       └── non_operating_agent.py # Extracting non-operating balance sheet categories
 │   ├── rust_core/                  # Rust performance critical calculation engine
 │   │   └── lib.rs                  # PyO3 bindings for financial math (WACC, DCF, ROIC)
 │   ├── viewer/                     # HTML viewer code
@@ -113,6 +119,7 @@ sequenceDiagram
     participant Extract as Extractor
     participant Hist as Historical Analyzer
     participant Model as Modeler
+    participant ModelAgents as Modeler Agents
     participant Rust as Rust Core
 
     User->>CLI: fa run edgar
@@ -144,6 +151,8 @@ sequenceDiagram
 
     User->>CLI: fa run model
     CLI->>Model: Calculate default assumptions
+    Model->>ModelAgents: Delegate assumptions (WACC, Growth, Margin, Non-Operating) to agents
+    ModelAgents->>Model: Return optimized assumptions with rationales
     Model->>Rust: Compute DCF base indicators
     Model->>User: Present assumptions table for feedback
     Model->>User: Output 6_financial_model markdown & 7_historical_model_json

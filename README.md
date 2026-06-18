@@ -35,6 +35,37 @@ While this doesn't require the open-ended reasoning level of a software engineer
 
 ---
 
+## Self-Learning & Self-Healing Architecture
+
+To prevent memory loss, avoid repeating errors, and accommodate the highly company-specific formatting of financial filings without complex remote databases, `fa` implements an in-workspace **Self-Learning & Self-Healing** architecture:
+
+```mermaid
+graph TD
+    UserFeedback[User edits ## User Feedback in Learning MD] --> Curator[CuratorAgent Stage Finish]
+    RunLogs[Recent Pipeline Run Logs / Artifacts] --> Curator
+    Curator -->|Extracts & Filters| LLMCompaction[LLM Compaction Prompt]
+    LLMCompaction -->|Incorporates New Lessons & Mappings| Rewrite[Succinct Learning MD Rewrite]
+    Rewrite -->|Resets Feedback Template| CleanMD[Clean register files ready for next run]
+```
+
+### 1. Workspace-Local Learning Registers
+Instead of external configuration stores, each company's learning is persisted as readable markdown files directly in the root of its ticker directory:
+- `[TICKER]_wiki.md`: Stores company registries and qualitative perspectives (Bull & Bear views).
+- `[TICKER]_extract_learning.md`: Stores custom fiscal quarter end-dates, row mappings, and extraction lessons.
+- `[TICKER]_analyze_learning.md`: Stores synthesis rules and trend analysis lessons.
+- `[TICKER]_model_learning.md`: Stores valuation assumptions (WACC inputs, growth overrides, and tax preferences).
+
+### 2. The Curator Agent Compaction Loop
+At the end of every pipeline stage (`ingest`, `extract`, `analyze`, `model`), a dedicated `CuratorAgent` (in [curator_agent.py](file:///f:/AIML projects/financial-analyst-cli/src/pipeline/curator_agent.py)) runs automatically:
+- **Read & Filter**: It scans the active learning markdown file, extracts user feedback written under `## User Feedback`, and gathers execution logs.
+- **Compaction**: It prompts the LLM to compact the compiled logs and user corrections, discarding conversational filler and extracting actionable, concrete guidelines.
+- **Self-Healing Rewrite**: The LLM rewrites the learning document, integrating the new lessons into the main guidelines sections, and resets the `## User Feedback` header back to its empty template state.
+
+### 3. Self-Healing in Action
+When sub-agents execute subsequent runs, they read these localized learning registers first. If a previous run encountered a parsing collision, a mismatched operating/non-operating row, or custom share adjustments, the agent automatically adapts using the saved lessons, "healing" its extraction and modeling pipeline without code changes.
+
+---
+
 ## A Personal Growth Journey
 
 This project is a milestone in my personal developer and AI alignment journey:
@@ -60,6 +91,7 @@ I am constantly learning and growing. I am incredibly grateful for any comments,
 ## Table of Contents
 
 - [Why a Financial Analyst CLI?](#why-a-financial-analyst-cli)
+- [Self-Learning & Self-Healing Architecture](#self-learning--self-healing-architecture)
 - [A Personal Growth Journey](#a-personal-growth-journey)
 - [Project Status & Roadmap](#project-status--roadmap)
 - [Core Features](#core-features)

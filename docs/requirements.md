@@ -127,10 +127,16 @@ flowchart TD
 
 
 ### 3.5 Step 5: Financial Modeling (`fa run model`)
-- **Step 5A: Base Assumption Derivation**:
+- **Step 5A: Base Assumption Derivation & Modeler Agents**:
   - Run deterministic calculations to determine default values for: `base_WACC`, `base_capital_turnover`, `base_revenue`, `base_ebita_margin`, `base_adjusted_tax_rate`, `base_growth_rate`, and `base_terminal_growth`.
-- **Step 5B: LLM Estimation**:
-  - Use `analyst_views.md`, `financials_quarter.md`, and `financials_annual.md` to propose optimized assumptions for margins, growth, capital turnover, tax rates, and WACC.
+  - Delegate assumption estimation to specialized multi-turn agents orchestrated by `modeler_orchestrator.py`:
+    - **WACC Agent**: A 4-turn agent that delevers and relevers the beta using a full corporate finance WACC formula, finding and pulling necessary values via helper tools. It writes WACC calculations to the model markdown and triggers curator updates under `## WACC` in `[TICKER]_model_learning.md`.
+    - **Growth Agent**: A 4-turn agent that proposes near-term, mid-term, and terminal growth rates with rationales, curating results under `## Growth` in `[TICKER]_model_learning.md`.
+    - **Margin Agent**: A 4-turn agent that estimates three future margins (base, Year 5 target, and terminal) with rationale, curating lessons under `## Margin` in `[TICKER]_model_learning.md`.
+    - **Non-Operating Agent**: A single-turn agent that extracts 6 non-operating categories from the latest balance sheet to replace net debt.
+- **Step 5B: LLM Estimation & Inputs**:
+  - Use `analyst_views.md`, `financials_quarter.md`, and `financials_annual.md` as initial context.
+  - Determine `shares_outstanding` from the latest quarter's basic or diluted shares outstanding (the most recent period containing a number).
 - **Step 5C: User Validation & Self-Healing**:
   - Present the assumptions table to the user for feedback.
   - Record any overrides or adjustments in `[TICKER]_model_learning.md`.
