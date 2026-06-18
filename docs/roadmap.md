@@ -110,6 +110,9 @@ Config      Ingestion   Extraction  History     Modeling    Interactive
 - **4.2 Quantitative Trend Synthesis**:
   - [x] Build the longitudinal financials processor to update `financials_quarter.md` and `financials_annual.md`.
   - [x] Implement Q4 deduction logic (Annual minus Q1-Q3).
+  - [x] State currency and units as metadata headers (`**Currency**: ...` and `**Unit**: ...`) at the top of the quarterly and annual financials files.
+  - [x] Implement dynamic inline currency and unit inconsistency checks across historical filings, prompting the user with an option to re-run extraction on inconsistent periods.
+  - [x] Enhance the modeler's markdown parser (`parse_markdown_table`) to support `# ` header matching to handle the new title formats.
   - [x] Trigger the Curator Agent to update qualitative perspectives in `[TICKER]_wiki.md` and analysis lessons in `[TICKER]_analyze_learning.md`.
 
 - **4.3 Testing & Evaluation (Evals)**:

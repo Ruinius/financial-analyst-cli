@@ -68,89 +68,181 @@ class Analyzer:
             for f in skipped_files:
                 formatting.print_info(f"Skipped due to limit: {f}")
 
-        # Storage for structured data
-        analyst_views_entries = []
-        news_entries = []
-        transcript_entries = []
-        quarterly_financials = []
-        annual_financials = []
+        import typer
+        from collections import Counter
+        from src.pipeline.extractor_orchestrator import Extractor
 
-        for src_file in extracted_files:
-            meta = doc_metadata[src_file]
-            doc_type = meta.get("document_type")
-            doc_date = meta.get("document_date", "")
-            fiscal_quarter = meta.get("fiscal_quarter", "N/A")
+        re_run_files = set()
 
-            # Extract year from fiscal_year or document_date fallback
-            year = meta.get("fiscal_year", "N/A")
-            if not year or year == "N/A" or year == "YYYY":
-                year = "YYYY"
-                if len(doc_date) >= 4:
-                    year = doc_date[:4]
+        while True:
+            # Storage for structured data
+            analyst_views_entries = []
+            news_entries = []
+            transcript_entries = []
+            quarterly_financials = []
+            annual_financials = []
 
-            # Construct extracted report filename
-            src_path = Path(src_file)
-            extracted_filename = f"{src_path.stem}_extracted.md"
-            extracted_path = extracted_dir / extracted_filename
+            for src_file in extracted_files:
+                meta = doc_metadata[src_file]
+                doc_type = meta.get("document_type")
+                doc_date = meta.get("document_date", "")
+                fiscal_quarter = meta.get("fiscal_quarter", "N/A")
 
-            if not extracted_path.exists():
-                continue
+                # Extract year from fiscal_year or document_date fallback
+                year = meta.get("fiscal_year", "N/A")
+                if not year or year == "N/A" or year == "YYYY":
+                    year = "YYYY"
+                    if len(doc_date) >= 4:
+                        year = doc_date[:4]
 
-            with open(extracted_path, "r", encoding="utf-8") as f:
-                content = f.read()
+                # Construct extracted report filename
+                src_path = Path(src_file)
+                extracted_filename = f"{src_path.stem}_extracted.md"
+                extracted_path = extracted_dir / extracted_filename
 
-            # A. Parse qualitative data for news / transcripts / analyst reports
-            chunk_summaries = self.parse_chunk_summaries(content)
-
-            if doc_type == "analyst_report":
-                view_entry = self.parse_analyst_report_fields(content)
-                view_entry["date"] = doc_date
-                view_entry["document"] = extracted_filename
-                if not self._is_duplicate_entry(view_entry, analyst_views_entries):
-                    analyst_views_entries.append(view_entry)
-
-            elif doc_type in ["press_release", "news_article", "other"]:
-                news_entry = {
-                    "date": doc_date,
-                    "document": extracted_filename,
-                    "summary": chunk_summaries,
-                }
-                if not self._is_duplicate_entry(news_entry, news_entries):
-                    news_entries.append(news_entry)
-
-            elif doc_type == "transcript":
-                transcript_entry = {
-                    "date": doc_date,
-                    "document": extracted_filename,
-                    "summary": chunk_summaries,
-                }
-                if not self._is_duplicate_entry(transcript_entry, transcript_entries):
-                    transcript_entries.append(transcript_entry)
-
-            # B. Parse quantitative financial data
-            if doc_type in [
-                "quarterly_filing",
-                "annual_filing",
-                "earnings_announcement",
-            ]:
-                fin_metrics = self.parse_financial_summary(content)
-                if not fin_metrics:
+                if not extracted_path.exists():
                     continue
 
-                fin_metrics["date"] = doc_date
-                fin_metrics["document"] = extracted_filename
+                with open(extracted_path, "r", encoding="utf-8") as f:
+                    content = f.read()
 
-                if doc_type == "annual_filing" or fiscal_quarter == "FY":
-                    fin_metrics["period"] = year
-                    if not self._is_duplicate_entry(fin_metrics, annual_financials):
-                        annual_financials.append(fin_metrics)
-                else:
-                    fin_metrics["period"] = f"{year}-{fiscal_quarter}"
-                    if not self._is_duplicate_entry(fin_metrics, quarterly_financials):
-                        quarterly_financials.append(fin_metrics)
+                # A. Parse qualitative data for news / transcripts / analyst reports
+                chunk_summaries = self.parse_chunk_summaries(content)
 
-        # 3. Deduce Q4 financials if Q1-Q3 and Annual are present
-        self.deduce_q4_financials(quarterly_financials, annual_financials)
+                if doc_type == "analyst_report":
+                    view_entry = self.parse_analyst_report_fields(content)
+                    view_entry["date"] = doc_date
+                    view_entry["document"] = extracted_filename
+                    if not self._is_duplicate_entry(view_entry, analyst_views_entries):
+                        analyst_views_entries.append(view_entry)
+
+                elif doc_type in ["press_release", "news_article", "other"]:
+                    news_entry = {
+                        "date": doc_date,
+                        "document": extracted_filename,
+                        "summary": chunk_summaries,
+                    }
+                    if not self._is_duplicate_entry(news_entry, news_entries):
+                        news_entries.append(news_entry)
+
+                elif doc_type == "transcript":
+                    transcript_entry = {
+                        "date": doc_date,
+                        "document": extracted_filename,
+                        "summary": chunk_summaries,
+                    }
+                    if not self._is_duplicate_entry(
+                        transcript_entry, transcript_entries
+                    ):
+                        transcript_entries.append(transcript_entry)
+
+                # B. Parse quantitative financial data
+                if doc_type in [
+                    "quarterly_filing",
+                    "annual_filing",
+                    "earnings_announcement",
+                ]:
+                    fin_metrics = self.parse_financial_summary(content)
+                    if not fin_metrics:
+                        continue
+
+                    fin_metrics["date"] = doc_date
+                    fin_metrics["document"] = extracted_filename
+                    fin_metrics["src_file"] = src_file
+
+                    # Extract currency and unit from content
+                    currency = "USD"
+                    unit = "Millions"
+                    curr_match = re.search(
+                        r"\*\*Currency\*\*:\s*([A-Za-z]{3})", content
+                    )
+                    if curr_match:
+                        currency = curr_match.group(1).upper()
+                    else:
+                        curr_match_loose = re.search(
+                            r"Currency:\s*([A-Za-z]{3})", content
+                        )
+                        if curr_match_loose:
+                            currency = curr_match_loose.group(1).upper()
+
+                    unit_match = re.search(r"\*\*Unit\*\*:\s*([A-Za-z0-9\s]+)", content)
+                    if unit_match:
+                        unit = unit_match.group(1).strip()
+                    else:
+                        unit_match_loose = re.search(
+                            r"Unit:\s*([A-Za-z0-9\s]+)", content
+                        )
+                        if unit_match_loose:
+                            unit = unit_match_loose.group(1).strip()
+
+                    fin_metrics["currency"] = currency
+                    fin_metrics["unit"] = unit
+
+                    if doc_type == "annual_filing" or fiscal_quarter == "FY":
+                        fin_metrics["period"] = year
+                        if not self._is_duplicate_entry(fin_metrics, annual_financials):
+                            annual_financials.append(fin_metrics)
+                    else:
+                        fin_metrics["period"] = f"{year}-{fiscal_quarter}"
+                        if not self._is_duplicate_entry(
+                            fin_metrics, quarterly_financials
+                        ):
+                            quarterly_financials.append(fin_metrics)
+
+            # 3. Deduce Q4 financials if Q1-Q3 and Annual are present
+            self.deduce_q4_financials(quarterly_financials, annual_financials)
+
+            # 4. Check for currency/unit inconsistencies
+            all_actuals = [
+                e for e in quarterly_financials if "Deducted" not in e["document"]
+            ] + annual_financials
+            inconsistency_resolved = False
+
+            if all_actuals:
+                currencies = [e.get("currency", "USD") for e in all_actuals]
+                units = [e.get("unit", "Millions") for e in all_actuals]
+
+                expected_currency = Counter(currencies).most_common(1)[0][0]
+                expected_unit = Counter(units).most_common(1)[0][0]
+
+                inconsistent_quarters = []
+                for q in quarterly_financials:
+                    if "Deducted" in q["document"]:
+                        continue
+                    curr = q.get("currency", "USD")
+                    unit = q.get("unit", "Millions")
+                    if curr != expected_currency or unit != expected_unit:
+                        inconsistent_quarters.append(q)
+
+                if inconsistent_quarters:
+                    formatting.print_warning(
+                        "Currency or unit inconsistency detected among reports!"
+                    )
+                    for q in inconsistent_quarters:
+                        if q["src_file"] in re_run_files:
+                            continue
+                        formatting.print_warning(
+                            f"  - Quarter {q['period']}: Currency is '{q.get('currency')}' (expected '{expected_currency}'), "
+                            f"Unit is '{q.get('unit')}' (expected '{expected_unit}')."
+                        )
+                        prompt_msg = f"Would you like to re-run extraction for quarter {q['period']} ({q['src_file']})?"
+                        if typer.confirm(prompt_msg, default=True):
+                            parsed_file_path = parsed_dir / q["src_file"]
+                            formatting.print_info(
+                                f"Re-running extraction for {q['src_file']}..."
+                            )
+                            extractor_inst = Extractor()
+                            extractor_inst.run_extraction(
+                                files_to_process=[parsed_file_path]
+                            )
+                            re_run_files.add(q["src_file"])
+                            inconsistency_resolved = True
+                            break
+
+                    if inconsistency_resolved:
+                        continue
+
+            break
 
         # 4. Generate & Save output files in 5_historical_analysis/
         analysis_dir = workspace / "5_historical_analysis"
@@ -494,6 +586,8 @@ class Analyzer:
                         "period": f"{yr}-Q4",
                         "date": ann.get("date", ""),
                         "document": f"Deducted from {ann.get('document', 'Annual Filing')}",
+                        "currency": ann.get("currency", "USD"),
+                        "unit": ann.get("unit", "Millions"),
                         "Revenue": f"{q4_rev:.1f}",
                         "EBITA": f"{q4_ebita:.1f}",
                         "EBITA Margin": f"{q4_margin:.2f}%",
@@ -564,11 +658,25 @@ class Analyzer:
     def write_financials(
         self, path: Path, entries: List[Dict[str, str]], is_quarterly: bool
     ) -> None:
+        from collections import Counter
+
         # Sort quarterly/annual entries chronologically
         entries.sort(key=lambda x: x.get("period", ""))
 
+        # Determine the dominant currency and unit across all entries
+        if entries:
+            currencies = [e.get("currency", "USD") for e in entries]
+            units = [e.get("unit", "Millions") for e in entries]
+            dominant_currency = Counter(currencies).most_common(1)[0][0]
+            dominant_unit = Counter(units).most_common(1)[0][0]
+        else:
+            dominant_currency = "USD"
+            dominant_unit = "Millions"
+
         lines = [
             f"# Historical Financials - {'Quarterly' if is_quarterly else 'Annual'}\n",
+            f"**Currency**: {dominant_currency}",
+            f"**Unit**: {dominant_unit}\n",
             "| Time Period | Period End | Revenue | EBITA | EBITA Margin | Adj Tax Rate | NOPAT | Invested Capital | Capital Turnover | ROIC | Organic Growth | Source Document |",
             "|-------------|-----------|---------|-------|--------------|-------------|-------|-----------------|------------------|------|----------------|-----------------|",
         ]
@@ -592,7 +700,7 @@ class Analyzer:
         self, entry: dict, existing_list: list, ignore_keys: set = None
     ) -> bool:
         if ignore_keys is None:
-            ignore_keys = {"document", "date"}
+            ignore_keys = {"document", "date", "src_file", "currency", "unit"}
         for existing in existing_list:
             keys = (set(entry.keys()) | set(existing.keys())) - ignore_keys
             if all(entry.get(k) == existing.get(k) for k in keys):

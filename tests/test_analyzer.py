@@ -527,3 +527,144 @@ def test_deduce_q4_financials_growth_fallback():
     # q4_growth = 16.9825 / 115 * 100 = 14.767% -> formatted as "14.77%"
     assert q4_24["Simple Revenue Growth"] == "14.77%"
     assert q4_24["Organic Revenue Growth"] == "14.77%"
+
+
+@patch("src.pipeline.analyzer.load_config")
+@patch("src.pipeline.curator_agent.CuratorAgent")
+@patch("typer.confirm")
+@patch("src.pipeline.extractor_orchestrator.Extractor.run_extraction")
+def test_currency_and_unit_inconsistency_and_prompt(
+    mock_run_extraction, mock_confirm, mock_curator, mock_load_config, tmp_path
+):
+    """Test detecting currency/unit inconsistency, triggering prompts, and re-running extraction."""
+    ticker = "TEST_CURR"
+    workspace = tmp_path / ticker
+    workspace.mkdir()
+
+    parsed_dir = workspace / "2_parsed_data"
+    parsed_dir.mkdir()
+    extracted_dir = workspace / "4_extracted_data"
+    extracted_dir.mkdir()
+    (workspace / "5_historical_analysis").mkdir()
+
+    # Create parsed_data.csv with two quarters and one annual filing
+    csv_rows = [
+        {
+            "file_hash": "h1",
+            "original_filename": "q1.pdf",
+            "new_filename": "20240331_10-Q.md",
+            "document_type": "quarterly_filing",
+            "document_date": "2024-03-31",
+            "fiscal_quarter": "Q1",
+        },
+        {
+            "file_hash": "h2",
+            "original_filename": "q2.pdf",
+            "new_filename": "20240630_10-Q.md",
+            "document_type": "quarterly_filing",
+            "document_date": "2024-06-30",
+            "fiscal_quarter": "Q2",
+        },
+        {
+            "file_hash": "h3",
+            "original_filename": "fy.pdf",
+            "new_filename": "20241231_10-K.md",
+            "document_type": "annual_filing",
+            "document_date": "2024-12-31",
+            "fiscal_quarter": "FY",
+        },
+    ]
+
+    fieldnames = [
+        "file_hash",
+        "original_filename",
+        "new_filename",
+        "document_type",
+        "document_date",
+        "fiscal_quarter",
+    ]
+    with open(parsed_dir / "parsed_data.csv", "w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(csv_rows)
+
+    # Write extracted_data.csv registry entries
+    with open(
+        extracted_dir / "extracted_data.csv", "w", encoding="utf-8", newline=""
+    ) as f:
+        writer = csv.DictWriter(f, fieldnames=["source_file", "extracted_at"])
+        writer.writeheader()
+        for r in csv_rows:
+            writer.writerow({"source_file": r["new_filename"], "extracted_at": "1"})
+
+    # Write extracted md files:
+    # Q1 is USD Millions (normal/majority)
+    # Q2 is EUR Millions (inconsistent!)
+    # FY is USD Millions (normal/majority)
+    def write_extracted_md(filename, currency, unit, revenue):
+        lines = [
+            f"# Extracted Financial Report: {filename}",
+            f"**Currency**: {currency}",
+            f"**Unit**: {unit}",
+            "## Chunk Summaries",
+            "- Chunk 1",
+            "\n---\n",
+            "## Financial Summary",
+            "| Metric | Value | Notes |",
+            "|---|---|---|",
+            f"| **Revenue** | {revenue} | |",
+            "| **EBITA** | 20.0 | |",
+            "| **NOPAT** | 16.0 | |",
+            "| **Invested Capital** | 100.0 | |",
+            "| **Basic Shares Outstanding** | 10.0 | |",
+            "| **Diluted Shares Outstanding** | 10.0 | |",
+        ]
+        (extracted_dir / f"{Path(filename).stem}_extracted.md").write_text(
+            "\n".join(lines), encoding="utf-8"
+        )
+
+    write_extracted_md("20240331_10-Q.md", "USD", "Millions", "100.0")
+    write_extracted_md("20240630_10-Q.md", "EUR", "Millions", "120.0")  # Inconsistent
+    write_extracted_md("20241231_10-K.md", "USD", "Millions", "450.0")
+
+    mock_settings = MagicMock()
+    mock_settings.active_workspace_path = str(workspace)
+    mock_settings.active_ticker = "TEST_CURR"
+    mock_load_config.return_value = mock_settings
+
+    # Scenario A: User confirms they want to re-run.
+    # In the first iteration, Q2 is found inconsistent (EUR). User confirms re-run.
+    # The extractor is mock-run. To simulate the re-run fixing the issue, we modify the Q2 file content.
+    # Then the analysis loop runs again, finding everything consistent.
+    mock_confirm.side_effect = [True]
+
+    def fake_extraction(*args, **kwargs):
+        # Change Q2 file to USD (consistent)
+        write_extracted_md("20240630_10-Q.md", "USD", "Millions", "120.0")
+
+    mock_run_extraction.side_effect = fake_extraction
+
+    analyzer = Analyzer()
+    analyzer.run_analysis()
+
+    # Assert that confirmation was prompted once for Q2
+    assert mock_confirm.call_count == 1
+    prompt_args, _ = mock_confirm.call_args
+    assert "2024-Q2" in prompt_args[0]
+    assert "20240630_10-Q.md" in prompt_args[0]
+
+    # Assert extractor run was called once on Q2's parsed path
+    assert mock_run_extraction.call_count == 1
+    called_args, called_kwargs = mock_run_extraction.call_args
+    assert Path(called_kwargs.get("files_to_process", [])[0]).name == "20240630_10-Q.md"
+
+    # Verify output markdowns exist and have correct headers/columns
+    hist_dir = workspace / "5_historical_analysis"
+    assert (hist_dir / "financials_quarter.md").exists()
+    assert (hist_dir / "financials_annual.md").exists()
+
+    q_content = (hist_dir / "financials_quarter.md").read_text(encoding="utf-8")
+    assert "**Currency**: USD" in q_content
+    assert "**Unit**: Millions" in q_content
+    # Since Q2 was updated to USD by the fake extraction, the final output table should show USD header
+    assert "| 2024-Q2 | 2024-06-30 | 120.0 |" in q_content

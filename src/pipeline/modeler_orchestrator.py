@@ -54,8 +54,12 @@ def parse_markdown_table(
     in_table = False
 
     for i, line in enumerate(lines):
-        if line.startswith("## ") or line.startswith("### "):
-            if table_name and table_name.lower() in line.lower():
+        if line.startswith("## ") or line.startswith("### ") or line.startswith("# "):
+            if (
+                table_name
+                and table_name.lower().replace("#", "").strip()
+                in line.lower().replace("#", "").strip()
+            ):
                 in_target_table = True
             elif in_target_table and table_name:
                 in_target_table = False
