@@ -138,6 +138,8 @@ Config      Ingestion   Extraction  History     Modeling    Interactive
   - [x] Display the interactive assumptions table to the user for feedback.
   - [x] Save adjustments to `[TICKER]_model_learning.md`.
   - [x] Take `shares_outstanding` from the latest quarter's basic/diluted shares outstanding (most recent quarter with a number).
+  - [x] **10-Turn DCF Modeling Agent**: Implement a 10-turn modeling agent that reviews sub-agent recommendations, checks for currency/scale errors, tests valuation scenarios, and generates detailed comments/critiques on assumptions, modeling, and results.
+  - [x] **Double Curator Timings**: Update the orchestrator to run CuratorAgent before the DCF agent starts (to consolidate sub-agent recommendations) and after it finishes (to compile DCF learning and update wiki perspectives).
 - **5.3 Financial Model Generation**:
   - [x] Generate the DCF model markdown inside `6_financial_model/`, formatted with the comprehensive Valuation table detailing Enterprise Value, dynamic non-operating line items, Equity Value, Diluted Shares, Intrinsic Value, Currency, FX Rate, ADR Ratio, Current Market Price, Upside/Downside, and Calculation Date.
   - [x] Output the baseline model JSON (`YYYYMMDD_ticker_0.json`) inside `7_historical_model_json/` with matching valuation updates.

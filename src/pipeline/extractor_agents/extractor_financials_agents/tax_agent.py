@@ -1,6 +1,7 @@
 import json
 import logging
-from src.utils.tools import find_keyword_contexts, extract_json_from_text
+from src.tools.keyword_search import find_keyword_contexts
+from src.utils.tools import extract_json_from_text
 
 logger = logging.getLogger(__name__)
 
@@ -172,7 +173,7 @@ def run_tax_agent(
         elif tool == "get_chunk_by_id":
             try:
                 chunk_id = int(args.get("chunk_id", 0))
-                from src.pipeline.extractor_orchestrator import (
+                from src.tools.find_chunk import (
                     get_chunk_by_id as orchestrator_get_chunk,
                 )
 

@@ -14,7 +14,7 @@ def extract_transcript(
     summaries = []
     import json
     import src.utils.formatting as formatting
-    from src.pipeline.extractor_orchestrator import get_chunk_by_id
+    from src.tools.find_chunk import get_chunk_by_id
 
     # Read from the center outwards
     center = (len(chunk_ids) + 1) / 2

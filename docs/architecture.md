@@ -77,7 +77,8 @@ financial-analyst-cli/
 │   │   │       ├── interpretation_agent.py # Financial statement interpretation agent
 │   │   │       ├── diluted_shares_agent.py # Basic/diluted shares extraction agent
 │   │   │       ├── organic_growth_agent.py # Organic revenue growth agent
-│   │   │       └── ebita_tax_agent.py # EBITA adjustments & adjusted tax agent
+│   │   │       ├── ebita_agent.py          # Operating EBITA adjustments agent
+│   │   │       └── tax_agent.py            # Adjusted taxes agent
 │   │   ├── analyzer.py             # Historical synthesis & trend tracking
 │   │   ├── modeler.py              # Redirect wrapper module
 │   │   ├── modeler_orchestrator.py # Orchestrates DCF financial modeling
@@ -85,7 +86,14 @@ financial-analyst-cli/
 │   │       ├── wacc_agent.py       # WACC calculation and beta de-levering/re-levering
 │   │       ├── growth_agent.py     # Estimating future revenue growth rates
 │   │       ├── margin_agent.py     # Estimating future EBITA margins
-│   │       └── non_operating_agent.py # Extracting non-operating balance sheet categories
+│   │       ├── non_operating_agent.py # Extracting non-operating balance sheet categories
+│   │       └── dcf_modeling_agent.py # Sanity-checking valuation parameters, currency, comments/critiques
+│   ├── tools/                      # Reusable agent tools package
+│   │   ├── __init__.py
+│   │   ├── find_chunk.py           # Tool to extract chunk content by ID
+│   │   ├── keyword_search.py       # Tool to find occurrences of keywords
+│   │   ├── web_search.py           # Tool to search Investopedia
+│   │   └── pull_markdown.py        # Tool to safe lookup of markdown files
 │   ├── rust_core/                  # Rust performance critical calculation engine
 │   │   └── lib.rs                  # PyO3 bindings for financial math (WACC, DCF, ROIC)
 │   ├── viewer/                     # HTML viewer code
@@ -99,7 +107,9 @@ financial-analyst-cli/
 │   └── utils/                      # Formatting and filesystem utilities
 │       ├── __init__.py
 │       ├── formatting.py           # Rich-based console output utilities
-│       └── filesystem.py           # Custom CSV and markdown mutation helpers
+│       ├── math.py                 # Pure Python financial calculations
+│       ├── pig_animation.py        # Sir Pennyworth pig console animation
+│       └── tools.py                # Universal utility tools (context finding, appenders)
 ├── Cargo.toml                      # Cargo manifest for Rust module
 ├── pyproject.toml                  # uv / maturin configuration
 └── main.py                         # Root entry point delegating to src/cli/main.py

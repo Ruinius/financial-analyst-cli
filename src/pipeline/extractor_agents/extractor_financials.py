@@ -191,7 +191,7 @@ def calculate_deterministic_metrics(
     metadata = extractor.get_document_metadata(file_path.name)
     doc_type = metadata.get("document_type", "")
     if not doc_type:
-        from src.pipeline.extractor_orchestrator import get_chunk_by_id
+        from src.tools.find_chunk import get_chunk_by_id
 
         chunk_0 = get_chunk_by_id(content, 0) or content[:4000]
         meta_match = re.search(r"\|\s*Document Type\s*\|\s*([^|]+?)\s*\|", chunk_0)
@@ -464,7 +464,7 @@ def extract_financials(
     extractor,
 ) -> bool:
     summaries = []
-    from src.pipeline.extractor_orchestrator import get_chunk_by_id
+    from src.tools.find_chunk import get_chunk_by_id
 
     # 1. Rank order the chunks by number frequency
     chunk_frequencies = []

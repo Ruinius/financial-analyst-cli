@@ -12,6 +12,9 @@ from src.pipeline.modeler_agents.margin_agent import (
 from src.pipeline.modeler_agents.non_operating_agent import (
     run_non_operating_agent,
 )
+from src.pipeline.modeler_agents.dcf_modeling_agent import (
+    run_dcf_modeling_agent,
+)
 
 __all__ = [
     "run_wacc_agent",
@@ -19,4 +22,5 @@ __all__ = [
     "run_growth_agent",
     "run_margin_agent",
     "run_non_operating_agent",
+    "run_dcf_modeling_agent",
 ]

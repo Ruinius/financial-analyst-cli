@@ -1,6 +1,7 @@
 import json
 import logging
-from src.utils.tools import find_keyword_contexts, extract_json_from_text
+from src.tools.keyword_search import find_keyword_contexts
+from src.utils.tools import extract_json_from_text
 
 logger = logging.getLogger(__name__)
 

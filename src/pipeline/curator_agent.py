@@ -462,10 +462,30 @@ Please:
 
     def _curate_model(self, ticker: str, agent_logs: str, model_path: Path) -> None:
         feedback, main_content = self._get_feedback_and_content(model_path)
+
+        extract_learning_path = model_path.parent / f"{ticker}_extract_learning.md"
+        analyze_learning_path = model_path.parent / f"{ticker}_analyze_learning.md"
+        wiki_path = model_path.parent / f"{ticker}_wiki.md"
+
+        extract_context = ""
+        if extract_learning_path.exists():
+            try:
+                extract_context = extract_learning_path.read_text(encoding="utf-8")
+            except Exception:
+                pass
+
+        analyze_context = ""
+        if analyze_learning_path.exists():
+            try:
+                analyze_context = analyze_learning_path.read_text(encoding="utf-8")
+            except Exception:
+                pass
+
         sys_prompt = (
             "You are Sir Pennyworth's Modeling Learning Curator. "
             "Your task is to update the Modeling Learning markdown file with new modeling lessons, "
             "absorb user feedback, and compile/rewrite the lessons to be highly succinct and future-AI-actionable. "
+            "You have access to historical Ingestion & Extraction Learning and Analysis Learning contexts for this company. Use them to identify any company-specific conventions (e.g. reporting currency, ADR ratios, specific line items, restructuring adjustments) that should be incorporated into the modeling lessons.\n"
             "Retain ONLY lessons that will help future AI agent tasks model this ticker (such as WACC adjustments, currency "
             "conversions, ADR ratios, specific overrides, or growth rate boundaries). Eliminate all generic modeling tips or "
             "conversational filler. "
@@ -491,8 +511,18 @@ Modeling assumptions / overrides / values logged:
 {agent_logs}
 \"\"\"
 
+Context from Ingestion & Extraction Learning:
+\"\"\"
+{extract_context}
+\"\"\"
+
+Context from Analysis Learning:
+\"\"\"
+{analyze_context}
+\"\"\"
+
 Please:
-1. Incorporate any user feedback and new lessons (e.g. currency, WACC adjustments, ADR ratios) into the '## Lessons to Better Model' section.
+1. Incorporate any user feedback and new lessons (e.g. currency, WACC adjustments, ADR ratios, specific overrides) into the '## Lessons to Better Model' section.
 2. Perform a complete rewrite and compaction of the lessons. Keep them highly succinct, focused ONLY on actionable information for future AI agents, and remove any generic advice or conversational filler.
 3. CRITICAL: Limit the entire lessons section to less than 10 lines of content.
 4. CRITICAL: Do NOT include any tables. Short single-line examples are fine.
@@ -507,6 +537,45 @@ Please:
             )
         except Exception as e:
             logger.error(f"Failed to curate model learning: {e}")
+
+        # If logs contain final modeling results, update company wiki perspectives
+        if wiki_path.exists() and (
+            "finalize" in agent_logs
+            or "run_valuation" in agent_logs
+            or "dcf" in agent_logs.lower()
+            or "valuation" in agent_logs.lower()
+        ):
+            try:
+                wiki_content = wiki_path.read_text(encoding="utf-8")
+                sys_prompt_wiki = (
+                    "You are Sir Pennyworth's Qualitative Wiki Curator. Your job is to update the company Wiki markdown file. "
+                    "Specifically, you must update the Bull Perspective and Bear Perspective in the Wiki to incorporate the findings, "
+                    "rationales, and assumptions from the final DCF modeling results, the agent's critique/comments on valuation, and the resulting fair value upside/downside. "
+                    "Do not include outside knowledge. Return the entire updated markdown file. Do not wrap in markdown code blocks."
+                )
+                prompt_wiki = f"""
+Ticker: {ticker}
+Current Wiki Content:
+\"\"\"
+{wiki_content}
+\"\"\"
+
+Final DCF Modeling run logs and modeler critique:
+\"\"\"
+{agent_logs}
+\"\"\"
+
+Please update the '## Bull Perspective' and '## Bear Perspective' in the Wiki. Incorporate the final DCF modeling findings, key assumptions (like growth rate or WACC), and the valuation upside/downside. Maintain the exact markdown headers of the Wiki.
+"""
+                updated_wiki = self.llm.generate(
+                    prompt_wiki, system_prompt=sys_prompt_wiki
+                )
+                wiki_path.write_text(
+                    strip_markdown_code_blocks(updated_wiki), encoding="utf-8"
+                )
+                logger.info(f"Successfully updated Wiki for model curation of {ticker}")
+            except Exception as wiki_err:
+                logger.error(f"Failed to update wiki during model curation: {wiki_err}")
 
     def curate_agent(self, ticker: str, agent_name: str, agent_logs: str) -> None:
         """

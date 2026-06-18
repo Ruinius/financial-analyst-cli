@@ -57,6 +57,7 @@ Welcome to the `financial-analyst-cli` project.
       - growth_agent.py: Agent specialized in estimating future revenue growth rates (near-term, mid-term Year 5, terminal).
       - margin_agent.py: Agent specialized in estimating future EBITA margins (base, Year 5 target, terminal).
       - non_operating_agent.py: Agent specialized in extracting the 6 non-operating categories from the latest balance sheet.
+      - dcf_modeling_agent.py: Agent specialized in reviewing and sanity-checking valuation parameters, currency, shares outstanding, and outputting comments/critiques.
   - src/services/: SEC client, LLM wrapper, web search, and AST-sandboxed math solver.
     - src/services/edgar_client.py: SEC EDGAR download API client.
     - src/services/llm_client.py: Unified client for text & vision LLMs.
@@ -68,10 +69,16 @@ Welcome to the `financial-analyst-cli` project.
   - src/resources/dictionary/: Central accounting glossary and classification dictionary containing definition markdowns and valuation treatment guidelines.
     - income_statement.md: Table mapping of typical income statement line items.
     - balance_sheet.md: Table mapping of typical balance sheet line items.
+  - src/tools/: Reusable agent tools package.
+    - src/tools/find_chunk.py: Tool to extract chunk content by ID.
+    - src/tools/keyword_search.py: Tool to find occurrences of keywords.
+    - src/tools/web_search.py: Tool to search Investopedia.
+    - src/tools/pull_markdown.py: Tool to safe lookup of markdown files.
   - src/utils/: CLI output formatting, math utilities, and filesystem helpers.
     - src/utils/formatting.py: Rich terminal formatting helpers and Sir Pennyworth speech bubbles.
     - src/utils/tools.py: Universal utility tools (keyword context finding, markdown appenders, editors).
     - src/utils/math.py: Pure Python financial calculations utility module (EBITA, Invested Capital, Tax Rates, ROIC).
+    - src/utils/pig_animation.py: Sir Pennyworth pig snout and ear console animation helper.
 
 - tests/: Test suite folder.
   - tests/test_analyzer.py: Unit tests for qualitative views compiling, longitudinal financial trends, and Q4 deduction logic.

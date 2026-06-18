@@ -870,3 +870,241 @@ def test_generate_financial_model_mid_year_and_markdown(mock_load_config, tmp_pa
     assert "| Current Market Price |" in md_content
     assert "| **Upside/Downside** |" in md_content
     assert "| Calculation Date |" in md_content
+
+
+@patch("src.pipeline.curator_agent.CuratorAgent")
+@patch("src.services.llm_client.LLMClient")
+def test_run_wacc_agent_with_folder_index(mock_llm_class, mock_curator_class, tmp_path):
+    from src.pipeline.modeler_agents.wacc_agent import run_wacc_agent
+
+    mock_llm = MagicMock()
+    mock_llm.generate.return_value = json.dumps(
+        {
+            "thought": "Using index file, finalizing.",
+            "tool": "finalize",
+            "arguments": {
+                "wacc": 0.08,
+                "total_debt": 100.0,
+                "cash_and_equivalents": 20.0,
+                "pretax_cost_of_debt": 0.05,
+                "cost_of_equity": 0.09,
+                "unlevered_beta": 0.8,
+                "explanation": "Calculated successfully using index.",
+            },
+        }
+    )
+
+    # Setup index file in the workspace root
+    index_file = tmp_path / "MOCK_folder_index.md"
+    index_content = (
+        "# Test Folder Index WACC\n- File: 4_extracted_data/latest_balance_sheet.md"
+    )
+    index_file.write_text(index_content, encoding="utf-8")
+
+    res = run_wacc_agent(
+        ticker="MOCK",
+        workspace=tmp_path,
+        share_price=100.0,
+        market_cap=1000000.0,
+        beta=1.0,
+        tax_rate=0.20,
+        llm=mock_llm,
+    )
+
+    assert res["wacc"] == 0.08
+    assert res["net_debt"] == 80.0
+    assert res["unlevered_beta"] == 0.8
+
+    # Verify LLM was prompted with index content
+    args, kwargs = mock_llm.generate.call_args
+    prompt_arg = args[0]
+    assert "Test Folder Index WACC" in prompt_arg
+    assert "latest_balance_sheet.md" in prompt_arg
+
+
+@patch("src.pipeline.curator_agent.CuratorAgent")
+@patch("src.services.llm_client.LLMClient")
+def test_run_growth_agent_with_folder_index(
+    mock_llm_class, mock_curator_class, tmp_path
+):
+    from src.pipeline.modeler_agents.growth_agent import run_growth_agent
+
+    mock_llm = MagicMock()
+    mock_llm.generate.return_value = json.dumps(
+        {
+            "thought": "Using index file, finalizing.",
+            "tool": "finalize",
+            "arguments": {
+                "base_growth_rate": 0.05,
+                "revenue_growth_rate": 0.06,
+                "terminal_growth_rate": 0.03,
+                "explanation": "Calculated successfully using index.",
+            },
+        }
+    )
+
+    # Setup index file in the workspace root
+    index_file = tmp_path / "MOCK_folder_index.md"
+    index_content = (
+        "# Test Folder Index Growth\n- File: 5_historical_analysis/analyst_views.md"
+    )
+    index_file.write_text(index_content, encoding="utf-8")
+
+    res = run_growth_agent(
+        ticker="MOCK",
+        workspace=tmp_path,
+        base_growth_rate=0.05,
+        target_growth_yr5=0.08,
+        terminal_growth_rate=0.03,
+        llm=mock_llm,
+    )
+
+    assert res["base_growth_rate"] == 0.05
+    assert res["revenue_growth_rate"] == 0.06
+    assert res["terminal_growth_rate"] == 0.03
+
+    # Verify LLM was prompted with index content
+    args, kwargs = mock_llm.generate.call_args
+    prompt_arg = args[0]
+    assert "Test Folder Index Growth" in prompt_arg
+    assert "analyst_views.md" in prompt_arg
+
+
+@patch("src.pipeline.curator_agent.CuratorAgent")
+@patch("src.services.llm_client.LLMClient")
+def test_run_margin_agent_with_folder_index(
+    mock_llm_class, mock_curator_class, tmp_path
+):
+    from src.pipeline.modeler_agents.margin_agent import run_margin_agent
+
+    mock_llm = MagicMock()
+    mock_llm.generate.return_value = json.dumps(
+        {
+            "thought": "Using index file, finalizing.",
+            "tool": "finalize",
+            "arguments": {
+                "base_margin": 0.20,
+                "margin_yr5": 0.22,
+                "terminal_margin": 0.21,
+                "explanation": "Calculated successfully using index.",
+            },
+        }
+    )
+
+    # Setup index file in the workspace root
+    index_file = tmp_path / "MOCK_folder_index.md"
+    index_content = "# Test Folder Index Margin\n- File: 5_historical_analysis/financials_quarter.md"
+    index_file.write_text(index_content, encoding="utf-8")
+
+    res = run_margin_agent(
+        ticker="MOCK",
+        workspace=tmp_path,
+        base_margin=0.20,
+        margin_yr5=0.23,
+        terminal_margin=0.23,
+        llm=mock_llm,
+    )
+
+    assert res["base_margin"] == 0.20
+    assert res["margin_yr5"] == 0.22
+    assert res["terminal_margin"] == 0.21
+
+    # Verify LLM was prompted with index content
+    args, kwargs = mock_llm.generate.call_args
+    prompt_arg = args[0]
+    assert "Test Folder Index Margin" in prompt_arg
+    assert "financials_quarter.md" in prompt_arg
+
+
+def test_run_dcf_modeling_agent(tmp_path):
+    from src.pipeline.modeler_agents.dcf_modeling_agent import run_dcf_modeling_agent
+
+    mock_llm = MagicMock()
+    # Mock LLM turn sequences:
+    # Turn 0: Call pull_historical_analysis_file
+    # Turn 1: Call get_market_data
+    # Turn 2: Call run_valuation with overridden parameters
+    # Turn 3: Call finalize
+    mock_llm.generate.side_effect = [
+        json.dumps(
+            {
+                "thought": "I will read financials_quarter.md",
+                "tool": "pull_historical_analysis_file",
+                "arguments": {"file_name": "financials_quarter.md"},
+            }
+        ),
+        json.dumps(
+            {
+                "thought": "Let's check the current market price and currency.",
+                "tool": "get_market_data",
+                "arguments": {},
+            }
+        ),
+        json.dumps(
+            {
+                "thought": "I want to run a test valuation.",
+                "tool": "run_valuation",
+                "arguments": {
+                    "wacc": 0.09,
+                    "revenue_growth_rate": 0.08,
+                },
+            }
+        ),
+        json.dumps(
+            {
+                "thought": "Perfect, WACC is 9%, Growth is 8%. Valuation makes sense. Finalizing.",
+                "tool": "finalize",
+                "arguments": {
+                    "assumptions": {
+                        "wacc": 0.09,
+                        "revenue_growth_rate": 0.08,
+                        "base_revenue": 1000.0,
+                        "base_margin": 0.20,
+                        "base_ic": 500.0,
+                        "shares_outstanding": 100,
+                        "margin_yr5": 0.22,
+                        "terminal_growth_rate": 0.03,
+                        "adjusted_tax_rate": 0.25,
+                        "base_growth_rate": 0.05,
+                        "capital_turnover": 2.0,
+                    },
+                    "comments": "The valuation result aligns well with historical trends. A WACC of 9.0% represents a reasonable cost of capital.",
+                },
+            }
+        ),
+    ]
+
+    analysis_dir = tmp_path / "5_historical_analysis"
+    analysis_dir.mkdir(parents=True, exist_ok=True)
+    (analysis_dir / "financials_quarter.md").write_text(
+        "historical metrics", encoding="utf-8"
+    )
+
+    base_assumptions = {
+        "wacc": 0.08,
+        "revenue_growth_rate": 0.07,
+        "base_revenue": 1000.0,
+        "base_margin": 0.20,
+        "base_ic": 500.0,
+        "shares_outstanding": 100,
+        "margin_yr5": 0.22,
+        "terminal_growth_rate": 0.03,
+        "adjusted_tax_rate": 0.25,
+        "base_growth_rate": 0.05,
+        "capital_turnover": 2.0,
+    }
+
+    final_assumptions, comments, history_text = run_dcf_modeling_agent(
+        ticker="MOCK",
+        workspace=tmp_path,
+        base_assumptions=base_assumptions,
+        llm=mock_llm,
+        learning_context="Use correct currency",
+    )
+
+    assert final_assumptions["wacc"] == 0.09
+    assert final_assumptions["revenue_growth_rate"] == 0.08
+    assert "valuation result aligns well" in comments.lower()
+    assert "pull_historical_analysis_file" in history_text
+    assert "get_market_data" in history_text
+    assert "run_valuation" in history_text

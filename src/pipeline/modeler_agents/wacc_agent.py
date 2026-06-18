@@ -2,6 +2,7 @@ import json
 import logging
 from pathlib import Path
 from src.utils.tools import extract_json_from_text
+from src.tools.pull_markdown import pull_markdown_file
 from typing import Dict, Any
 
 from src.services.llm_client import LLMClient
@@ -133,28 +134,6 @@ def calculate_wacc_formula(
     }
 
 
-def pull_markdown_file(workspace: Path, file_name: str) -> str:
-    """Safe lookup of markdown files within workspace directories."""
-    clean_name = Path(file_name).name
-
-    # 1. Check in 4_extracted_data
-    p1 = workspace / "4_extracted_data" / clean_name
-    if p1.exists():
-        return p1.read_text(encoding="utf-8")
-
-    # 2. Check in 5_historical_analysis
-    p2 = workspace / "5_historical_analysis" / clean_name
-    if p2.exists():
-        return p2.read_text(encoding="utf-8")
-
-    # 3. Check in workspace root
-    p3 = workspace / clean_name
-    if p3.exists():
-        return p3.read_text(encoding="utf-8")
-
-    return f"Error: File '{file_name}' not found in workspace."
-
-
 def run_wacc_agent(
     ticker: str,
     workspace: Path,
@@ -170,19 +149,27 @@ def run_wacc_agent(
     Executes up to 4 turns, enabling Sir Pennyworth to pull financial markdowns,
     extract parameters, run a WACC calculation tool, and finalize results.
     """
-    # 1. Discover available files in 4_extracted_data and 5_historical_analysis
+    # 1. Discover available files or load folder index if available
     extracted_dir = workspace / "4_extracted_data"
     analysis_dir = workspace / "5_historical_analysis"
 
-    available_files = []
-    if extracted_dir.exists():
-        for p in extracted_dir.glob("*.md"):
-            available_files.append(p.name)
-    if analysis_dir.exists():
-        for p in analysis_dir.glob("*.md"):
-            available_files.append(p.name)
+    index_path = workspace / f"{ticker}_folder_index.md"
+    if index_path.exists():
+        try:
+            files_catalog_str = index_path.read_text(encoding="utf-8")
+        except Exception as e:
+            logger.warning(f"Could not read index file: {e}")
+            index_path = None
 
-    files_catalog_str = "\n".join(f"- {f}" for f in sorted(available_files))
+    if not index_path or not index_path.exists():
+        available_files = []
+        if extracted_dir.exists():
+            for p in extracted_dir.glob("*.md"):
+                available_files.append(p.name)
+        if analysis_dir.exists():
+            for p in analysis_dir.glob("*.md"):
+                available_files.append(p.name)
+        files_catalog_str = "\n".join(f"- {f}" for f in sorted(available_files))
 
     # Default results in case of failure or empty response
     final_wacc_results = {

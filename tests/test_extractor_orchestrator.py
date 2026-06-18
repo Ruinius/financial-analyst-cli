@@ -173,7 +173,7 @@ def test_extractor_ignores_readme_and_hidden(
 
 
 def test_get_chunk_by_id():
-    from src.pipeline.extractor_orchestrator import get_chunk_by_id
+    from src.tools.find_chunk import get_chunk_by_id
 
     content = """# Metadata Table
 Some headers here
@@ -344,7 +344,7 @@ def test_extract_financials_stages(
 
     extractor = Extractor()
 
-    from src.utils.tools import find_keyword_contexts
+    from src.tools.keyword_search import find_keyword_contexts
     from src.pipeline.extractor_agents.extractor_financials import (
         extract_financial_statements,
         run_diluted_shares_agent,

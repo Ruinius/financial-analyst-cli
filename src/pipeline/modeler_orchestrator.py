@@ -3,7 +3,7 @@ import re
 import logging
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 
 from src.core.config import load_config
 import src.utils.formatting as formatting
@@ -205,23 +205,62 @@ class Modeler:
             except Exception:
                 pass
 
-        # Phase 5 Implementation will be built out here
+        # 1. Run WACC, Growth, Margin, Non-Operating sub-agents
         assumptions = self.calculate_default_assumptions(
             active_ticker, workspace, learning_context
         )
+
+        # 2. Run Curator Agent first time (before DCF Modeling Agent starts)
+        # to consolidate/curate lessons from WACC, Growth, Margin, Non-Operating sub-agents
+        from src.pipeline.curator_agent import CuratorAgent
+
+        try:
+            formatting.print_info(
+                "Curating initial recommendations from WACC, Growth, Margin, and Non-Operating sub-agents..."
+            )
+            sub_agent_logs = (
+                f"WACC explanation: {assumptions.get('wacc_explanation', '')}\n"
+                f"Growth explanation: {assumptions.get('growth_explanation', '')}\n"
+                f"Margin explanation: {assumptions.get('margin_explanation', '')}\n"
+                f"Non-Operating explanation: {assumptions.get('non_operating_explanation', '')}"
+            )
+            CuratorAgent(self.settings).curate(active_ticker, "model", sub_agent_logs)
+        except Exception as e:
+            logger.error(f"Failed to run curator before DCF Modeling Agent: {e}")
+
+        # Reload updated model learning context after curation
+        curated_learning_context = ""
+        if learning_path.exists():
+            try:
+                curated_learning_context = learning_path.read_text(encoding="utf-8")
+            except Exception:
+                pass
+
+        # 3. Run the 10-turn DCF Modeling Agent with curated learning context
         assumptions = self.estimate_llm_assumptions(
-            active_ticker, workspace, assumptions, learning_context
+            active_ticker, workspace, assumptions, curated_learning_context
         )
+
+        # 4. Propose and validate assumptions (e.g. user override screen)
         assumptions = self.propose_and_validate_assumptions(
             active_ticker, workspace, assumptions
         )
+
+        # 5. Generate final model
         self.generate_financial_model(active_ticker, workspace, assumptions)
 
-        # Trigger Curator Agent
-        logs = f"Executed modeling stage. Generated model projections with assumptions: {json.dumps(assumptions, indent=2)}"
-        from src.pipeline.curator_agent import CuratorAgent
-
-        CuratorAgent(self.settings).curate(active_ticker, "model", logs)
+        # 6. Run Curator Agent a second time (incorporating DCF Modeling Agent's logs)
+        # This will curate model_learning.md and update wiki.md
+        try:
+            formatting.print_info(
+                "Curating final DCF modeling run and updating wiki..."
+            )
+            dcf_agent_logs = assumptions.get("dcf_agent_log", "")
+            if not dcf_agent_logs:
+                dcf_agent_logs = f"Executed modeling stage. Generated model projections with assumptions: {json.dumps(assumptions, indent=2)}"
+            CuratorAgent(self.settings).curate(active_ticker, "model", dcf_agent_logs)
+        except Exception as e:
+            logger.error(f"Failed to run curator after DCF Modeling Agent: {e}")
 
         # Trigger Indexer Agent to update folder index
         try:
@@ -574,16 +613,16 @@ class Modeler:
 
         return assumptions
 
-    def generate_financial_model(
+    def run_valuation_calculation(
         self, ticker: str, workspace: Path, assumptions: Dict[str, Any]
-    ) -> None:
-        """Generate the DCF model markdown and JSON."""
-        model_dir = workspace / "6_financial_model"
-        json_dir = workspace / "7_historical_model_json"
-
-        model_dir.mkdir(parents=True, exist_ok=True)
-        json_dir.mkdir(parents=True, exist_ok=True)
-
+    ) -> Tuple[Dict[str, Any], List[Dict[str, Any]], str]:
+        """
+        Run the projections and DCF valuation logic.
+        Returns:
+            dcf_result: The dictionary returned by calculate_dcf.
+            projections: The list of projections for years 1-10.
+            valuation_table_str: The formatted markdown table showing valuation results.
+        """
         # Build projections using mid-year adjustment convention for discount factor
         rev = assumptions["base_revenue"]
         base_margin = assumptions["base_margin"]
@@ -744,6 +783,30 @@ class Modeler:
         dcf_result["upside_downside"] = upside_downside_str
         dcf_result["calculation_date"] = calculation_date
 
+        return dcf_result, projections, valuation_table_str
+
+    def generate_financial_model(
+        self, ticker: str, workspace: Path, assumptions: Dict[str, Any]
+    ) -> None:
+        """Generate the DCF model markdown and JSON."""
+        model_dir = workspace / "6_financial_model"
+        json_dir = workspace / "7_historical_model_json"
+
+        model_dir.mkdir(parents=True, exist_ok=True)
+        json_dir.mkdir(parents=True, exist_ok=True)
+
+        dcf_result, projections, valuation_table_str = self.run_valuation_calculation(
+            ticker, workspace, assumptions
+        )
+
+        target_margin_yr5 = assumptions["margin_yr5"]
+        terminal_margin = assumptions.get("terminal_margin", target_margin_yr5)
+        target_growth_yr5 = assumptions["revenue_growth_rate"]
+        terminal_growth = assumptions["terminal_growth_rate"]
+        wacc = assumptions["wacc"]
+        mct = assumptions["capital_turnover"]
+        l4q_tax = assumptions["adjusted_tax_rate"]
+
         # Create output JSON
         today = datetime.now().strftime("%Y%m%d")
         out_json_path = json_dir / f"{today}_{ticker}_0.json"
@@ -809,6 +872,7 @@ class Modeler:
 
         # 2. Base (Year 0)
         base_rev = assumptions["base_revenue"]
+        base_margin = assumptions["base_margin"]
         base_ic = assumptions["base_ic"]
         base_fcf = assumptions.get("base_fcf", base_rev * base_margin * (1 - l4q_tax))
         table_rows.append(
@@ -852,6 +916,34 @@ class Modeler:
 > - Base Invested Capital has been set to the median of available quarters: ${base_ic:,.2f}M.
 """
 
+        # Construct assumptions comparison table
+        base_wacc = assumptions.get("base_wacc", wacc)
+        base_growth = assumptions.get("base_growth_rate", target_growth_yr5)
+        base_term_growth = assumptions.get("base_terminal_growth", terminal_growth)
+        base_margin_yr5 = assumptions.get("base_margin", base_margin)
+        base_term_margin = assumptions.get("base_terminal_margin", terminal_margin)
+        base_turnover = assumptions.get("base_capital_turnover", mct)
+        base_tax = assumptions.get("base_adjusted_tax_rate", l4q_tax)
+        comparison_table_str = f"""## Assumptions Used vs. Modeler Agents Recommendations
+
+| Parameter | Recommended by Modeler Agents | Actually Used | Status |
+|:---|:---|:---|:---|
+| **WACC** | {base_wacc * 100:.2f}% | {wacc * 100:.2f}% | {'Updated' if abs(base_wacc - wacc) > 1e-6 else 'Unchanged'} |
+| **Year 5 Growth** | {base_growth * 100:.2f}% | {target_growth_yr5 * 100:.2f}% | {'Updated' if abs(base_growth - target_growth_yr5) > 1e-6 else 'Unchanged'} |
+| **Terminal Growth** | {base_term_growth * 100:.2f}% | {terminal_growth * 100:.2f}% | {'Updated' if abs(base_term_growth - terminal_growth) > 1e-6 else 'Unchanged'} |
+| **Year 5 Margin** | {base_margin_yr5 * 100:.2f}% | {target_margin_yr5 * 100:.2f}% | {'Updated' if abs(base_margin_yr5 - target_margin_yr5) > 1e-6 else 'Unchanged'} |
+| **Terminal Margin** | {base_term_margin * 100:.2f}% | {terminal_margin * 100:.2f}% | {'Updated' if abs(base_term_margin - terminal_margin) > 1e-6 else 'Unchanged'} |
+| **Capital Turnover** | {base_turnover:.1f}x | {mct:.1f}x | {'Updated' if abs(base_turnover - mct) > 1e-6 else 'Unchanged'} |
+| **Adjusted Tax Rate** | {base_tax * 100:.2f}% | {l4q_tax * 100:.2f}% | {'Updated' if abs(base_tax - l4q_tax) > 1e-6 else 'Unchanged'} |
+"""
+
+        valuation_commentary = assumptions.get("valuation_commentary", "")
+        valuation_commentary_str = ""
+        if valuation_commentary:
+            valuation_commentary_str = f"""## Valuation Commentary & Modeler Critique
+{valuation_commentary}
+"""
+
         md_content = f"""# Financial Model: {ticker}
 Date: {today}
 {warning_block}
@@ -867,6 +959,11 @@ Date: {today}
 {growth_explanation_str}
 {margin_explanation_str}
 {non_operating_explanation_str}
+
+{comparison_table_str}
+
+{valuation_commentary_str}
+
 ## Valuation
 {valuation_table_str}
 
@@ -888,9 +985,25 @@ Date: {today}
         base_assumptions: Dict[str, Any],
         learning_context: str = "",
     ) -> Dict[str, Any]:
-        """Leverage historical financials and analyst views to estimate final assumptions."""
-        # Simple implementation for now. In Phase 5, this would use the llm_client
-        return base_assumptions
+        """Leverage the 10-turn DCF modeling agent to estimate final assumptions."""
+        from src.services.llm_client import LLMClient
+        from src.pipeline.modeler_agents.dcf_modeling_agent import (
+            run_dcf_modeling_agent,
+        )
+
+        formatting.print_info(f"Running 10-Turn DCF Modeling Agent for {ticker}...")
+        llm = LLMClient()
+        final_assumptions, comments, history_text = run_dcf_modeling_agent(
+            ticker=ticker,
+            workspace=workspace,
+            base_assumptions=base_assumptions,
+            llm=llm,
+            learning_context=learning_context,
+        )
+
+        final_assumptions["valuation_commentary"] = comments
+        final_assumptions["dcf_agent_log"] = history_text
+        return final_assumptions
 
     def propose_and_validate_assumptions(
         self, ticker: str, workspace: Path, assumptions: Dict[str, Any]

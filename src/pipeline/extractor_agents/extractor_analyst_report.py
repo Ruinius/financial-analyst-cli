@@ -14,7 +14,7 @@ def extract_analyst_report(
     summaries = []
     import json
     import src.utils.formatting as formatting
-    from src.pipeline.extractor_orchestrator import get_chunk_by_id
+    from src.tools.find_chunk import get_chunk_by_id
 
     analyst_company = "Unknown"
     economic_moat = "Narrow"
@@ -130,7 +130,7 @@ def extract_analyst_report(
         elif tool == "find_keyword_contexts":
             kw = args.get("keywords", [])
             window = args.get("window", 200)
-            from src.utils.tools import find_keyword_contexts
+            from src.tools.keyword_search import find_keyword_contexts
 
             res = str(find_keyword_contexts(content, kw, window))
             history.append(
