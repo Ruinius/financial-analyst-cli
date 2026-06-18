@@ -2,6 +2,17 @@ import re
 from pathlib import Path
 
 
+def extract_json_from_text(text: str) -> str | None:
+    """Extract a JSON object from text by finding the first '{' and last '}'."""
+    if not text:
+        return None
+    start_idx = text.find("{")
+    end_idx = text.rfind("}")
+    if start_idx != -1 and end_idx != -1 and end_idx >= start_idx:
+        return text[start_idx : end_idx + 1]
+    return None
+
+
 def find_keyword_contexts(content: str, keywords: list, window: int = 200) -> list:
     """Find occurrences of keywords in content and return snippets of 200 chars before and after, along with the chunk ID they were found in."""
     if window < 100:

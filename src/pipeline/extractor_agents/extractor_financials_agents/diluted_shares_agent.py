@@ -1,4 +1,4 @@
-import re
+from src.utils.tools import extract_json_from_text
 import json
 import logging
 from src.utils.tools import find_keyword_contexts
@@ -77,8 +77,8 @@ def run_diluted_shares_agent(
 
         history.append({"role": "assistant", "content": resp})
 
-        json_match = re.search(r"\{.*\}", resp, re.DOTALL)
-        if not json_match:
+        json_str = extract_json_from_text(resp)
+        if not json_str:
             history.append(
                 {
                     "role": "user",
@@ -87,7 +87,7 @@ def run_diluted_shares_agent(
             )
             continue
         try:
-            action = json.loads(json_match.group(0))
+            action = json.loads(json_str)
         except Exception as e:
             history.append({"role": "user", "content": f"Error parsing JSON: {e}"})
             continue

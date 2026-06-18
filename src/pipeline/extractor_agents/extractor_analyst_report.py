@@ -1,4 +1,4 @@
-import re
+from src.utils.tools import extract_json_from_text
 import logging
 from pathlib import Path
 
@@ -80,8 +80,8 @@ def extract_analyst_report(
 
         history.append({"role": "assistant", "content": resp})
 
-        json_match = re.search(r"\{.*\}", resp, re.DOTALL)
-        if not json_match:
+        json_str = extract_json_from_text(resp)
+        if not json_str:
             history.append(
                 {
                     "role": "user",
@@ -90,7 +90,7 @@ def extract_analyst_report(
             )
             continue
         try:
-            action = json.loads(json_match.group(0))
+            action = json.loads(json_str)
         except Exception as e:
             history.append({"role": "user", "content": f"Error parsing JSON: {e}"})
             continue

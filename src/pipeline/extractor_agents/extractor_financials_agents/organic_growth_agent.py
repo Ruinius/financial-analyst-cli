@@ -1,7 +1,6 @@
-import re
 import json
 import logging
-from src.utils.tools import find_keyword_contexts
+from src.utils.tools import find_keyword_contexts, extract_json_from_text
 
 logger = logging.getLogger(__name__)
 
@@ -75,8 +74,8 @@ def run_organic_growth_agent(
 
         history.append({"role": "assistant", "content": resp})
 
-        json_match = re.search(r"\{.*\}", resp, re.DOTALL)
-        if not json_match:
+        json_str = extract_json_from_text(resp)
+        if not json_str:
             history.append(
                 {
                     "role": "user",
@@ -85,7 +84,7 @@ def run_organic_growth_agent(
             )
             continue
         try:
-            action = json.loads(json_match.group(0))
+            action = json.loads(json_str)
         except Exception as e:
             history.append({"role": "user", "content": f"Error parsing JSON: {e}"})
             continue

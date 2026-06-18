@@ -1,4 +1,4 @@
-import re
+from src.utils.tools import extract_json_from_text
 import json
 import logging
 from pathlib import Path
@@ -137,8 +137,8 @@ def run_income_statement_agent(
         history.append({"role": "assistant", "content": resp})
 
         # Try to parse JSON tool call from assistant response
-        json_match = re.search(r"\{.*\}", resp, re.DOTALL)
-        if not json_match:
+        json_str = extract_json_from_text(resp)
+        if not json_str:
             history.append(
                 {
                     "role": "user",
@@ -148,7 +148,7 @@ def run_income_statement_agent(
             continue
 
         try:
-            action = json.loads(json_match.group(0))
+            action = json.loads(json_str)
         except Exception as e:
             history.append(
                 {
