@@ -11,6 +11,20 @@ pub struct DcfResult {
 
 /// Computes the Discounted Cash Flow valuation.
 #[pyfunction]
+#[pyo3(signature = (
+    revenue_growth_projections,
+    terminal_growth_rate,
+    wacc,
+    free_cash_flow_base,
+    shares_outstanding,
+    cash = 0.0,
+    short_term_investments = 0.0,
+    debt = 0.0,
+    preferred_equity = 0.0,
+    minority_interest = 0.0,
+    other_financial = 0.0,
+    mid_year = true
+))]
 pub fn calculate_dcf(
     revenue_growth_projections: Vec<f64>,
     terminal_growth_rate: f64,
@@ -23,6 +37,7 @@ pub fn calculate_dcf(
     preferred_equity: f64,
     minority_interest: f64,
     other_financial: f64,
+    mid_year: bool,
 ) -> PyResult<String> {
     let mut projected_cash_flows = Vec::new();
     let mut current_fcf = free_cash_flow_base;
@@ -34,7 +49,8 @@ pub fn calculate_dcf(
 
     let mut pv_cash_flows = 0.0;
     for (i, fcf) in projected_cash_flows.iter().enumerate() {
-        let discount_factor = (1.0 + wacc).powi((i + 1) as i32);
+        let exponent = (i + 1) as f64 - if mid_year { 0.5 } else { 0.0 };
+        let discount_factor = (1.0 + wacc).powf(exponent);
         pv_cash_flows += fcf / discount_factor;
     }
 

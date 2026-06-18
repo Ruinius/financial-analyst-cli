@@ -625,7 +625,7 @@
                 let fcf = nopat - reinvestment;
                 ic = ic + reinvestment;
                 let roic = ic !== 0 ? (nopat / ic) * 100 : 0;
-                let df = 1 / Math.pow(1 + wacc, yr);
+                let df = 1 / Math.pow(1 + wacc, yr - 0.5);
                 let pv = fcf * df;
 
                 projections.push({
@@ -655,7 +655,7 @@
                 currentFCF *= (1.0 + growthRates[i]);
                 projectedCashFlows.push(currentFCF);
 
-                let df = Math.pow(1.0 + wacc, i + 1);
+                let df = Math.pow(1.0 + wacc, i + 1 - 0.5);
                 pvCashFlows += currentFCF / df;
             }
 

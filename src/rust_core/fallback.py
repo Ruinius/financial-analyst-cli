@@ -14,6 +14,7 @@ def calculate_dcf(
     preferred_equity: float,
     minority_interest: float,
     other_financial: float,
+    mid_year: bool = True,
 ) -> str:
     projected_cash_flows = []
     current_fcf = free_cash_flow_base
@@ -24,7 +25,7 @@ def calculate_dcf(
 
     pv_cash_flows = 0.0
     for i, fcf in enumerate(projected_cash_flows):
-        discount_factor = (1.0 + wacc) ** (i + 1)
+        discount_factor = (1.0 + wacc) ** (i + 1 - (0.5 if mid_year else 0.0))
         pv_cash_flows += fcf / discount_factor
 
     last_fcf = projected_cash_flows[-1] if projected_cash_flows else free_cash_flow_base

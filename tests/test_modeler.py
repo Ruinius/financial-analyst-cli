@@ -699,3 +699,159 @@ def test_run_non_operating_agent_invalid_json(mock_curator, tmp_path):
             llm=mock_llm,
         )
     assert "LLM response did not contain a valid JSON object" in str(exc_info.value)
+
+
+@patch("src.pipeline.modeler_agents.margin_agent.run_margin_agent")
+@patch("src.pipeline.modeler_agents.growth_agent.run_growth_agent")
+@patch("src.pipeline.modeler_agents.non_operating_agent.run_non_operating_agent")
+@patch("src.pipeline.modeler_agents.wacc_agent.run_wacc_agent")
+@patch("src.pipeline.modeler_orchestrator.load_config")
+@patch("src.services.market_data.get_market_profile")
+def test_calculate_default_assumptions_ltm_unavailable(
+    mock_get_profile,
+    mock_load_config,
+    mock_run_wacc_agent,
+    mock_run_non_operating_agent,
+    mock_run_growth_agent,
+    mock_run_margin_agent,
+    tmp_path,
+):
+    workspace = tmp_path / "MOCK"
+    workspace.mkdir(parents=True)
+    analysis_dir = workspace / "5_historical_analysis"
+    analysis_dir.mkdir(parents=True)
+
+    # Only 2 quarters available -> LTM not available
+    quarter_path = analysis_dir / "financials_quarter.md"
+    quarter_path.write_text(
+        "## Historical Financials\n"
+        "| Time Period | Period End | Revenue | EBITA | EBITA Margin | Adj Tax Rate | NOPAT | Invested Capital | Capital Turnover | ROIC | Organic Growth | Source Document |\n"
+        "|-------------|-----------|---------|-------|--------------|-------------|-------|-----------------|------------------|------|----------------|-----------------|\n"
+        "| 2023-Q1     | 2023-03-31 | 1000    | 200   | 20.00%       | 25.00%      | 150   | 500             | 2.0x             | 30.0%| 5.00%          | 10-Q            |\n"
+        "| 2023-Q2     | 2023-06-30 | 1100    | 220   | 20.00%       | 35.00%      | 165   | 600             | 2.0x             | 30.0%| 5.00%          | 10-Q            |\n"
+    )
+
+    analyst_path = analysis_dir / "analyst_views.md"
+    analyst_path.write_text(
+        "## Analyst Views\n"
+        "| Date | Document | Economic Moat | Moat Rationale | Margin Outlook | Margin Magnitude | Margin Rationale | Growth Outlook | Growth Magnitude | Growth Rationale |\n"
+        "|---|---|---|---|---|---|---|---|---|---|\n"
+        "| 2023-06-30 | 10-Q | Wide | Strong brand | Expanding | +2pp | Good | Expanding | +3pp | Good |\n"
+    )
+
+    # Mock all external calls
+    mock_run_wacc_agent.return_value = {
+        "wacc": 0.08,
+        "net_debt": 50.0,
+        "explanation": "Calculated mock WACC",
+    }
+    mock_run_non_operating_agent.return_value = {
+        "cash": 10.0,
+        "short_term_investments": 0.0,
+        "debt": 60.0,
+        "preferred_equity": 0.0,
+        "minority_interest": 0.0,
+        "other_financial": 0.0,
+        "explanation": "Calculated mock non-operating categories",
+    }
+    mock_run_growth_agent.return_value = {
+        "base_growth_rate": 0.05,
+        "revenue_growth_rate": 0.08,
+        "terminal_growth_rate": 0.03,
+        "explanation": "Calculated mock growth rates",
+    }
+    mock_run_margin_agent.return_value = {
+        "base_margin": 0.21,
+        "margin_yr5": 0.24,
+        "terminal_margin": 0.23,
+        "explanation": "Calculated mock margins",
+    }
+    mock_get_profile.return_value = {
+        "valid": True,
+        "share_price": 150.0,
+        "market_cap": 1500000000,
+        "beta": 1.2,
+        "shares_outstanding": 10000000,
+    }
+    mock_settings = MagicMock()
+    mock_settings.active_workspace_path = str(workspace)
+    mock_settings.active_ticker = "MOCK"
+    mock_load_config.return_value = mock_settings
+
+    modeler = Modeler()
+    assumptions = modeler.calculate_default_assumptions("MOCK", workspace)
+
+    assert assumptions["ltm_warning"] is True
+    # 2 quarters: 1000 + 1100 = 2100. Annualized (2100 * 4 / 2) = 4200.0
+    assert assumptions["base_revenue"] == pytest.approx(4200.0)
+    # Invested Capital: median of [500, 600] = 550.0
+    assert assumptions["base_ic"] == pytest.approx(550.0)
+    # Adjusted Tax: median of all available [25%, 35%] = 30% = 0.30
+    assert assumptions["adjusted_tax_rate"] == pytest.approx(0.30)
+
+
+@patch("src.pipeline.modeler_orchestrator.load_config")
+def test_generate_financial_model_mid_year_and_markdown(mock_load_config, tmp_path):
+    mock_settings = MagicMock()
+    mock_settings.active_workspace_path = str(tmp_path)
+    mock_settings.active_ticker = "MOCK"
+    mock_load_config.return_value = mock_settings
+
+    assumptions = {
+        "wacc": 0.10,
+        "capital_turnover": 2.0,
+        "revenue_growth_rate": 0.10,
+        "base_growth_rate": 0.05,
+        "margin_yr5": 0.25,
+        "base_margin": 0.20,
+        "terminal_margin": 0.23,
+        "terminal_growth_rate": 0.04,
+        "adjusted_tax_rate": 0.21,
+        "base_revenue": 1000.0,
+        "base_ic": 500.0,
+        "shares_outstanding": 100,
+        "cash": 10.0,
+        "short_term_investments": 0.0,
+        "debt": 60.0,
+        "preferred_equity": 0.0,
+        "minority_interest": 0.0,
+        "other_financial": 0.0,
+        "net_debt": 50.0,
+        "ltm_warning": True,
+    }
+
+    # Setup financials_quarter.md in historical analysis directory
+    analysis_dir = tmp_path / "5_historical_analysis"
+    analysis_dir.mkdir(parents=True)
+    quarter_path = analysis_dir / "financials_quarter.md"
+    quarter_path.write_text(
+        "## Historical Financials\n"
+        "| Time Period | Period End | Revenue | EBITA | EBITA Margin | Adj Tax Rate | NOPAT | Invested Capital | Capital Turnover | ROIC | Organic Growth | Source Document |\n"
+        "|-------------|-----------|---------|-------|--------------|-------------|-------|-----------------|------------------|------|----------------|-----------------|\n"
+        "| 2023-Q1     | 2023-03-31 | 1000    | 200   | 20.00%       | 25.00%      | 150   | 500             | 2.0x             | 30.0%| 5.00%          | 10-Q            |\n"
+    )
+
+    modeler = Modeler()
+    modeler.generate_financial_model("MOCK", tmp_path, assumptions)
+
+    model_dir = tmp_path / "6_financial_model"
+    md_files = list(model_dir.glob("*_model.md"))
+    assert len(md_files) == 1
+
+    md_content = md_files[0].read_text(encoding="utf-8")
+
+    # Check that warning callout is in markdown
+    assert "[!WARNING]" in md_content
+    assert "LTM is absolutely not available" in md_content
+
+    # Check that columns are correct
+    assert "Time Period" in md_content
+    assert "Revenue ($M)" in md_content
+    assert "Discount Factor" in md_content
+    assert "Discounted FCF" in md_content
+
+    # Check that Base (Year 0), historical quarter 2023-Q1, Year 1, and Terminal rows are present
+    assert "2023-Q1" in md_content
+    assert "Base (Year 0)" in md_content
+    assert "Year 1" in md_content
+    assert "Terminal" in md_content

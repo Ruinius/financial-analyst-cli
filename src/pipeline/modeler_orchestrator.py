@@ -7,7 +7,7 @@ from typing import Dict, Any, List, Optional
 
 from src.core.config import load_config
 import src.utils.formatting as formatting
-from src.rust_core.fallback import calculate_dcf
+from src.rust_core import calculate_dcf
 
 logger = logging.getLogger(__name__)
 
@@ -266,30 +266,60 @@ class Modeler:
         with open(quarter_path, "r", encoding="utf-8") as f:
             quarter_content = f.read()
 
+        def get_median(lst: List[float]) -> float:
+            if not lst:
+                return 0.0
+            sorted_lst = sorted(lst)
+            n = len(sorted_lst)
+            if n % 2 == 1:
+                return sorted_lst[n // 2]
+            else:
+                return (sorted_lst[n // 2 - 1] + sorted_lst[n // 2]) / 2.0
+
         hist_table = parse_markdown_table(quarter_content, "## Historical Financials")
-        if len(hist_table) < 4:
+        num_quarters = len(hist_table)
+
+        ltm_warning = False
+        if num_quarters < 4:
             formatting.print_warning(
-                "Less than 4 quarters of history. Using available data."
+                "Less than 4 quarters of history. LTM is absolutely not available."
             )
+            ltm_warning = True
 
         l4q = hist_table[-4:] if hist_table else []
 
-        l4q_rev = sum(clean_value(q.get("Revenue")) for q in l4q)
-        l4q_ebita = sum(clean_value(q.get("EBITA")) for q in l4q)
+        # 1. Base revenue: sum of last 4 quarters (LTM), or annualized if fewer than 4 quarters
+        if num_quarters >= 4:
+            base_rev = sum(clean_value(q.get("Revenue")) for q in l4q)
+        elif num_quarters > 0:
+            base_rev = sum(clean_value(q.get("Revenue")) for q in hist_table) * (
+                4.0 / num_quarters
+            )
+        else:
+            base_rev = 0.0
+
+        # 2. Base invested capital: median of LTM, or median of available quarters if fewer than 4 quarters
+        if num_quarters >= 4:
+            base_ic = get_median([clean_value(q.get("Invested Capital")) for q in l4q])
+        elif num_quarters > 0:
+            base_ic = get_median(
+                [clean_value(q.get("Invested Capital")) for q in hist_table]
+            )
+        else:
+            base_ic = 0.0
+
+        # 3. Adjusted tax rate: median of all available quarters
+        if num_quarters > 0:
+            adjusted_tax = get_median(
+                [clean_value(q.get("Adj Tax Rate")) / 100.0 for q in hist_table]
+            )
+        else:
+            adjusted_tax = 0.21
+
+        l4q_rev = sum(clean_value(q.get("Revenue")) for q in l4q) if l4q else 0.0
+        l4q_ebita = sum(clean_value(q.get("EBITA")) for q in l4q) if l4q else 0.0
         l4q_growth = (
             sum(clean_value(q.get("Organic Growth")) / 100.0 for q in l4q) / len(l4q)
-            if l4q
-            else 0
-        )
-        l4q_tax = (
-            sum(clean_value(q.get("Adj Tax Rate")) / 100.0 for q in l4q) / len(l4q)
-            if l4q
-            else 0.21
-        )
-
-        base_ic = clean_value(l4q[-1].get("Invested Capital", "0")) if l4q else 0
-        (
-            clean_value(str(l4q[-1].get("ROIC", "0")).replace("%", "")) / 100.0
             if l4q
             else 0
         )
@@ -327,7 +357,7 @@ class Modeler:
             share_price=share_price,
             market_cap=market_cap,
             beta=raw_beta,
-            tax_rate=l4q_tax,
+            tax_rate=adjusted_tax,
             llm=llm,
             learning_context=learning_context,
         )
@@ -397,7 +427,6 @@ class Modeler:
         else:
             mct = round(avg_turnover, 1)
 
-        base_rev = l4q_rev
         base_margin = margin_results["base_margin"]
 
         assumptions = {
@@ -412,11 +441,13 @@ class Modeler:
             "terminal_margin": margin_results["terminal_margin"],
             "terminal_growth_rate": growth_results["terminal_growth_rate"],
             "base_terminal_growth": 0.04 if moat == "Wide" else 0.03,
-            "adjusted_tax_rate": l4q_tax,
-            "base_adjusted_tax_rate": l4q_tax,
+            "adjusted_tax_rate": adjusted_tax,
+            "base_adjusted_tax_rate": adjusted_tax,
             "base_revenue": base_rev,
             "base_ic": base_ic,
-            "base_fcf": (base_rev * base_margin * (1 - l4q_tax)),  # simplistic fallback
+            "base_fcf": (
+                base_rev * base_margin * (1 - adjusted_tax)
+            ),  # simplistic fallback
             "moat": moat,
             "shares_outstanding": shares_out,
             "market_cap": market_cap,
@@ -432,6 +463,7 @@ class Modeler:
             "growth_explanation": growth_results.get("explanation", ""),
             "margin_explanation": margin_results.get("explanation", ""),
             "non_operating_explanation": non_operating_explanation,
+            "ltm_warning": ltm_warning,
         }
 
         return assumptions
@@ -446,7 +478,7 @@ class Modeler:
         model_dir.mkdir(parents=True, exist_ok=True)
         json_dir.mkdir(parents=True, exist_ok=True)
 
-        # Build projections
+        # Build projections using mid-year adjustment convention for discount factor
         rev = assumptions["base_revenue"]
         base_margin = assumptions["base_margin"]
         target_margin_yr5 = assumptions["margin_yr5"]
@@ -483,7 +515,7 @@ class Modeler:
             fcf = nopat - reinvestment
             ic = ic + reinvestment
             roic = (nopat / ic) if ic != 0 else 0
-            df = 1 / ((1 + wacc) ** yr)
+            df = 1 / ((1 + wacc) ** (yr - 0.5))
             pv = fcf * df
 
             projections.append(
@@ -503,7 +535,7 @@ class Modeler:
                 }
             )
 
-        # Call Rust Core for valuation verification
+        # Call Rust Core for valuation verification using mid-year convention
         fcf_base = projections[0]["fcf"] / (1 + growth_rates[0]) if growth_rates else 0
         dcf_result_str = calculate_dcf(
             revenue_growth_projections=growth_rates,
@@ -517,6 +549,7 @@ class Modeler:
             preferred_equity=assumptions.get("preferred_equity", 0.0),
             minority_interest=assumptions.get("minority_interest", 0.0),
             other_financial=assumptions.get("other_financial", 0.0),
+            mid_year=True,
         )
         dcf_result = json.loads(dcf_result_str)
 
@@ -554,9 +587,83 @@ class Modeler:
         if non_operating_explanation_str:
             non_operating_explanation_str = f"\n{non_operating_explanation_str}\n"
 
+        # Read historical quarters to include them in the summary table
+        analysis_dir = workspace / "5_historical_analysis"
+        quarter_path = analysis_dir / "financials_quarter.md"
+        hist_table = []
+        if quarter_path.exists():
+            try:
+                quarter_content = quarter_path.read_text(encoding="utf-8")
+                hist_table = parse_markdown_table(
+                    quarter_content, "## Historical Financials"
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Error parsing historical financials in generate_financial_model: {e}"
+                )
+
+        # Construct rows for summary table
+        table_rows = []
+
+        # 1. Historical quarters (last 4, or whatever is available)
+        for q in hist_table[-4:] if hist_table else []:
+            time_period = q.get("Time Period") or q.get("Period End") or "N/A"
+            rev_val = clean_value(q.get("Revenue"))
+            growth_val = clean_value(q.get("Organic Growth"))
+            margin_val = clean_value(q.get("EBITA Margin"))
+            ic_val = clean_value(q.get("Invested Capital"))
+            table_rows.append(
+                f"| {time_period} | {rev_val:,.1f} | {growth_val:,.2f}% | {margin_val:,.2f}% | {ic_val:,.1f} | N/A | N/A | N/A |"
+            )
+
+        # 2. Base (Year 0)
+        base_rev = assumptions["base_revenue"]
+        base_ic = assumptions["base_ic"]
+        base_fcf = assumptions.get("base_fcf", base_rev * base_margin * (1 - l4q_tax))
+        table_rows.append(
+            f"| Base (Year 0) | {base_rev:,.1f} | N/A | {base_margin * 100:.2f}% | {base_ic:,.1f} | {base_fcf:,.1f} | N/A | N/A |"
+        )
+
+        # 3. Projected Years 1 to 10
+        for p in projections:
+            yr = p["year"]
+            rev_val = p["revenue"]
+            growth_val = p["growth"] * 100
+            margin_val = p["margin"] * 100
+            ic_val = p["ic"]
+            fcf_val = p["fcf"]
+            df_val = p["df"]
+            pv_val = p["pv"]
+            table_rows.append(
+                f"| Year {yr} | {rev_val:,.1f} | {growth_val:,.2f}% | {margin_val:,.2f}% | {ic_val:,.1f} | {fcf_val:,.1f} | {df_val:.4f} | {pv_val:,.1f} |"
+            )
+
+        # 4. Terminal Value
+        terminal_fcf = dcf_result["terminal_value"]
+        pv_terminal_value = terminal_fcf / ((1.0 + wacc) ** 10)
+        table_rows.append(
+            f"| Terminal | N/A | {terminal_growth * 100:.2f}% | {terminal_margin * 100:.2f}% | N/A | {terminal_fcf:,.1f} | {1.0 / ((1.0 + wacc) ** 10):.4f} | {pv_terminal_value:,.1f} |"
+        )
+
+        table_header = (
+            "| Time Period | Revenue ($M) | Growth (%) | EBITA Margin (%) | Invested Capital ($M) | Free Cash Flow ($M) | Discount Factor | Discounted FCF |\n"
+            "|---|---|---|---|---|---|---|---|"
+        )
+        table_str = table_header + "\n" + "\n".join(table_rows)
+
+        warning_block = ""
+        if assumptions.get("ltm_warning"):
+            num_quarters = len(hist_table)
+            warning_block = f"""
+> [!WARNING]
+> LTM is absolutely not available due to having fewer than 4 quarters of history (only {num_quarters} quarter(s) available).
+> - Base Revenue has been annualized to ${base_rev:,.2f}M based on available quarters.
+> - Base Invested Capital has been set to the median of available quarters: ${base_ic:,.2f}M.
+"""
+
         md_content = f"""# Financial Model: {ticker}
 Date: {today}
-
+{warning_block}
 ## Assumptions
 - **WACC**: {wacc * 100:.2f}%
 - **Revenue Growth Rate**: {target_growth_yr5 * 100:.2f}%
@@ -574,11 +681,8 @@ Date: {today}
 - **Intrinsic Value Per Share**: ${dcf_result["intrinsic_value_per_share"]:.2f}
 
 ## Projections Summary
-| Year | Revenue | Growth | EBITA Margin | FCF |
-|---|---|---|---|---|
+{table_str}
 """
-        for p in projections:
-            md_content += f"| Yr {p['year']} | {p['revenue']:,.0f} | {p['growth'] * 100:.2f}% | {p['margin'] * 100:.2f}% | {p['fcf']:,.0f} |\n"
 
         with open(md_path, "w", encoding="utf-8") as f:
             f.write(md_content)
