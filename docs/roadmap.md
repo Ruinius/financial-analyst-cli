@@ -139,8 +139,8 @@ Config      Ingestion   Extraction  History     Modeling    Interactive
   - [x] Save adjustments to `[TICKER]_model_learning.md`.
   - [x] Take `shares_outstanding` from the latest quarter's basic/diluted shares outstanding (most recent quarter with a number).
 - **5.3 Financial Model Generation**:
-  - [x] Generate the DCF model markdown inside `6_financial_model/`.
-  - [x] Output the baseline model JSON (`YYYYMMDD_ticker_0.json`) inside `7_historical_model_json/`.
+  - [x] Generate the DCF model markdown inside `6_financial_model/`, formatted with the comprehensive Valuation table detailing Enterprise Value, dynamic non-operating line items, Equity Value, Diluted Shares, Intrinsic Value, Currency, FX Rate, ADR Ratio, Current Market Price, Upside/Downside, and Calculation Date.
+  - [x] Output the baseline model JSON (`YYYYMMDD_ticker_0.json`) inside `7_historical_model_json/` with matching valuation updates.
   - [x] Trigger the Curator Agent to update modeling lessons in `[TICKER]_model_learning.md` and clear feedback.
 
 - **5.4 Testing & Evaluation (Evals)**:
@@ -182,5 +182,3 @@ Config      Ingestion   Extraction  History     Modeling    Interactive
   - [x] **Local Currency & Unit Support in Extraction**: Enhanced CuratorAgent and extraction agents (balance sheet, income statement, derived metrics agents) to dynamically detect, track, and maintain the preferred reporting currency and numeric scale units (e.g. Millions, Billions, 10K) across quarterly/annual filings and earnings announcements.
 
 Next steps:
-
-- [x] Double check how to handle earnings announcement vs 10Q (organic growth, EBITA margins, and currency/unit scaling are now uniformly propagated).

@@ -855,3 +855,18 @@ def test_generate_financial_model_mid_year_and_markdown(mock_load_config, tmp_pa
     assert "Base (Year 0)" in md_content
     assert "Year 1" in md_content
     assert "Terminal" in md_content
+
+    # Check that the Valuation table is present and formatted correctly
+    assert "| Field | Value |" in md_content
+    assert "| Enterprise Value |" in md_content
+    assert "| (+) Cash and Equivalents |" in md_content
+    assert "| (-) Total Debt |" in md_content
+    assert "| **Equity Value** |" in md_content
+    assert "| Diluted Shares Outstanding |" in md_content
+    assert "| **Intrinsic Value Per Share** |" in md_content
+    assert "| Currency |" in md_content
+    assert "| FX Rate Applied |" in md_content
+    assert "| ADR Ratio Applied |" in md_content
+    assert "| Current Market Price |" in md_content
+    assert "| **Upside/Downside** |" in md_content
+    assert "| Calculation Date |" in md_content

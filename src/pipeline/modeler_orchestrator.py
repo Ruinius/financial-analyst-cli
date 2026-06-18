@@ -433,6 +433,97 @@ class Modeler:
 
         base_margin = margin_results["base_margin"]
 
+        # Determine currency, fx_rate, and adr_ratio
+        model_learning_path = workspace / f"{ticker}_model_learning.md"
+        extract_learning_path = workspace / f"{ticker}_extract_learning.md"
+
+        def get_metadata_from_learning(path: Path, pattern: str) -> Optional[str]:
+            if not path.exists():
+                return None
+            try:
+                content = path.read_text(encoding="utf-8")
+                for line in content.split("\n"):
+                    match = re.search(pattern, line.strip(), re.IGNORECASE)
+                    if match:
+                        return match.group(1).strip()
+            except Exception:
+                pass
+            return None
+
+        # 1. Currency
+        # Look in model_learning.md first, then extract_learning.md, then market_data, default to USD
+        currency = None
+        for p in [model_learning_path, extract_learning_path]:
+            currency = get_metadata_from_learning(
+                p, r"(?:Preferred\s*)?Currency:\s*([A-Za-z]{3})"
+            )
+            if currency:
+                break
+        if not currency:
+            currency = market_data.get("currency")
+        if not currency:
+            currency = "USD"
+        currency = currency.upper()
+
+        # 2. FX Rate
+        # Look in model_learning.md, default to None (we will compute or default to 1.0)
+        fx_rate_str = get_metadata_from_learning(
+            model_learning_path,
+            r"(?:FX\s*Rate|FX\s*Rate\s*Applied|Exchange\s*Rate):\s*([0-9.]+)",
+        )
+        if not fx_rate_str:
+            # Also try strict - FX: 0.15
+            fx_rate_str = get_metadata_from_learning(
+                model_learning_path, r"^-\s*FX:\s*([0-9.]+)\s*$"
+            )
+
+        fx_rate = None
+        if fx_rate_str:
+            try:
+                fx_rate = float(fx_rate_str)
+            except ValueError:
+                pass
+
+        # If FX rate not set, dynamically check if currencies differ
+        if fx_rate is None:
+            trading_currency = (market_data.get("currency") or "USD").upper()
+            if currency != trading_currency:
+                # Fetch exchange rate
+                from src.services.market_data import get_exchange_rate
+
+                try:
+                    fx_data = get_exchange_rate(currency, trading_currency)
+                    if fx_data.get("rate"):
+                        fx_rate = fx_data["rate"]
+                        formatting.print_info(
+                            f"Dynamically fetched exchange rate {currency} -> {trading_currency}: {fx_rate}"
+                        )
+                except Exception as e:
+                    formatting.print_warning(
+                        f"Failed to dynamically fetch exchange rate for {currency} -> {trading_currency}: {e}"
+                    )
+
+        if fx_rate is None:
+            fx_rate = 1.0
+
+        # 3. ADR Ratio
+        # Look in model_learning.md, default to 1.0
+        adr_ratio_str = get_metadata_from_learning(
+            model_learning_path,
+            r"(?:ADR\s*Ratio|ADR\s*Ratio\s*Applied|ADR):\s*([0-9.]+)",
+        )
+        if not adr_ratio_str:
+            adr_ratio_str = get_metadata_from_learning(
+                model_learning_path, r"^-\s*ADR:\s*([0-9.]+)\s*$"
+            )
+
+        adr_ratio = 1.0
+        if adr_ratio_str:
+            try:
+                adr_ratio = float(adr_ratio_str)
+            except ValueError:
+                pass
+
         assumptions = {
             "wacc": wacc,
             "base_wacc": wacc,
@@ -468,6 +559,9 @@ class Modeler:
             "margin_explanation": margin_results.get("explanation", ""),
             "non_operating_explanation": non_operating_explanation,
             "ltm_warning": ltm_warning,
+            "currency": currency,
+            "fx_rate": fx_rate,
+            "adr_ratio": adr_ratio,
         }
 
         return assumptions
@@ -556,6 +650,91 @@ class Modeler:
             mid_year=True,
         )
         dcf_result = json.loads(dcf_result_str)
+
+        # Calculate Equity Value and updated Intrinsic Value per share in trading currency
+        currency = assumptions.get("currency", "USD")
+        fx_rate = assumptions.get("fx_rate", 1.0)
+        adr_ratio = assumptions.get("adr_ratio", 1.0)
+        share_price = assumptions.get("share_price", 0.0)
+
+        enterprise_value = dcf_result["enterprise_value"]
+        cash_val = assumptions.get("cash", 0.0)
+        st_inv_val = assumptions.get("short_term_investments", 0.0)
+        debt_val = assumptions.get("debt", 0.0)
+        pref_eq_val = assumptions.get("preferred_equity", 0.0)
+        min_int_val = assumptions.get("minority_interest", 0.0)
+        other_fin_val = assumptions.get("other_financial", 0.0)
+
+        non_op_rows = []
+        non_op_rows.append(f"| (+) Cash and Equivalents | ${cash_val:,.0f}M |")
+        if st_inv_val != 0:
+            non_op_rows.append(f"| (+) Short-term Investments | ${st_inv_val:,.0f}M |")
+        non_op_rows.append(f"| (-) Total Debt | ${debt_val:,.0f}M |")
+        if pref_eq_val != 0:
+            non_op_rows.append(f"| (-) Preferred Equity | ${pref_eq_val:,.0f}M |")
+        if min_int_val != 0:
+            non_op_rows.append(f"| (-) Minority Interest | ${min_int_val:,.0f}M |")
+        if other_fin_val > 0:
+            non_op_rows.append(
+                f"| (+) Other Financial Net Assets | ${other_fin_val:,.0f}M |"
+            )
+        elif other_fin_val < 0:
+            non_op_rows.append(
+                f"| (-) Other Financial Net Liabilities | ${abs(other_fin_val):,.0f}M |"
+            )
+
+        net_debt = (
+            debt_val + pref_eq_val + min_int_val - cash_val - st_inv_val - other_fin_val
+        )
+        equity_value = enterprise_value - net_debt
+        shares_outstanding = assumptions["shares_outstanding"]
+
+        if shares_outstanding > 0:
+            intrinsic_value_per_share = (
+                (equity_value / shares_outstanding) * fx_rate * adr_ratio
+            )
+        else:
+            intrinsic_value_per_share = 0.0
+
+        if share_price > 0:
+            upside_downside = (intrinsic_value_per_share - share_price) / share_price
+            upside_downside_str = (
+                f"+{upside_downside * 100:.1f}%"
+                if upside_downside >= 0
+                else f"{upside_downside * 100:.1f}%"
+            )
+        else:
+            upside_downside_str = "N/A"
+
+        calculation_date = datetime.now().strftime("%Y-%m-%d")
+
+        # Construct valuation table
+        val_table_rows = [
+            "| Field | Value |",
+            "| ----------------------------- | ------------- |",
+            f"| Enterprise Value | ${enterprise_value:,.0f}M |",
+        ]
+        val_table_rows.extend(non_op_rows)
+        val_table_rows.extend(
+            [
+                f"| **Equity Value** | **${equity_value:,.0f}M** |",
+                f"| Diluted Shares Outstanding | {shares_outstanding:,.0f}M |",
+                f"| **Intrinsic Value Per Share** | **${intrinsic_value_per_share:.2f}** |",
+                f"| Currency | {currency} |",
+                f"| FX Rate Applied | {fx_rate:.4f} |",
+                f"| ADR Ratio Applied | {adr_ratio:.1f} |",
+                f"| Current Market Price | ${share_price:.2f} |",
+                f"| **Upside/Downside** | **{upside_downside_str}** |",
+                f"| Calculation Date | {calculation_date} |",
+            ]
+        )
+        valuation_table_str = "\n".join(val_table_rows)
+
+        # Update dcf_result with recalculated values for JSON state
+        dcf_result["intrinsic_value_per_share"] = intrinsic_value_per_share
+        dcf_result["equity_value"] = equity_value
+        dcf_result["upside_downside"] = upside_downside_str
+        dcf_result["calculation_date"] = calculation_date
 
         # Create output JSON
         today = datetime.now().strftime("%Y%m%d")
@@ -681,8 +860,7 @@ Date: {today}
 {margin_explanation_str}
 {non_operating_explanation_str}
 ## Valuation
-- **Enterprise Value**: ${dcf_result["enterprise_value"]:,.0f}
-- **Intrinsic Value Per Share**: ${dcf_result["intrinsic_value_per_share"]:.2f}
+{valuation_table_str}
 
 ## Projections Summary
 {table_str}

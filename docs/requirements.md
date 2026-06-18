@@ -141,7 +141,7 @@ flowchart TD
   - Present the assumptions table to the user for feedback.
   - Record any overrides or adjustments in `[TICKER]_model_learning.md`.
 - **Step 5D: Execution**:
-  - Generate the projected financial model. Output the readable markdown file to `6_financial_model/` and the structured JSON to `7_historical_model_json/` as `YYYYMMDD_ticker_0.json`.
+  - Generate the projected financial model. Output the readable markdown file to `6_financial_model/` (featuring a comprehensive Valuation table with Enterprise Value, detailed non-operating items, Equity Value, shares outstanding, intrinsic value per share in trading currency, currency, FX rate, ADR ratio, current market price, upside/downside, and calculation date) and the structured JSON to `7_historical_model_json/` as `YYYYMMDD_ticker_0.json`.
 
 ---
 
