@@ -67,7 +67,8 @@ def run_tax_agent(
         "     - Non-operating bridge items (like interest expense or interest income) must be tax-adjusted as well. An interest expense add-back is a positive pre-tax adjustment (since interest expense was subtracted to get Income Before Taxes). An interest income subtraction is a negative pre-tax adjustment.\n"
         "     - A positive adjustment increases taxable operating profit. Therefore, it increases tax expense (making the tax adjustment a negative value, representing additional tax expense).\n"
         "     - A negative adjustment decreases taxable operating profit. Therefore, it decreases tax expense (making the tax adjustment a positive value, representing a tax benefit/reduction).\n"
-        "     - Exception: Non-deductible items like goodwill impairments have a tax impact of 0%, so they have 0.0 associated tax adjustment.\n\n"
+        "     - Exception: Non-deductible items like goodwill impairments have a tax impact of 0%, so they have 0.0 associated tax adjustment.\n"
+        "8. Identify the currency and unit from the extracted income statement content (provided below). Ensure all pre-tax income, reported tax provision, and tax adjustments are in this same currency and unit (do not convert to USD unless the income statement itself is in USD).\n\n"
         "Example finalize tool call:\n"
         "{\n"
         '  "thought": "I will finalize the extraction. Reported pre-tax income is 1600.0. Tax rate is 25%. Restructuring tax effect of -25.0 (based on 100.0 EBITA adjustment) and interest expense tax effect of -100.0. Total Adjusted Taxes is -400.0 (Reported Tax Provision) + -25.0 + -100.0 = -525.0.",\n'

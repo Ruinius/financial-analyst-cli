@@ -89,11 +89,13 @@ Config      Ingestion   Extraction  History     Modeling    Interactive
   - [x] Define strict Pydantic schemas to validate financial data before passing to Rust.
   - [x] Expand the **Rust Core Engine** via PyO3 to calculate Invested Capital, EBITA, Adjusted Taxes, NOPAT, and ROIC schedules.
   - [x] Trigger the Curator Agent to update extraction lessons in `[TICKER]_extract_learning.md`.
+  - [x] **Currency and Unit Extraction**: Programmatically identify and extract reporting currency (preferring local currency such as CNY, JPY, EUR, GBP) and unit (e.g. Millions, Billions, 10K) in all extraction sub-agents and deterministic metrics summaries, with preferences maintained in `extract_learning.md` by the Curator Agent.
   - [x] Propagate audit lineage through all derived metrics calculations.
 - **3.4 Testing & Verification**:
   - [x] Write unit tests for PyO3 Rust extension arithmetic schedules (ROIC, NOPAT, WACC) with test tables.
   - [x] Test Pydantic validation schemas under valid/invalid payloads.
   - [x] Verify chunk retrieval and audit lineage tagging metadata outputs.
+  - [x] Verify currency and unit detection (both strict and loose patterns) and deterministic output table formatting with scaled unit labeling.
 
 ---
 
@@ -174,7 +176,8 @@ Config      Ingestion   Extraction  History     Modeling    Interactive
   - [x] In `fa run extract`, add logs to show the verbose chain of thought/pondering text from the LLM while suppressing verbose structured JSON payloads, keeping the CLI output clean and streaming.
   - [x] **Add API provider selection and multi-provider keys**: Added ability to select API provider in config, store provider-specific keys, and dynamically route client requests to Gemini or OpenRouter.
   - [x] **Mistaken command validation check in `fa use`**: Added validation check that warns the user and prompts for confirmation if they mistake a command/subcommand name for a ticker.
+  - [x] **Local Currency & Unit Support in Extraction**: Enhanced CuratorAgent and extraction agents (balance sheet, income statement, derived metrics agents) to dynamically detect, track, and maintain the preferred reporting currency and numeric scale units (e.g. Millions, Billions, 10K) across quarterly/annual filings and earnings announcements.
 
 Next steps:
 
-- Need to double check how to handle earnings announcement vs 10Q. In particular, the organic growth and EBITA margins are important
+- [x] Double check how to handle earnings announcement vs 10Q (organic growth, EBITA margins, and currency/unit scaling are now uniformly propagated).

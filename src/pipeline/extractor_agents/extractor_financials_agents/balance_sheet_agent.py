@@ -96,7 +96,7 @@ def run_balance_sheet_agent(
         "- 'append_markdown': arguments: {'text': str}\n"
         "- 'edit_markdown': arguments: {'target_text': str, 'replacement_text': str}\n"
         "- 'check_balance_sheet_quality': arguments: {}\n"
-        "- 'finalize': arguments: {}\n\n"
+        "- 'finalize': arguments: {'currency': str, 'unit': str}\n\n"
         "Example format:\n"
         "{\n"
         '  "thought": "First, I need to search for keywords related to the balance sheet to find relevant chunks.",\n'
@@ -108,7 +108,8 @@ def run_balance_sheet_agent(
         "2. Fetch chunk content using get_chunk_by_id.\n"
         "3. Append statements to the output file using append_markdown. The statement MUST be written as a valid, well-formed markdown table. Ensure that the table has a header row, followed immediately by a separator row (e.g., '| --- | --- | ...'), and all subsequent rows have the exact same number of columns.\n"
         "4. Always call check_balance_sheet_quality before finalizing. If it returns errors (including markdown table syntax formatting errors), use edit_markdown to fix them.\n"
-        "5. When everything is correct and quality check passes, call the tool 'finalize' to exit."
+        "5. When everything is correct and quality check passes, call the tool 'finalize' to exit, providing the detected/preferred currency (e.g. 'JPY' or 'EUR') and unit (e.g. 'Millions', 'Billions', '10K') as arguments.\n"
+        "6. Currency & Unit detection: Identify the reporting currency and unit of the financial statements in the document. Prefer the local currency (e.g. CNY, JPY, EUR, GBP) and consistent units (ideally millions, but check if `Preferred Currency & Unit` is specified in the learning context). You MUST write `**Currency**: <Currency>` and `**Unit**: <Unit>` on separate lines at the very top of the output file (using append_markdown/edit_markdown) before any table or content. Ensure all extracted numerical values in your table match this currency and unit."
     )
 
     max_turns = 10

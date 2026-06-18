@@ -619,6 +619,7 @@ def test_curator_agent_curate_and_self_healing(mock_llm_class, tmp_path):
     )
 
     healed_content = extract_learning.read_text(encoding="utf-8")
+    assert "## Preferred Currency & Unit" in healed_content
     assert "## balance_sheet" in healed_content
     assert "## income_statement" in healed_content
     assert "## tax" in healed_content
@@ -634,3 +635,101 @@ def test_curator_agent_curate_and_self_healing(mock_llm_class, tmp_path):
         extract_learning.read_text(encoding="utf-8")
         == "Updated mock learning file content"
     )
+
+
+def test_currency_and_unit_detection_and_formatting(tmp_path):
+    from src.pipeline.extractor_agents.extractor_financials import (
+        detect_metadata_from_markdown,
+        calculate_deterministic_metrics,
+    )
+    from src.pipeline.extractor_orchestrator import LineItem, AuditLinkage
+
+    # 1. Test detect_metadata_from_markdown
+    is_content_eur = """# Income Statement
+**Currency**: EUR
+**Unit**: Millions
+
+| Field | Value |
+| --- | --- |
+| Revenue | 500.0 |
+"""
+    is_file = tmp_path / "income_statement.md"
+    is_file.write_text(is_content_eur, encoding="utf-8")
+    curr, unit = detect_metadata_from_markdown(is_file)
+    assert curr == "EUR"
+    assert unit == "Millions"
+
+    # Test loose matching
+    is_content_loose = """# Income Statement
+Currency: JPY
+Unit: Billions
+"""
+    is_file_loose = tmp_path / "income_statement_loose.md"
+    is_file_loose.write_text(is_content_loose, encoding="utf-8")
+    curr, unit = detect_metadata_from_markdown(is_file_loose)
+    assert curr == "JPY"
+    assert unit == "Billions"
+
+    # 2. Test calculate_deterministic_metrics writeout with currency & unit
+    mock_extractor = MagicMock()
+    mock_extractor.settings.active_workspace_path = str(tmp_path)
+    mock_extractor.get_document_metadata.return_value = {
+        "document_type": "annual_filing"
+    }
+
+    audit = AuditLinkage(source_file="f.md", chunk_id=0, exact_snippet="")
+    items = [
+        LineItem(
+            line_name="Total revenues",
+            value=100.0,
+            category="income_statement",
+            audit=audit,
+        ),
+        LineItem(
+            line_name="Income from operations",
+            value=20.0,
+            category="income_statement",
+            audit=audit,
+        ),
+        LineItem(
+            line_name="Income before provision for income taxes",
+            value=20.0,
+            category="income_statement",
+            audit=audit,
+        ),
+        LineItem(
+            line_name="Provision for income taxes",
+            value=-5.0,
+            category="income_statement",
+            audit=audit,
+        ),
+    ]
+
+    calculate_deterministic_metrics(
+        file_path=Path("f.md"),
+        content="dummy",
+        extracted_line_items=items,
+        basic_shares=9.0,
+        diluted_shares=9.1,
+        simple_growth=0.10,
+        organic_growth=0.08,
+        op_inc=20.0,
+        inc_bt=20.0,
+        rep_tax=-5.0,
+        ebita=20.0,
+        adj_taxes=-5.0,
+        ebita_adjustments=[],
+        tax_adjustments=[],
+        extractor=mock_extractor,
+        summaries=[],
+        revenue=100.0,
+        currency="EUR",
+        unit="Billions",
+    )
+
+    out_file = tmp_path / "4_extracted_data" / "f_extracted.md"
+    assert out_file.exists()
+    out_content = out_file.read_text(encoding="utf-8")
+    assert "**Currency**: EUR" in out_content
+    assert "**Unit**: Billions" in out_content
+    assert "Value (in Billions)" in out_content

@@ -37,7 +37,8 @@ def run_organic_growth_agent(
         "2. If organic growth or constant currency growth is explicitly reported, extract it. Check if there are M&A contributions that should be backed out.\n"
         "3. If organic growth is NOT explicitly reported, compute it: e.g. Organic Growth = Constant Currency Growth (if reported, otherwise simple growth) - (Acquisition revenue / Total revenue).\n"
         "4. Determine the correct total revenue value from the income statement content.\n"
-        "5. Call 'finalize' with your final extracted/calculated growth rates and total revenue. You must express the growth values as percentage float strings (e.g., '18.25%' for 18.25% growth, '8.00%' for 8% growth, or '0.50%' for 0.5% growth). Format the percentage with two decimal places. For revenue, provide the total revenue number as a string (e.g., '9829' or '9829.0')."
+        "5. Identify the currency and unit from the extracted income statement content (provided below). Ensure all extracted revenue values are in this same currency and unit (do not convert to USD unless the income statement itself is in USD).\n"
+        "6. Call 'finalize' with your final extracted/calculated growth rates and total revenue. You must express the growth values as percentage float strings (e.g., '18.25%' for 18.25% growth, '8.00%' for 8% growth, or '0.50%' for 0.5% growth). Format the percentage with two decimal places. For revenue, provide the total revenue number as a string (e.g., '9829' or '9829.0')."
     )
 
     user_content = (

@@ -55,7 +55,8 @@ def run_ebita_agent(
         "   - Pay special attention to ambiguous items: make sure their sign correctly reflects whether they are a net expense (negative) or net income/benefit (positive).\n"
         "   - Ensure that EBITA and its components in the returned JSON have signs consistent with these rules.\n"
         "6. For adjustments or values not found on the face of the income statement (e.g., found in footnotes or chunk disclosures), you must be extremely careful to use the value corresponding to the three-month period (quarter) rather than the year-to-date (six-month or nine-month) period when the focus period is a quarter. If only a year-to-date value is provided, calculate the quarterly value by subtracting the prior periods' values if available.\n"
-        "7. If any individual adjustment value represents a large percentage of EBITA (or Operating Income), you must double-check the text/footnotes to ensure it is the correct value for the focus period and not an incorrect, aggregate, or multi-period value.\n\n"
+        "7. If any individual adjustment value represents a large percentage of EBITA (or Operating Income), you must double-check the text/footnotes to ensure it is the correct value for the focus period and not an incorrect, aggregate, or multi-period value.\n"
+        "8. Identify the currency and unit from the extracted income statement content (provided below). Ensure all extracted Operating Income and adjustments are in this same currency and unit (do not convert to USD unless the income statement itself is in USD).\n\n"
         "Example finalize tool call:\n"
         "{\n"
         '  "thought": "I will finalize the extraction. Operating Income is 2000.0. Restructuring of 100.0 needs to be added back. So Operating EBITA is 2100.0.",\n'

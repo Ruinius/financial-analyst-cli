@@ -82,6 +82,9 @@ class CuratorAgent:
                 "- Q2: N/A\n"
                 "- Q3: N/A\n"
                 "- FY: N/A\n\n"
+                "## Preferred Currency & Unit\n"
+                "- Currency: N/A\n"
+                "- Unit: Millions\n\n"
                 "## Lessons to Better Ingest & Extract\n- None\n\n"
                 "## balance_sheet\n"
                 "- Which key words that worked well in the search: None\n"
@@ -117,6 +120,26 @@ class CuratorAgent:
         else:
             try:
                 content = extract.read_text(encoding="utf-8")
+                # Add Preferred Currency & Unit section if missing
+                if "## Preferred Currency & Unit" not in content:
+                    mappings_match = re.search(
+                        r"## Fiscal Schedule Mappings.*?(?=\n##|$)", content, re.DOTALL
+                    )
+                    if mappings_match:
+                        insert_pos = mappings_match.end()
+                        content = (
+                            content[:insert_pos].rstrip()
+                            + "\n\n## Preferred Currency & Unit\n- Currency: N/A\n- Unit: Millions\n\n"
+                            + content[insert_pos:].lstrip()
+                        )
+                    else:
+                        content = (
+                            "## Preferred Currency & Unit\n- Currency: N/A\n- Unit: Millions\n\n"
+                            + content
+                        )
+                    extract.write_text(content, encoding="utf-8")
+                    content = extract.read_text(encoding="utf-8")
+
                 sections_to_add = []
                 for section in [
                     "balance_sheet",
@@ -274,7 +297,7 @@ Please append the newly ingested files to the '## Ingested Sources' list. Do not
             "You are Sir Pennyworth's Ingestion & Extraction Learning Curator. "
             "Your task is to update the Ingestion & Extraction Learning markdown file with correct fiscal mappings from the logs, "
             "absorb user feedback, and compile/rewrite the entire file to be highly succinct and strictly future-AI-actionable. "
-            "You MUST preserve the exact markdown structure of all sections (all headings: ## Fiscal Schedule Mappings, ## Lessons to Better Ingest & Extract, "
+            "You MUST preserve the exact markdown structure of all sections (all headings: ## Fiscal Schedule Mappings, ## Preferred Currency & Unit, ## Lessons to Better Ingest & Extract, "
             "## balance_sheet, ## income_statement, ## diluted_shares, ## organic growth, ## ebita, ## tax, ## analyst_report, ## transcript, ## other, and ## User Feedback). "
             "Keep all contents (including agent-specific sections) highly succinct, dense, and focused ONLY on lessons/rules that will help future AI agent tasks succeed "
             "(e.g. specific keywords, naming patterns, structural anomalies, or formula logic). Aggressively discard verbose commentary, conversational filler, "
@@ -306,12 +329,13 @@ Ingestion logs / Mappings from parsed registry:
 
 Please:
 1. Update the '## Fiscal Schedule Mappings' block with any newly determined quarter mappings or fiscal year end.
-2. Incorporate any user feedback into the '## Lessons to Better Ingest & Extract' section.
-3. Rewrite and compact all sections of the file (including lessons and agent-specific sections like balance_sheet, income_statement, etc.) to be highly succinct, focused ONLY on lessons/keywords/mappings that will help future AI agent tasks, and eliminate any redundant or conversational/generic text. Maintain the exact markdown structure.
-4. CRITICAL: Limit each section/subheading to less than 10 lines of content.
-5. CRITICAL: Do NOT include any example extracted tables. Short single-line examples are fine.
-6. CRITICAL: Avoid redundancy by keeping '## Lessons to Better Ingest & Extract' strictly to high-level rules. Do not list agent-specific line items or keywords in the top section.
-7. Output the full file with '## User Feedback' containing only:
+2. Update the '## Preferred Currency & Unit' block with the company's reporting currency (preferring local currency if multiple are present) and reporting unit (e.g. Millions, Billions, 10K) if identified during the ingestion or extraction run.
+3. Incorporate any user feedback into the '## Lessons to Better Ingest & Extract' section.
+4. Rewrite and compact all sections of the file (including lessons and agent-specific sections like balance_sheet, income_statement, etc.) to be highly succinct, focused ONLY on lessons/keywords/mappings that will help future AI agent tasks, and eliminate any redundant or conversational/generic text. Maintain the exact markdown structure.
+5. CRITICAL: Limit each section/subheading to less than 10 lines of content.
+6. CRITICAL: Do NOT include any example extracted tables. Short single-line examples are fine.
+7. CRITICAL: Avoid redundancy by keeping '## Lessons to Better Ingest & Extract' strictly to high-level rules. Do not list agent-specific line items or keywords in the top section.
+8. Output the full file with '## User Feedback' containing only:
 ## User Feedback
 <!-- Write your feedback here. The Curator Agent will compile it into lessons and clear this section. -->
 """
@@ -331,7 +355,7 @@ Please:
             "You are Sir Pennyworth's Ingestion & Extraction Learning Curator. "
             "Your task is to update the Ingestion & Extraction Learning markdown file with new extraction lessons from the run, "
             "absorb user feedback, and compile/rewrite the entire file to be highly succinct and future-AI-actionable. "
-            "You MUST preserve the exact markdown structure of all sections (all headings: ## Fiscal Schedule Mappings, ## Lessons to Better Ingest & Extract, "
+            "You MUST preserve the exact markdown structure of all sections (all headings: ## Fiscal Schedule Mappings, ## Preferred Currency & Unit, ## Lessons to Better Ingest & Extract, "
             "## balance_sheet, ## income_statement, ## diluted_shares, ## organic growth, ## ebita, ## tax, ## analyst_report, ## transcript, ## other, and ## User Feedback). "
             "Keep all contents (including agent-specific sections) highly succinct, dense, and focused ONLY on lessons/rules that will help future AI agent tasks succeed "
             "(e.g. specific keywords, line naming adjustments, or calculation tricks). Avoid generic advice or conversational filler. "
@@ -362,12 +386,13 @@ Extraction Run logs / reasoning / items parsed:
 \"\"\"
 
 Please:
-1. Incorporate any user feedback and new lessons from the extraction run into the '## Lessons to Better Ingest & Extract' section.
-2. Rewrite and compact all sections of the file (including lessons and agent-specific sections like balance_sheet, income_statement, etc.) to be highly succinct, focused ONLY on actionable details that will guide future AI agents, and remove any generic advice or conversational filler. Maintain the exact markdown structure.
-3. CRITICAL: Limit each section/subheading to less than 10 lines of content.
-4. CRITICAL: Do NOT include any example extracted tables. Short single-line examples are fine.
-5. CRITICAL: Avoid redundancy by keeping '## Lessons to Better Ingest & Extract' strictly to high-level rules. Do not list agent-specific line items or keywords in the top section.
-6. Output the full file with '## User Feedback' containing only:
+1. Update the '## Preferred Currency & Unit' block with the company's reporting currency (preferring local currency if multiple are present) and reporting unit (e.g. Millions, Billions, 10K) if identified during the extraction run.
+2. Incorporate any user feedback and new lessons from the extraction run into the '## Lessons to Better Ingest & Extract' section.
+3. Rewrite and compact all sections of the file (including lessons and agent-specific sections like balance_sheet, income_statement, etc.) to be highly succinct, focused ONLY on actionable details that will guide future AI agents, and remove any generic advice or conversational filler. Maintain the exact markdown structure.
+4. CRITICAL: Limit each section/subheading to less than 10 lines of content.
+5. CRITICAL: Do NOT include any example extracted tables. Short single-line examples are fine.
+6. CRITICAL: Avoid redundancy by keeping '## Lessons to Better Ingest & Extract' strictly to high-level rules. Do not list agent-specific line items or keywords in the top section.
+7. Output the full file with '## User Feedback' containing only:
 ## User Feedback
 <!-- Write your feedback here. The Curator Agent will compile it into lessons and clear this section. -->
 """

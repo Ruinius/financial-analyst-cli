@@ -184,6 +184,8 @@ def calculate_deterministic_metrics(
     extractor,
     summaries: list,
     revenue: float = 0.0,
+    currency: str = "USD",
+    unit: str = "Millions",
 ) -> bool:
     # Check time period and multiplier
     metadata = extractor.get_document_metadata(file_path.name)
@@ -287,12 +289,14 @@ def calculate_deterministic_metrics(
     # Format output
     output_lines = []
     output_lines.append(f"# Extracted Financial Report: {file_path.name}\n")
+    output_lines.append(f"**Currency**: {currency}\n")
+    output_lines.append(f"**Unit**: {unit}\n\n")
     output_lines.append("## Chunk Summaries\n")
     output_lines.extend(summaries)
     output_lines.append("\n---\n")
 
     output_lines.append("## EBITA\n")
-    output_lines.append("| Field | Value |")
+    output_lines.append(f"| Field | Value (in {unit}) |")
     output_lines.append("|---|---|")
     output_lines.append(f"| Starting Point | {starting_name} |")
     output_lines.append(f"| Starting Value | {starting_val} |")
@@ -306,7 +310,7 @@ def calculate_deterministic_metrics(
     output_lines.append("\n---\n")
 
     output_lines.append("## Invested Capital\n")
-    output_lines.append("| Field | Value |")
+    output_lines.append(f"| Field | Value (in {unit}) |")
     output_lines.append("|---|---|")
     output_lines.append(f"| Net Working Capital | {nwc} |")
     output_lines.append(f"| Net Long-Term Operating Assets | {nltoa} |")
@@ -315,14 +319,14 @@ def calculate_deterministic_metrics(
 
     output_lines.append("\n### Invested Capital Components Breakdown\n")
     output_lines.append("#### Operating Current Assets (OCA)\n")
-    output_lines.append("| Line Item | Value |")
+    output_lines.append(f"| Line Item | Value (in {unit}) |")
     output_lines.append("|---|---|")
     for item in oca_items:
         output_lines.append(f"| {item.line_name} | {item.value} |")
     output_lines.append(f"| **Total OCA** | **{oca}** |")
 
     output_lines.append("\n#### Operating Current Liabilities (OCL)\n")
-    output_lines.append("| Line Item | Value |")
+    output_lines.append(f"| Line Item | Value (in {unit}) |")
     output_lines.append("|---|---|")
     for item in ocl_items:
         output_lines.append(f"| {item.line_name} | {item.value} |")
@@ -333,14 +337,14 @@ def calculate_deterministic_metrics(
     )
 
     output_lines.append("#### Operating Non-Current Assets (ONCA)\n")
-    output_lines.append("| Line Item | Value |")
+    output_lines.append(f"| Line Item | Value (in {unit}) |")
     output_lines.append("|---|---|")
     for item in onca_items:
         output_lines.append(f"| {item.line_name} | {item.value} |")
     output_lines.append(f"| **Total ONCA** | **{onca}** |")
 
     output_lines.append("\n#### Operating Non-Current Liabilities (ONCL)\n")
-    output_lines.append("| Line Item | Value |")
+    output_lines.append(f"| Line Item | Value (in {unit}) |")
     output_lines.append("|---|---|")
     for item in oncl_items:
         output_lines.append(f"| {item.line_name} | {item.value} |")
@@ -356,7 +360,7 @@ def calculate_deterministic_metrics(
 
     output_lines.append("#### Non-Operating Assets\n")
     if non_operating_assets:
-        output_lines.append("| Line Item | Value |")
+        output_lines.append(f"| Line Item | Value (in {unit}) |")
         output_lines.append("|---|---|")
         for item in non_operating_assets:
             output_lines.append(f"| {item.line_name} | {item.value} |")
@@ -365,7 +369,7 @@ def calculate_deterministic_metrics(
 
     output_lines.append("\n#### Non-Operating Liabilities\n")
     if non_operating_liabilities:
-        output_lines.append("| Line Item | Value |")
+        output_lines.append(f"| Line Item | Value (in {unit}) |")
         output_lines.append("|---|---|")
         for item in non_operating_liabilities:
             output_lines.append(f"| {item.line_name} | {item.value} |")
@@ -374,7 +378,7 @@ def calculate_deterministic_metrics(
 
     output_lines.append("\n---\n")
     output_lines.append("## Tax Rates\n")
-    output_lines.append("| Component | Value | Description |")
+    output_lines.append(f"| Component | Value (in {unit}) | Description |")
     output_lines.append("|---|---|---|")
     output_lines.append(
         f"| Income Before Taxes | {inc_bt} | Starting Point for Effective Tax Rate |"
@@ -395,7 +399,7 @@ def calculate_deterministic_metrics(
     output_lines.append("\n---\n")
 
     output_lines.append("## Financial Summary\n")
-    output_lines.append("| Metric | Value | Notes |")
+    output_lines.append(f"| Metric | Value (in {unit}) | Notes |")
     output_lines.append("|---|---|---|")
     output_lines.append(f"| **Revenue** | {revenue} | |")
     output_lines.append(f"| **EBITA** | {ebita} | |")
@@ -424,6 +428,33 @@ def calculate_deterministic_metrics(
 
     formatting.print_success(f"Extracted: {file_path.name} -> {out_file_path.name}")
     return True
+
+
+def detect_metadata_from_markdown(file_path: Path) -> tuple[str, str]:
+    currency = "USD"
+    unit = "Millions"
+    if not file_path.exists():
+        return currency, unit
+    try:
+        text = file_path.read_text(encoding="utf-8")
+        curr_match = re.search(r"\*\*Currency\*\*:\s*([A-Za-z]{3})", text)
+        if curr_match:
+            currency = curr_match.group(1).upper()
+        else:
+            curr_match_loose = re.search(r"Currency:\s*([A-Za-z]{3})", text)
+            if curr_match_loose:
+                currency = curr_match_loose.group(1).upper()
+
+        unit_match = re.search(r"\*\*Unit\*\*:\s*([A-Za-z0-9\s]+)", text)
+        if unit_match:
+            unit = unit_match.group(1).strip()
+        else:
+            unit_match_loose = re.search(r"Unit:\s*([A-Za-z0-9\s]+)", text)
+            if unit_match_loose:
+                unit = unit_match_loose.group(1).strip()
+    except Exception:
+        pass
+    return currency, unit
 
 
 def extract_financials(
@@ -522,6 +553,14 @@ def extract_financials(
     )
 
     # Phase 4: Deterministic calculations
+    bs_path = extracted_dir / f"{file_path.stem}_balance_sheet.md"
+    detected_currency, detected_unit = detect_metadata_from_markdown(is_path)
+    if detected_currency == "USD" and bs_path.exists():
+        bs_curr, bs_unit = detect_metadata_from_markdown(bs_path)
+        if bs_curr != "USD":
+            detected_currency = bs_curr
+            detected_unit = bs_unit
+
     success = calculate_deterministic_metrics(
         file_path=file_path,
         content=content,
@@ -540,6 +579,8 @@ def extract_financials(
         extractor=extractor,
         summaries=summaries,
         revenue=revenue,
+        currency=detected_currency,
+        unit=detected_unit,
     )
 
     return success
