@@ -2,6 +2,7 @@ import re
 import json
 import logging
 from pathlib import Path
+from src.utils.tools import extract_json_from_text
 from typing import Dict, Any
 
 from src.services.llm_client import LLMClient
@@ -141,9 +142,9 @@ Extract the non-operating categories and return the JSON object matching this st
 
     try:
         resp = llm.generate(prompt, system_prompt=sys_prompt).strip()
-        json_match = re.search(r"\{.*\}", resp, re.DOTALL)
-        if json_match:
-            data = json.loads(json_match.group(0))
+        json_str = extract_json_from_text(resp)
+        if json_str:
+            data = json.loads(json_str)
             final_results["cash"] = float(data.get("cash", 0.0))
             final_results["short_term_investments"] = float(
                 data.get("short_term_investments", 0.0)

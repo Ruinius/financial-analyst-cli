@@ -1,7 +1,7 @@
-import re
 import json
 import logging
 from pathlib import Path
+from src.utils.tools import extract_json_from_text
 from typing import Dict, Any
 
 from src.services.llm_client import LLMClient
@@ -148,8 +148,8 @@ def run_margin_agent(
 
         history.append({"role": "assistant", "content": resp})
 
-        json_match = re.search(r"\{.*\}", resp, re.DOTALL)
-        if not json_match:
+        json_str = extract_json_from_text(resp)
+        if not json_str:
             history.append(
                 {
                     "role": "user",
@@ -159,7 +159,7 @@ def run_margin_agent(
             continue
 
         try:
-            action = json.loads(json_match.group(0))
+            action = json.loads(json_str)
         except Exception as e:
             history.append({"role": "user", "content": f"Error parsing JSON: {e}"})
             continue

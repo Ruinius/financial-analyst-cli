@@ -1,3 +1,4 @@
+from src.utils.tools import extract_json_from_text
 import csv
 import datetime
 import hashlib
@@ -283,10 +284,10 @@ Please return a valid JSON object matching this structure:
             ]
 
         # Extract and parse response directly from first turn
-        json_match = re.search(r"\{.*\}", response_text_first, re.DOTALL)
-        if json_match:
+        json_str = extract_json_from_text(response_text_first)
+        if json_str:
             try:
-                meta = json.loads(json_match.group(0))
+                meta = json.loads(json_str)
                 doc_type = meta.get("document_type", "other")
                 if doc_type not in doc_types_keys:
                     doc_type = "other"
@@ -796,9 +797,9 @@ Please identify any incorrect fiscal_quarter or fiscal_year values and return up
         logger.info("Triggering Quality Check Agent...")
         try:
             response = self.llm.generate(prompt, system_prompt=system_prompt)
-            json_match = re.search(r"\{.*\}", response, re.DOTALL)
-            if json_match:
-                data = json.loads(json_match.group(0))
+            json_str = extract_json_from_text(response)
+            if json_str:
+                data = json.loads(json_str)
                 updates = data.get("updates", [])
                 if updates:
                     formatting.print_info(

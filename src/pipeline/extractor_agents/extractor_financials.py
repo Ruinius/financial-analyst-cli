@@ -1,3 +1,4 @@
+from src.utils.tools import extract_json_from_text
 import re
 import json
 import logging
@@ -89,9 +90,9 @@ Return a valid JSON object matching this structure:
         resp = extractor.llm.generate(
             prompt, system_prompt=sys_prompt, stream_thinking=True
         )
-        json_match = re.search(r"\{.*\}", resp, re.DOTALL)
-        if json_match:
-            data = json.loads(json_match.group(0))
+        json_str = extract_json_from_text(resp)
+        if json_str:
+            data = json.loads(json_str)
             for item in data.get("line_items", []):
                 val_float = clean_val(str(item.get("value", "0")))
                 if val_float == 0.0 and str(item.get("value")) not in ["0", "0.0"]:

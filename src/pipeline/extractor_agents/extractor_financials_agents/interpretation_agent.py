@@ -1,3 +1,4 @@
+from src.utils.tools import extract_json_from_text
 import re
 import json
 import logging
@@ -129,9 +130,9 @@ Please review, verify, correct, and return the final list of verified line items
         resp = extractor.llm.generate(
             prompt, system_prompt=sys_prompt, stream_thinking=True
         )
-        json_match = re.search(r"\{.*\}", resp, re.DOTALL)
-        if json_match:
-            data = json.loads(json_match.group(0))
+        json_str = extract_json_from_text(resp)
+        if json_str:
+            data = json.loads(json_str)
             updated_items = []
             # Match back to original line items to preserve audit trails
             for up_item in data.get("line_items", []):

@@ -1,4 +1,4 @@
-import re
+from src.utils.tools import extract_json_from_text
 import logging
 from pathlib import Path
 
@@ -83,9 +83,9 @@ Note: Set 'all_required_info_found' to true if you have found significant news o
                 extract_prompt, system_prompt=extract_sys, stream_thinking=True
             )
             history.append({"role": "assistant", "content": ex_resp})
-            json_match = re.search(r"\{.*\}", ex_resp, re.DOTALL)
-            if json_match:
-                ex_data = json.loads(json_match.group(0))
+            json_str = extract_json_from_text(ex_resp)
+            if json_str:
+                ex_data = json.loads(json_str)
 
                 if ex_data.get("all_required_info_found") is True:
                     stop_early = True
