@@ -213,15 +213,27 @@ class CuratorAgent:
         main_content = content
 
         # Locate the ## User Feedback section
-        match = re.search(
-            r"## User Feedback\s*\n(.*)", content, re.DOTALL | re.IGNORECASE
-        )
-        if match:
-            raw_feedback = match.group(1).strip()
-            # Strip html comment placeholder
-            feedback = re.sub(r"<!--.*?-->", "", raw_feedback, flags=re.DOTALL).strip()
-            # Extract main content before the User Feedback section
-            main_content = content[: match.start()]
+        # ⚡ Bolt Optimization: Replace O(N) regex evaluation with fast str.find() and slicing
+        content_lower = content.lower()
+        start_idx = content_lower.find("## user feedback")
+        if start_idx != -1:
+            main_content = content[:start_idx]
+            nl_idx = content.find("\n", start_idx)
+            if nl_idx != -1:
+                raw_feedback = content[nl_idx:].strip()
+
+                # Strip html comment placeholder without regex
+                feedback = raw_feedback
+                while True:
+                    comment_start = feedback.find("<!--")
+                    if comment_start == -1:
+                        break
+                    comment_end = feedback.find("-->", comment_start)
+                    if comment_end == -1:
+                        break
+                    feedback = feedback[:comment_start] + feedback[comment_end + 3 :]
+
+                feedback = feedback.strip()
 
         return feedback, main_content
 

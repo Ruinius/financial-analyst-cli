@@ -92,18 +92,26 @@ def parse_kv_table(text: str, section_name: str) -> Dict[str, str]:
 def parse_financial_summary(content: str) -> Dict[str, str]:
     """Parse values from the Financial Summary markdown table."""
     metrics = {}
-    match = re.search(
-        r"## Financial Summary\s*\n(.*?)(?:\n---|\n##|$)", content, re.DOTALL
-    )
-    if match:
-        table_text = match.group(1)
-        for line in table_text.split("\n"):
-            if "|" in line and "---" not in line and "Metric" not in line:
-                parts = [p.strip() for p in line.split("|")]
-                if len(parts) >= 3:
-                    metric_name = parts[1].replace("**", "").strip()
-                    metric_val = parts[2].replace("**", "").strip()
-                    metrics[metric_name] = metric_val
+    # ⚡ Bolt Optimization: Fast string search instead of re.DOTALL
+    content_lower = content.lower()
+    start_idx = content_lower.find("## financial summary")
+    if start_idx != -1:
+        start_idx = content_lower.find("\n", start_idx)
+        if start_idx != -1:
+            end_idx = len(content)
+            for h in ["\n---", "\n##"]:
+                pos = content_lower.find(h, start_idx)
+                if pos != -1 and pos < end_idx:
+                    end_idx = pos
+
+            table_text = content[start_idx:end_idx].strip()
+            for line in table_text.split("\n"):
+                if "|" in line and "---" not in line and "Metric" not in line:
+                    parts = [p.strip() for p in line.split("|")]
+                    if len(parts) >= 3:
+                        metric_name = parts[1].replace("**", "").strip()
+                        metric_val = parts[2].replace("**", "").strip()
+                        metrics[metric_name] = metric_val
     return metrics
 
 

@@ -227,19 +227,42 @@ class Analyzer:
         if company_match:
             analyst_company = company_match.group(1).strip()
 
+        # ⚡ Bolt Optimization: Replace O(N) evaluation over large blocks using `str.find`
+        content_lower = content.lower()
+
+        def _extract_rationale(text_lower, original_text, header_lower):
+            header_idx = text_lower.find(header_lower)
+            if header_idx == -1:
+                return ""
+
+            rat_idx = text_lower.find("rationale:", header_idx)
+            if rat_idx == -1:
+                return ""
+
+            # Ensure the rationale belongs to this section
+            # Check if a new header starts before rationale
+            next_header1 = text_lower.find("\n###", header_idx + len(header_lower))
+            if next_header1 != -1 and next_header1 < rat_idx:
+                return ""
+            next_header2 = text_lower.find("\n## ", header_idx + len(header_lower))
+            if next_header2 != -1 and next_header2 < rat_idx:
+                return ""
+
+            start_idx = rat_idx + len("rationale:")
+            end_idx = len(original_text)
+            for h in ["\n\n", "\n##", "\n###"]:
+                pos = text_lower.find(h, start_idx)
+                if pos != -1 and pos < end_idx:
+                    end_idx = pos
+            return original_text[start_idx:end_idx].strip()
+
         # Moat
         moat_match = re.search(
             r"### Economic Moat\s*\n\s*Rating:\s*\*\*(.*?)\*\*", content, re.IGNORECASE
         )
         if moat_match:
             moat = moat_match.group(1).strip()
-        moat_rat_match = re.search(
-            r"### Economic Moat\s*\n\s*Rating:\s*\*\*.*?\*\*\s*\n\s*Rationale:\s*(.*?)(?:\n\n|\n##|\n###|$)",
-            content,
-            re.DOTALL | re.IGNORECASE,
-        )
-        if moat_rat_match:
-            moat_rationale = moat_rat_match.group(1).strip()
+        moat_rationale = _extract_rationale(content_lower, content, "### economic moat")
 
         # Margin Outlook
         margin_match = re.search(
@@ -256,13 +279,9 @@ class Analyzer:
         )
         if margin_mag_match:
             margin_mag = margin_mag_match.group(1).strip()
-        margin_rat_match = re.search(
-            r"### EBITA Margin Outlook\s*\n.*?Rationale:\s*(.*?)(?:\n\n|\n##|\n###|$)",
-            content,
-            re.DOTALL | re.IGNORECASE,
+        margin_rationale = _extract_rationale(
+            content_lower, content, "### ebita margin outlook"
         )
-        if margin_rat_match:
-            margin_rationale = margin_rat_match.group(1).strip()
 
         # Growth Outlook
         growth_match = re.search(
@@ -279,13 +298,9 @@ class Analyzer:
         )
         if growth_mag_match:
             growth_mag = growth_mag_match.group(1).strip()
-        growth_rat_match = re.search(
-            r"### Organic Growth Outlook\s*\n.*?Rationale:\s*(.*?)(?:\n\n|\n##|\n###|$)",
-            content,
-            re.DOTALL | re.IGNORECASE,
+        growth_rationale = _extract_rationale(
+            content_lower, content, "### organic growth outlook"
         )
-        if growth_rat_match:
-            growth_rationale = growth_rat_match.group(1).strip()
 
         return {
             "analyst_company": analyst_company,

@@ -63,21 +63,29 @@ def run_non_operating_agent(
     non_op_assets_section = ""
     non_op_liab_section = ""
 
-    assets_match = re.search(
-        r"(#### Non-Operating Assets.*?(?=####|\n---\n|##|$))",
-        extracted_content,
-        re.DOTALL,
-    )
-    if assets_match:
-        non_op_assets_section = assets_match.group(1).strip()
+    def _extract_section(text: str, header: str) -> str:
+        text_lower = text.lower()
+        header_lower = header.lower()
+        start_idx = text_lower.find(header_lower)
+        if start_idx == -1:
+            return ""
 
-    liab_match = re.search(
-        r"(#### Non-Operating Liabilities.*?(?=####|\n---\n|##|$))",
-        extracted_content,
-        re.DOTALL,
+        end_idx = len(text)
+        next_headers = ["####", "\n---\n", "##"]
+        for h in next_headers:
+            pos = text_lower.find(h, start_idx + len(header_lower))
+            if pos != -1 and pos < end_idx:
+                end_idx = pos
+
+        return text[start_idx:end_idx].strip()
+
+    # ⚡ Bolt Optimization: Replace O(N^2) re.DOTALL with fast str.find slicing
+    non_op_assets_section = _extract_section(
+        extracted_content, "#### Non-Operating Assets"
     )
-    if liab_match:
-        non_op_liab_section = liab_match.group(1).strip()
+    non_op_liab_section = _extract_section(
+        extracted_content, "#### Non-Operating Liabilities"
+    )
 
     # Load the dictionary
     dict_path = Path("src/resources/dictionary/balance_sheet.md")

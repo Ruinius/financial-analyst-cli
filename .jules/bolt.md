@@ -19,3 +19,6 @@
 ## 2026-06-18 - Avoid Regex Overheads for JSON Extraction in LLM Responses
 **Learning:** Using `re.search(r"\{.*\}", text, re.DOTALL)` to extract JSON string bounds from large LLM response bodies triggers an O(N) evaluation time proportional to the length of the string, which significantly slows down agent steps across large volumes of data.
 **Action:** Replace regex JSON extraction with `src.utils.tools.extract_json_from_text`, which leverages highly-optimized `str.find("{")` and `str.rfind("}")` built-in methods, achieving speedups of ~8x for long context strings.
+## 2026-06-19 - Replacing re.DOTALL regexes with fast string operations
+**Learning:** Using `re.search` with `re.DOTALL` to parse text blocks triggers an O(N) to O(N^2) evaluation time proportional to string length. Converting parsing logic to `str.find` and custom slicing improves text chunk processing performance significantly.
+**Action:** Replace regex logic involving large chunks and `re.DOTALL` with robust logic utilizing `str.find` for chunk lookups, with correct attention paid to tracking trailing spaces and relative slice lengths.
