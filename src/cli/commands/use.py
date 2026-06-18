@@ -42,7 +42,6 @@ def initialize_workspace(workspace_dir: Path, ticker: str) -> None:
                 f"# Wiki: {ticker}\n\n"
                 "## Bull Perspective\n- No bull perspective compiled yet.\n\n"
                 "## Bear Perspective\n- No bear perspective compiled yet.\n\n"
-                "## Ingested Sources\n- None\n"
             )
             wiki_path.write_text(wiki_content, encoding="utf-8")
 

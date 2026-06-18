@@ -33,6 +33,7 @@ Welcome to the `financial-analyst-cli` project.
     - src/pipeline/queue.py: Safe job queue and exponential back-off retry manager.
     - src/pipeline/ingester.py: File parsing, deduplication, chunking, and LLM metadata identification.
     - src/pipeline/curator_agent.py: Curator agent for summarizing learnings and refining qualitative bull/bear views.
+    - src/pipeline/indexer_agent.py: Indexer agent for maintaining the company folder index of extracted, analysis, and modeling files.
     - src/pipeline/document_types.json: Mapping definitions for supported financial report types.
     - src/pipeline/extractor_orchestrator.py: Orchestrates document parsing, metadata processing, and routing of extraction jobs to document-type sub-extractors.
     - src/pipeline/extractor_agents/: Folder containing all document sub-extractors and agents.
@@ -80,6 +81,7 @@ Welcome to the `financial-analyst-cli` project.
   - tests/test_extractor_orchestrator.py: Unit tests for Pydantic validation schemas, classification, arithmetic schedules, and audit trail lineage.
   - tests/test_formatting.py: Unit tests for terminal formatting, rich output rendering, and animations.
   - tests/test_ingester.py: Unit tests for layout-preserving parsing, file hashing, chunking, and metadata identification.
+  - tests/test_indexer.py: Unit tests for the workspace file indexer agent and catalog formatting.
   - tests/test_markdown_table_validator.py: Unit tests for markdown table syntax validation.
   - tests/test_math_solver.py: Unit tests for the AST-sandboxed mathematical equation solver.
   - tests/test_modeler.py: Unit tests for DCF modeling, WACC calculation, and intrinsic valuation.

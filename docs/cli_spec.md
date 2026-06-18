@@ -84,7 +84,7 @@ Ingests, hashes, parses, and structures raw filings from `1_ingest_data/`.
   - Moves raw files to `3_archived_data/` and saves markdown to `2_parsed_data/`.
   - Chunks into 5,000-character blocks, prepending chunk index table as `chunk_id=0`.
   - Prompts LLM to identify the filing date and document type, renaming files to `YYYYMMDD_document_type.md`.
-  - The Curator Agent updates the `[TICKER]_extract_learning.md` fiscal mappings and `[TICKER]_wiki.md` ingested sources.
+  - The Curator Agent updates the `[TICKER]_extract_learning.md` fiscal mappings.
 
 #### `fa run extract`
 Extracts financial statement data and qualitative metrics.
@@ -97,6 +97,7 @@ Extracts financial statement data and qualitative metrics.
   - Orchestrates a multi-agent pipeline: Balance Sheet and Income Statement agents extract statements; the Financial Statement Interpretation agent handles subtotal/total checking, operating/non-operating classification, and cross-statement mathematical audits; Diluted Shares and Organic Growth agents extract shares and CC growth rates; EBITA and Adjusted Taxes agents locate restructuring/amortization adjustments and apply statutory tax rates.
   - Passes validated outputs to the Rust core engine to calculate NOPAT, ROIC, and invested capital with full audit trails.
   - The Curator Agent updates the `[TICKER]_extract_learning.md` extraction lessons and clears the manual user feedback section.
+  - The Indexer Agent updates the `[TICKER]_folder_index.md` file cataloging the extracted data folder.
 
 #### `fa run analyze`
 Synthesizes longitudinal quarterly and annual data trends.
@@ -106,6 +107,7 @@ Synthesizes longitudinal quarterly and annual data trends.
   - Updates `5_historical_analysis/analyst_views.md`, `news_trend.md`, `transcript_trend.md`, `financials_quarter.md`, and `financials_annual.md`.
   - Deduces missing Q4 data from annual figures if possible.
   - The Curator Agent updates the `[TICKER]_wiki.md` (Bull and Bear qualitative perspectives) and `[TICKER]_analyze_learning.md` (analysis lessons) and clears the feedback section.
+  - The Indexer Agent updates the `[TICKER]_folder_index.md` file cataloging the analysis folder.
 
 
 #### `fa run model`
@@ -116,6 +118,7 @@ Proposes valuation assumptions and generates DCF projections.
   - Proposes defaults (`base_WACC`, `base_growth_rate`, etc.).
   - Writes markdown projection report to `6_financial_model/` and JSON representation to `7_historical_model_json/` as `YYYYMMDD_ticker_0.json`.
   - The Curator Agent updates the `[TICKER]_model_learning.md` modeling lessons and clears the feedback section.
+  - The Indexer Agent updates the `[TICKER]_folder_index.md` file cataloging the modeling folder.
 
 ---
 

@@ -208,8 +208,9 @@ graph TD
 
 The self-learning mechanism replaces separate config folders with 4 dedicated root files per company workspace:
 
-### Workspace LLMWiki Files
-- `[TICKER]_wiki.md`: Stores structural company registries (e.g., Ingested Sources list) and qualitative perspectives (Bull & Bear) extracted strictly from recent document context without outside knowledge pollution.
+### Workspace LLMWiki & Index Files
+- `[TICKER]_wiki.md`: Stores qualitative perspectives (Bull & Bear) extracted strictly from recent document context without outside knowledge pollution.
+- `[TICKER]_folder_index.md`: Automatically maintained folder index mapping all files in 4_extracted_data, 5_historical_analysis, and 6_financial_model with their metadata (relative paths, size, modified date, type, summary/description) to help other agents search and find data.
 - `[TICKER]_extract_learning.md`: Stores the fiscal schedule end-dates (Q1, Q2, Q3, FY) and extraction lessons (e.g., handling ambiguous table rows or subtotal overlaps) across financials, analyst reports, transcripts, and other document types.
 - `[TICKER]_analyze_learning.md`: Stores qualitative/trend analysis lessons.
 - `[TICKER]_model_learning.md`: Stores modeling lessons (e.g., ADR conversion ratios, base currencies, WACC inputs).

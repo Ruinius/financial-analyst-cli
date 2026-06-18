@@ -252,6 +252,14 @@ class Extractor:
 
         CuratorAgent(self.settings).curate(ticker, "extract", logs)
 
+        # Trigger Indexer Agent to update folder index
+        try:
+            from src.pipeline.indexer_agent import IndexerAgent
+
+            IndexerAgent(self.settings).run_indexing(ticker)
+        except Exception as e:
+            logger.error(f"Failed to run indexer agent after extraction: {e}")
+
     def get_document_metadata(self, file_name: str) -> dict:
         parsed_dir = Path(self.settings.active_workspace_path) / "2_parsed_data"
         csv_path = parsed_dir / "parsed_data.csv"

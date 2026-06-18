@@ -1,10 +1,13 @@
 import csv
+import logging
 import re
 from pathlib import Path
 from typing import Dict, List, Any
 
 from src.core.config import load_config
 import src.utils.formatting as formatting
+
+logger = logging.getLogger(__name__)
 
 
 class Analyzer:
@@ -290,6 +293,14 @@ class Analyzer:
         from src.pipeline.curator_agent import CuratorAgent
 
         CuratorAgent(self.settings).curate(ticker, "analyze", curator_context)
+
+        # Trigger Indexer Agent to update folder index
+        try:
+            from src.pipeline.indexer_agent import IndexerAgent
+
+            IndexerAgent(self.settings).run_indexing(ticker)
+        except Exception as e:
+            logger.error(f"Failed to run indexer agent after analysis: {e}")
 
     def parse_chunk_summaries(self, content: str) -> str:
         """Extract summaries from the Chunk Summaries section."""

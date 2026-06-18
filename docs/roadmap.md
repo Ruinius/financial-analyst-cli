@@ -180,5 +180,6 @@ Config      Ingestion   Extraction  History     Modeling    Interactive
   - [x] **Add API provider selection and multi-provider keys**: Added ability to select API provider in config, store provider-specific keys, and dynamically route client requests to Gemini or OpenRouter.
   - [x] **Mistaken command validation check in `fa use`**: Added validation check that warns the user and prompts for confirmation if they mistake a command/subcommand name for a ticker.
   - [x] **Local Currency & Unit Support in Extraction**: Enhanced CuratorAgent and extraction agents (balance sheet, income statement, derived metrics agents) to dynamically detect, track, and maintain the preferred reporting currency and numeric scale units (e.g. Millions, Billions, 10K) across quarterly/annual filings and earnings announcements.
+  - [x] **Indexer Agent & Wiki Ingested Sources Cleanup**: Removed the "Ingested Sources" list from the Ticker's Wiki file. Implemented a separate `IndexerAgent` that automatically catalog-indexes all files inside `4_extracted_data/`, `5_historical_analysis/`, and `6_financial_model/` (listing relative links, size, modified date, and content summary), running after every `extract`, `analyze`, and `model` run.
 
 Next steps:

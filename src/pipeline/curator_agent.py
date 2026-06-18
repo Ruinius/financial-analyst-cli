@@ -70,8 +70,7 @@ class CuratorAgent:
             wiki.write_text(
                 f"# Wiki: {ticker}\n\n"
                 "## Bull Perspective\n- No bull perspective compiled yet.\n\n"
-                "## Bear Perspective\n- No bear perspective compiled yet.\n\n"
-                "## Ingested Sources\n- None\n",
+                "## Bear Perspective\n- No bear perspective compiled yet.\n\n",
                 encoding="utf-8",
             )
         if not extract.exists():
@@ -263,34 +262,6 @@ class CuratorAgent:
     def _curate_ingest(
         self, ticker: str, agent_logs: str, wiki_path: Path, extract_path: Path
     ) -> None:
-        # Update wiki sources registry
-        wiki_content = wiki_path.read_text(encoding="utf-8")
-        sys_prompt_wiki = (
-            "You are Sir Pennyworth's Wiki Curator Agent. Update the list of Ingested Sources in the Wiki markdown content. "
-            "Return the entire updated markdown file. Do not wrap in markdown code blocks."
-        )
-        prompt_wiki = f"""
-Ticker: {ticker}
-Current Wiki Content:
-\"\"\"
-{wiki_content}
-\"\"\"
-
-Ingestion logs / New files processed:
-\"\"\"
-{agent_logs}
-\"\"\"
-
-Please append the newly ingested files to the '## Ingested Sources' list. Do not duplicate if they are already in the list. Keep everything else unchanged.
-"""
-        try:
-            updated_wiki = self.llm.generate(prompt_wiki, system_prompt=sys_prompt_wiki)
-            wiki_path.write_text(
-                strip_markdown_code_blocks(updated_wiki), encoding="utf-8"
-            )
-        except Exception as e:
-            logger.error(f"Failed to update Ingested Sources in wiki: {e}")
-
         # Update extract mappings
         feedback, main_content = self._get_feedback_and_content(extract_path)
         sys_prompt_extract = (

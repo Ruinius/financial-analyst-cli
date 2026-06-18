@@ -50,7 +50,8 @@ graph TD
 
 ### 1. Workspace-Local Learning Registers
 Instead of external configuration stores, each company's learning is persisted as readable markdown files directly in the root of its ticker directory:
-- `[TICKER]_wiki.md`: Stores company registries and qualitative perspectives (Bull & Bear views).
+- `[TICKER]_wiki.md`: Stores qualitative perspectives (Bull & Bear views).
+- `[TICKER]_folder_index.md`: Stores automatically generated and maintained indexing catalog of files inside extracted, analysis, and modeling folders.
 - `[TICKER]_extract_learning.md`: Stores custom fiscal quarter end-dates, row mappings, and extraction lessons.
 - `[TICKER]_analyze_learning.md`: Stores synthesis rules and trend analysis lessons.
 - `[TICKER]_model_learning.md`: Stores valuation assumptions (WACC inputs, growth overrides, and tax preferences).
@@ -180,7 +181,8 @@ Setting up a workspace for a company ticker (e.g., `AAPL` or `MSFT`) initializes
 - **`5_historical_analysis/`**: Generated reports summarizing qualitative moats (`analyst_views.md`), transcripts (`transcript_trend.md`), and quantitative trends (`financials_quarter.md`, `financials_annual.md`).
 - **`6_financial_model/`**: Markdown representations of DCF models.
 - **`7_historical_model_json/`**: JSON model states for import/export in the interactive viewer.
-- **`[TICKER]_wiki.md`**: Centralized wiki containing qualitative bull/bear views and lists of ingested sources.
+- **`[TICKER]_wiki.md`**: Centralized wiki containing qualitative bull/bear views.
+- **`[TICKER]_folder_index.md`**: Automatically maintained index of files in 4_extracted_data, 5_historical_analysis, and 6_financial_model directories.
 - **`[TICKER]_extract_learning.md`**: Custom fiscal schedule mappings, ingest/extract lessons, and user feedback.
 - **`[TICKER]_analyze_learning.md`**: Analysis-specific lessons and user feedback.
 - **`[TICKER]_model_learning.md`**: Modeler-specific lessons and user feedback.
