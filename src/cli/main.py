@@ -605,7 +605,14 @@ def main():
             formatting.print_error(f"Failed to auto-initialize settings: {str(e)}")
             sys.exit(1)
 
-    app()
+    try:
+        app()
+    except KeyboardInterrupt:
+        formatting.speak(
+            "Tata for now, my good sir! Operation halted by user.",
+            title="Sir Pennyworth",
+        )
+        sys.exit(0)
 
 
 if __name__ == "__main__":

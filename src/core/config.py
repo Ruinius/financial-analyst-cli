@@ -43,6 +43,9 @@ class Settings(BaseModel):
     active_workspace_path: Optional[str] = Field(
         None, description="Active company workspace directory path"
     )
+    llm_timeout: float = Field(
+        30.0, description="Timeout for LLM API requests in seconds"
+    )
 
     @model_validator(mode="before")
     @classmethod

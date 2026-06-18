@@ -21,39 +21,44 @@ class JobQueue:
     def run(self) -> List[Any]:
         """Execute all queued jobs sequentially with retry and back-off logic."""
         results = []
-        for idx, (func, args, kwargs) in enumerate(self.jobs):
-            delay = self.initial_delay
-            success = False
-            last_exception = None
+        try:
+            for idx, (func, args, kwargs) in enumerate(self.jobs):
+                delay = self.initial_delay
+                success = False
+                last_exception = None
 
-            for attempt in range(self.retries + 1):
-                try:
-                    logger.info(
-                        f"Running job {idx + 1}/{len(self.jobs)}: {func.__name__} (Attempt {attempt + 1})"
+                for attempt in range(self.retries + 1):
+                    try:
+                        logger.info(
+                            f"Running job {idx + 1}/{len(self.jobs)}: {func.__name__} (Attempt {attempt + 1})"
+                        )
+                        result = func(*args, **kwargs)
+                        results.append(result)
+                        success = True
+                        break
+                    except Exception as e:
+                        last_exception = e
+                        if attempt < self.retries:
+                            logger.warning(
+                                f"Job {func.__name__} failed: {str(e)}. "
+                                f"Retrying in {delay:.1f}s..."
+                            )
+                            time.sleep(delay)
+                            delay *= self.backoff
+                        else:
+                            logger.error(
+                                f"Job {func.__name__} failed permanently on attempt {attempt + 1}. "
+                                f"Error: {str(e)}"
+                            )
+
+                if not success:
+                    raise last_exception or RuntimeError(
+                        f"Job {func.__name__} failed permanently."
                     )
-                    result = func(*args, **kwargs)
-                    results.append(result)
-                    success = True
-                    break
-                except Exception as e:
-                    last_exception = e
-                    if attempt < self.retries:
-                        logger.warning(
-                            f"Job {func.__name__} failed: {str(e)}. "
-                            f"Retrying in {delay:.1f}s..."
-                        )
-                        time.sleep(delay)
-                        delay *= self.backoff
-                    else:
-                        logger.error(
-                            f"Job {func.__name__} failed permanently on attempt {attempt + 1}. "
-                            f"Error: {str(e)}"
-                        )
-
-            if not success:
-                raise last_exception or RuntimeError(
-                    f"Job {func.__name__} failed permanently."
-                )
+        except KeyboardInterrupt:
+            logger.warning("Queue execution interrupted by user (Ctrl+C).")
+            self.jobs = []
+            raise
 
         # Clear queue after execution
         self.jobs = []

@@ -2,6 +2,7 @@ import json
 import logging
 from src.tools.keyword_search import find_keyword_contexts
 from src.utils.tools import extract_json_from_text
+from src.core.exceptions import LLMError
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +92,7 @@ def run_ebita_agent(
         }
     ]
 
+    finalized = False
     for turn in range(4):
         if turn == 3:
             # We are on the last turn, append a strict instruction to finalize
@@ -108,7 +110,7 @@ def run_ebita_agent(
             ).strip()
         except Exception as e:
             logger.error(f"EBITA Agent failed at turn {turn}: {e}")
-            break
+            raise LLMError(f"EBITA Agent failed at turn {turn}: {e}")
 
         history.append({"role": "assistant", "content": resp})
 
@@ -140,6 +142,7 @@ def run_ebita_agent(
             op_inc = float(args.get("operating_income", 0.0))
             ebita = float(args.get("operating_ebita", op_inc))
             ebita_adjustments = args.get("ebita_adjustments", [])
+            finalized = True
             break
         elif tool == "find_keyword_contexts":
             kw = args.get("keywords", [])
@@ -176,6 +179,11 @@ def run_ebita_agent(
                     "content": f"Error: Unknown tool '{tool}'. Please use find_keyword_contexts, get_chunk_by_id, or finalize.",
                 }
             )
+
+    if not finalized:
+        raise LLMError(
+            "EBITA Agent failed to finalize extraction within the turn limit."
+        )
 
     # After the loop finishes:
     try:

@@ -2,6 +2,7 @@ import json
 import logging
 from src.tools.keyword_search import find_keyword_contexts
 from src.utils.tools import extract_json_from_text
+from src.core.exceptions import LLMError
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +59,7 @@ def run_organic_growth_agent(
         }
     ]
 
+    finalized = False
     for turn in range(4):
         if turn == 3:
             # We are on the last turn, append a strict instruction to finalize
@@ -72,7 +74,7 @@ def run_organic_growth_agent(
             resp = extractor.llm.generate(prompt, system_prompt=sys_prompt).strip()
         except Exception as e:
             logger.error(f"Organic Growth Agent failed at turn {turn}: {e}")
-            break
+            raise LLMError(f"Organic Growth Agent failed at turn {turn}: {e}")
 
         history.append({"role": "assistant", "content": resp})
 
@@ -106,6 +108,7 @@ def run_organic_growth_agent(
             simple_growth = clean_growth_val(str(args.get("simple_growth", "0")))
             organic_growth = clean_growth_val(str(args.get("organic_growth", "0")))
             revenue = clean_val(str(args.get("revenue", "0")))
+            finalized = True
             break
         elif tool == "find_keyword_contexts":
             kw = args.get("keywords", [])
@@ -119,6 +122,11 @@ def run_organic_growth_agent(
             )
         else:
             history.append({"role": "user", "content": f"Error: Unknown tool {tool}"})
+
+    if not finalized:
+        raise LLMError(
+            "Organic Growth Agent failed to finalize extraction within the turn limit."
+        )
 
     # After the loop finishes:
     try:

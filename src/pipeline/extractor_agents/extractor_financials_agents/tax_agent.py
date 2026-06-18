@@ -2,6 +2,7 @@ import json
 import logging
 from src.tools.keyword_search import find_keyword_contexts
 from src.utils.tools import extract_json_from_text
+from src.core.exceptions import LLMError
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +110,7 @@ def run_tax_agent(
         }
     ]
 
+    finalized = False
     for turn in range(4):
         if turn == 3:
             # We are on the last turn, append a strict instruction to finalize
@@ -126,7 +128,7 @@ def run_tax_agent(
             ).strip()
         except Exception as e:
             logger.error(f"Tax Agent failed at turn {turn}: {e}")
-            break
+            raise LLMError(f"Tax Agent failed at turn {turn}: {e}")
 
         history.append({"role": "assistant", "content": resp})
 
@@ -159,6 +161,7 @@ def run_tax_agent(
             rep_tax = float(args.get("reported_tax_provision", 0.0))
             adj_taxes = float(args.get("adjusted_taxes", rep_tax))
             tax_adjustments = args.get("tax_adjustments", [])
+            finalized = True
             break
         elif tool == "find_keyword_contexts":
             kw = args.get("keywords", [])
@@ -195,6 +198,9 @@ def run_tax_agent(
                     "content": f"Error: Unknown tool '{tool}'. Please use find_keyword_contexts, get_chunk_by_id, or finalize.",
                 }
             )
+
+    if not finalized:
+        raise LLMError("Tax Agent failed to finalize extraction within the turn limit.")
 
     # After the loop finishes:
     try:

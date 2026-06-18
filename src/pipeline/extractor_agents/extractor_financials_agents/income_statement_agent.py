@@ -2,6 +2,7 @@ from src.utils.tools import extract_json_from_text
 import json
 import logging
 from pathlib import Path
+from src.core.exceptions import LLMError
 
 from src.tools.keyword_search import find_keyword_contexts
 from src.utils.tools import (
@@ -114,6 +115,7 @@ def run_income_statement_agent(
     )
 
     max_turns = 10
+    finalized = False
     for turn in range(max_turns):
         if turn == max_turns - 1:
             # We are on the last turn, append a strict instruction to finalize
@@ -133,7 +135,9 @@ def run_income_statement_agent(
             logger.exception(
                 f"Agent Income Statement failed to generate response at turn {turn}: {e}"
             )
-            break
+            raise LLMError(
+                f"Agent Income Statement failed to generate response at turn {turn}: {e}"
+            )
 
         history.append({"role": "assistant", "content": resp})
 
@@ -164,6 +168,7 @@ def run_income_statement_agent(
 
         if tool == "finalize":
             logger.info("Agent Income Statement finalized extraction successfully.")
+            finalized = True
             break
 
         # Execute tool
@@ -203,6 +208,11 @@ def run_income_statement_agent(
 
         history.append(
             {"role": "user", "content": f"Observation from {tool}:\n{result}"}
+        )
+
+    if not finalized:
+        raise LLMError(
+            "Agent Income Statement failed to finalize extraction within the turn limit."
         )
 
     # After the loop finishes:

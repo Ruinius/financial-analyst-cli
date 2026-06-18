@@ -122,7 +122,11 @@ class LLMClient:
                     printed_thinking_len = 0
                     printed_content_len = 0
 
-                    with httpx.Client(timeout=60.0) as client:
+                    timeout_val = getattr(self.settings, "llm_timeout", 30.0)
+                    timeout_config = httpx.Timeout(
+                        timeout=timeout_val, connect=10.0, read=timeout_val
+                    )
+                    with httpx.Client(timeout=timeout_config) as client:
                         with client.stream(
                             "POST", self.endpoint, headers=self.headers, json=payload
                         ) as r:
@@ -256,7 +260,11 @@ class LLMClient:
                                 console.print()
                     return "".join(full_content)
                 else:
-                    with httpx.Client(timeout=60.0) as client:
+                    timeout_val = getattr(self.settings, "llm_timeout", 30.0)
+                    timeout_config = httpx.Timeout(
+                        timeout=timeout_val, connect=10.0, read=timeout_val
+                    )
+                    with httpx.Client(timeout=timeout_config) as client:
                         response = client.post(
                             self.endpoint, headers=self.headers, json=payload
                         )

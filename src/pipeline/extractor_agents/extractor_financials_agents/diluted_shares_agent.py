@@ -2,6 +2,7 @@ from src.utils.tools import extract_json_from_text
 import json
 import logging
 from src.tools.keyword_search import find_keyword_contexts
+from src.core.exceptions import LLMError
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +60,7 @@ def run_diluted_shares_agent(
         }
     ]
 
+    finalized = False
     for turn in range(4):
         if turn == 3:
             # We are on the last turn, append a strict instruction to finalize
@@ -73,7 +75,7 @@ def run_diluted_shares_agent(
             resp = extractor.llm.generate(prompt, system_prompt=sys_prompt).strip()
         except Exception as e:
             logger.error(f"Diluted Shares Agent failed at turn {turn}: {e}")
-            break
+            raise LLMError(f"Diluted Shares Agent failed at turn {turn}: {e}")
 
         history.append({"role": "assistant", "content": resp})
 
@@ -98,6 +100,7 @@ def run_diluted_shares_agent(
         if tool == "finalize":
             basic_shares = clean_val(str(args.get("basic_shares", "0")))
             diluted_shares = clean_val(str(args.get("diluted_shares", "0")))
+            finalized = True
             break
         elif tool == "find_keyword_contexts":
             kw = args.get("keywords", [])
@@ -111,6 +114,11 @@ def run_diluted_shares_agent(
             )
         else:
             history.append({"role": "user", "content": f"Error: Unknown tool {tool}"})
+
+    if not finalized:
+        raise LLMError(
+            "Diluted Shares Agent failed to finalize extraction within the turn limit."
+        )
 
     # After the loop finishes:
     try:
