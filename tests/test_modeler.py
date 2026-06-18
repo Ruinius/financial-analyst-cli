@@ -1108,3 +1108,78 @@ def test_run_dcf_modeling_agent(tmp_path):
     assert "pull_historical_analysis_file" in history_text
     assert "get_market_data" in history_text
     assert "run_valuation" in history_text
+
+
+@patch("src.pipeline.modeler_orchestrator.load_config")
+@patch("src.pipeline.modeler_orchestrator.Modeler.calculate_default_assumptions")
+@patch("src.pipeline.modeler_orchestrator.Modeler.estimate_llm_assumptions")
+@patch("src.pipeline.modeler_orchestrator.Modeler.propose_and_validate_assumptions")
+@patch("src.pipeline.modeler_orchestrator.Modeler.generate_financial_model")
+@patch("src.pipeline.curator_agent.CuratorAgent")
+@patch("src.pipeline.indexer_agent.IndexerAgent")
+@patch("src.cli.commands.use.main_use")
+def test_run_modeling_curator_calls(
+    mock_main_use,
+    mock_indexer_class,
+    mock_curator_class,
+    mock_generate,
+    mock_propose,
+    mock_estimate,
+    mock_calculate,
+    mock_load_config,
+    tmp_path,
+):
+    workspace = tmp_path / "MOCK"
+    workspace.mkdir(parents=True)
+    analysis_dir = workspace / "5_historical_analysis"
+    analysis_dir.mkdir(parents=True)
+
+    # Create required files so the Modeler doesn't skip modeling
+    (analysis_dir / "analyst_views.md").write_text("Dummy content", encoding="utf-8")
+    (analysis_dir / "financials_quarter.md").write_text(
+        "Dummy content", encoding="utf-8"
+    )
+
+    mock_settings = MagicMock()
+    mock_settings.active_workspace_path = str(workspace)
+    mock_settings.active_ticker = "MOCK"
+    mock_load_config.return_value = mock_settings
+
+    mock_calculate.return_value = {
+        "wacc_explanation": "WACC logic",
+        "growth_explanation": "Growth logic",
+        "margin_explanation": "Margin logic",
+        "non_operating_explanation": "Non-Operating logic",
+    }
+    mock_estimate.return_value = {
+        "dcf_agent_log": "DCF agent logs here",
+    }
+    mock_propose.side_effect = lambda ticker, ws, assumptions: assumptions
+
+    modeler = Modeler()
+    modeler.run_modeling("MOCK")
+
+    # Assert main_use was called with the ticker
+    mock_main_use.assert_called_once_with("MOCK")
+
+    # Assert CuratorAgent was called twice
+    assert mock_curator_class.call_count == 2
+
+    # Verify calls to curate
+    curator_mock_inst = mock_curator_class.return_value
+    assert curator_mock_inst.curate.call_count == 2
+
+    first_call_args = curator_mock_inst.curate.call_args_list[0]
+    second_call_args = curator_mock_inst.curate.call_args_list[1]
+
+    # First run before DCF: update_wiki=False
+    assert first_call_args[0][0] == "MOCK"
+    assert first_call_args[0][1] == "model"
+    assert "WACC logic" in first_call_args[0][2]
+    assert first_call_args[1].get("update_wiki") is False
+
+    # Second run after DCF: update_wiki=True
+    assert second_call_args[0][0] == "MOCK"
+    assert second_call_args[0][1] == "model"
+    assert "DCF agent logs here" in second_call_args[0][2]
+    assert second_call_args[1].get("update_wiki") is True

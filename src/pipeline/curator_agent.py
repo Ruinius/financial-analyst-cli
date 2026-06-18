@@ -24,7 +24,9 @@ class CuratorAgent:
         self.settings = settings or load_config()
         self.llm = LLMClient()
 
-    def curate(self, ticker: str, stage: str, agent_logs: str) -> None:
+    def curate(
+        self, ticker: str, stage: str, agent_logs: str, update_wiki: bool = False
+    ) -> None:
         """
         Run the LLMWiki curator agent to refine and compact learnings, merge user feedback,
         and update the ticker's wiki/learning files in the workspace root.
@@ -61,7 +63,9 @@ class CuratorAgent:
         elif stage == "analyze":
             self._curate_analyze(ticker, agent_logs, wiki_path, analyze_learning_path)
         elif stage == "model":
-            self._curate_model(ticker, agent_logs, model_learning_path)
+            self._curate_model(
+                ticker, agent_logs, model_learning_path, update_wiki=update_wiki
+            )
 
     def _ensure_files_exist(
         self, ticker: str, wiki: Path, extract: Path, analyze: Path, model: Path
@@ -460,7 +464,9 @@ Please:
         except Exception as e:
             logger.error(f"Failed to curate analyze learning: {e}")
 
-    def _curate_model(self, ticker: str, agent_logs: str, model_path: Path) -> None:
+    def _curate_model(
+        self, ticker: str, agent_logs: str, model_path: Path, update_wiki: bool = False
+    ) -> None:
         feedback, main_content = self._get_feedback_and_content(model_path)
 
         extract_learning_path = model_path.parent / f"{ticker}_extract_learning.md"
@@ -539,12 +545,7 @@ Please:
             logger.error(f"Failed to curate model learning: {e}")
 
         # If logs contain final modeling results, update company wiki perspectives
-        if wiki_path.exists() and (
-            "finalize" in agent_logs
-            or "run_valuation" in agent_logs
-            or "dcf" in agent_logs.lower()
-            or "valuation" in agent_logs.lower()
-        ):
+        if update_wiki and wiki_path.exists():
             try:
                 wiki_content = wiki_path.read_text(encoding="utf-8")
                 sys_prompt_wiki = (
@@ -668,10 +669,28 @@ Output the FULL markdown file with the updated '## {agent_name}' section. Do not
 
         content = model_learning_path.read_text(encoding="utf-8")
 
+        extract_learning_path = workspace / f"{ticker}_extract_learning.md"
+        analyze_learning_path = workspace / f"{ticker}_analyze_learning.md"
+
+        extract_context = ""
+        if extract_learning_path.exists():
+            try:
+                extract_context = extract_learning_path.read_text(encoding="utf-8")
+            except Exception:
+                pass
+
+        analyze_context = ""
+        if analyze_learning_path.exists():
+            try:
+                analyze_context = analyze_learning_path.read_text(encoding="utf-8")
+            except Exception:
+                pass
+
         sys_prompt = (
             "You are Sir Pennyworth's Modeling Learning Curator. "
             f"Your task is to update the '## {agent_name}' section of the Modeling Learning markdown file "
             "based on the execution logs of that modeling agent. "
+            "You have access to historical Ingestion & Extraction Learning and Analysis Learning contexts for this company. Use them to identify any company-specific conventions (e.g. reporting currency, ADR ratios, specific line items, restructuring adjustments) that should be incorporated into the modeling lessons.\n"
             "Return the entire updated markdown file. Do not alter any other section of the file. "
             "Do not wrap the output in markdown code blocks. "
             "CRITICAL 1: Keep the updated section highly succinct and dense, strictly less than 10 lines of text/bullets in total. "
@@ -690,6 +709,16 @@ Current Modeling Learning Content:
 Execution logs / history of the {agent_name} agent:
 \"\"\"
 {agent_logs}
+\"\"\"
+
+Context from Ingestion & Extraction Learning:
+\"\"\"
+{extract_context}
+\"\"\"
+
+Context from Analysis Learning:
+\"\"\"
+{analyze_context}
 \"\"\"
 
 Please update the '## {agent_name}' section in the file. Keep all other sections and mappings exactly as they are.

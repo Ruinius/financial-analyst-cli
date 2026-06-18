@@ -224,7 +224,9 @@ class Modeler:
                 f"Margin explanation: {assumptions.get('margin_explanation', '')}\n"
                 f"Non-Operating explanation: {assumptions.get('non_operating_explanation', '')}"
             )
-            CuratorAgent(self.settings).curate(active_ticker, "model", sub_agent_logs)
+            CuratorAgent(self.settings).curate(
+                active_ticker, "model", sub_agent_logs, update_wiki=False
+            )
         except Exception as e:
             logger.error(f"Failed to run curator before DCF Modeling Agent: {e}")
 
@@ -258,7 +260,9 @@ class Modeler:
             dcf_agent_logs = assumptions.get("dcf_agent_log", "")
             if not dcf_agent_logs:
                 dcf_agent_logs = f"Executed modeling stage. Generated model projections with assumptions: {json.dumps(assumptions, indent=2)}"
-            CuratorAgent(self.settings).curate(active_ticker, "model", dcf_agent_logs)
+            CuratorAgent(self.settings).curate(
+                active_ticker, "model", dcf_agent_logs, update_wiki=True
+            )
         except Exception as e:
             logger.error(f"Failed to run curator after DCF Modeling Agent: {e}")
 

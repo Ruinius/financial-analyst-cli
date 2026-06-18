@@ -636,6 +636,38 @@ def test_curator_agent_curate_and_self_healing(mock_llm_class, tmp_path):
         == "Updated mock learning file content"
     )
 
+    # 4. Test curate_model_agent incorporates extract and analyze learning context
+    mock_llm.generate.reset_mock()
+    extract_learning.write_text(
+        "Context from Ingestion & Extraction: Custom Extract Content", encoding="utf-8"
+    )
+    analyze_learning.write_text(
+        "Context from Analysis: Custom Analyze Content", encoding="utf-8"
+    )
+    curator.curate_model_agent("AAPL", "WACC", "WACC logs")
+    assert mock_llm.generate.call_count == 1
+    args, _ = mock_llm.generate.call_args
+    prompt_arg = args[0]
+    assert "Custom Extract Content" in prompt_arg
+    assert "Custom Analyze Content" in prompt_arg
+
+    # 5. Test update_wiki flag logic in _curate_model
+    # update_wiki=False
+    mock_llm.generate.reset_mock()
+    model_learning.write_text("Modeling Learning content", encoding="utf-8")
+    wiki.write_text("Initial Wiki content", encoding="utf-8")
+    curator.curate("AAPL", "model", "some valuation logs", update_wiki=False)
+    assert mock_llm.generate.call_count == 1
+    assert wiki.read_text(encoding="utf-8") == "Initial Wiki content"
+
+    # update_wiki=True
+    mock_llm.generate.reset_mock()
+    mock_llm.generate.side_effect = ["Updated Model Content", "Updated Wiki Content"]
+    curator.curate("AAPL", "model", "some valuation logs", update_wiki=True)
+    assert mock_llm.generate.call_count == 2
+    assert wiki.read_text(encoding="utf-8") == "Updated Wiki Content"
+    mock_llm.generate.side_effect = None
+
 
 def test_currency_and_unit_detection_and_formatting(tmp_path):
     from src.pipeline.extractor_agents.extractor_financials import (
