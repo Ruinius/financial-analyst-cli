@@ -47,8 +47,8 @@ def mock_workspace(tmp_path):
 
 
 @patch("src.pipeline.indexer_agent.load_config")
-@patch("src.services.llm_client.LLMClient.generate")
-def test_indexer_llm_success(mock_generate, mock_load_config, mock_workspace):
+@patch("src.pipeline.indexer_agent.get_llm_client")
+def test_indexer_llm_success(mock_get_llm, mock_load_config, mock_workspace):
     """Test indexer when LLM returns a valid response."""
     mock_settings = MagicMock()
     mock_settings.active_workspace_path = str(mock_workspace)
@@ -56,7 +56,9 @@ def test_indexer_llm_success(mock_generate, mock_load_config, mock_workspace):
     mock_load_config.return_value = mock_settings
 
     # LLM returns a markdown response
-    mock_generate.return_value = "# LLM Generated Folder Index\nSome details here that are slightly longer to satisfy the minimum length check."
+    mock_llm = MagicMock()
+    mock_get_llm.return_value = mock_llm
+    mock_llm.generate.return_value = "# LLM Generated Folder Index\nSome details here that are slightly longer to satisfy the minimum length check."
 
     agent = IndexerAgent()
     agent.run_indexing("TEST_IND")
@@ -68,9 +70,9 @@ def test_indexer_llm_success(mock_generate, mock_load_config, mock_workspace):
 
 
 @patch("src.pipeline.indexer_agent.load_config")
-@patch("src.services.llm_client.LLMClient.generate")
+@patch("src.pipeline.indexer_agent.get_llm_client")
 def test_indexer_fallback_on_llm_failure(
-    mock_generate, mock_load_config, mock_workspace
+    mock_get_llm, mock_load_config, mock_workspace
 ):
     """Test indexer programmatic fallback when LLM fails or raises exception."""
     mock_settings = MagicMock()
@@ -78,8 +80,10 @@ def test_indexer_fallback_on_llm_failure(
     mock_settings.active_ticker = "TEST_IND"
     mock_load_config.return_value = mock_settings
 
+    mock_llm = MagicMock()
+    mock_get_llm.return_value = mock_llm
     # Simulate LLM failure
-    mock_generate.side_effect = RuntimeError("LLM Unavailable")
+    mock_llm.generate.side_effect = RuntimeError("LLM Unavailable")
 
     agent = IndexerAgent()
     agent.run_indexing("TEST_IND")

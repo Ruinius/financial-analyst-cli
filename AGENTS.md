@@ -62,7 +62,7 @@ Welcome to the `financial-analyst-cli` project.
       - dcf_modeling_agent.py: Agent specialized in reviewing and sanity-checking valuation parameters, currency, shares outstanding, and outputting comments/critiques.
   - src/services/: SEC client, LLM wrapper, web search, and AST-sandboxed math solver.
     - src/services/edgar_client.py: SEC EDGAR download API client.
-    - src/services/llm_client.py: Unified client for text & vision LLMs.
+    - src/services/llm_client.py: Modular class hierarchy with provider-specific clients (Gemini, DeepSeek, OpenRouter) and factory creation.
     - src/services/market_data.py: Yahoo Finance market data and ticker checker.
   - src/rust_core/lib.rs: Rust module with PyO3 bindings for DCF financial modeling.
   - src/rust_core/fallback.py: Pure Python fallback for DCF modeling when Rust library is not compiled.
@@ -94,7 +94,7 @@ Welcome to the `financial-analyst-cli` project.
   - tests/test_markdown_table_validator.py: Unit tests for markdown table syntax validation.
   - tests/test_math_solver.py: Unit tests for the AST-sandboxed mathematical equation solver.
   - tests/test_modeler.py: Unit tests for DCF modeling, WACC calculation, and intrinsic valuation.
-  - tests/test_partial_json_parser.py: Unit tests for streaming partial JSON tool call parsing.
+  - tests/test_llm_clients.py: Unit tests for modular LLM client factory, provider-specific implementations, and streaming.
   - tests/test_query.py: Unit tests for database query parsing and execution.
   - tests/test_viewer.py: Unit tests for local scenario server and viewer page routing.
   - tests/data/golden_aapl_2024.json: Golden evaluation baseline dataset for AAPL.

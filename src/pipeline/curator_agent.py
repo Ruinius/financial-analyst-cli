@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Tuple
 
 from src.core.config import load_config
-from src.services.llm_client import LLMClient
+from src.services.llm_client import get_llm_client
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ def strip_markdown_code_blocks(text: str) -> str:
 class CuratorAgent:
     def __init__(self, settings=None):
         self.settings = settings or load_config()
-        self.llm = LLMClient()
+        self.llm = get_llm_client()
 
     def curate(
         self, ticker: str, stage: str, agent_logs: str, update_wiki: bool = False
@@ -128,7 +128,9 @@ class CuratorAgent:
                     # ⚡ Bolt Optimization: Replace O(N^2) re.DOTALL regex with fast str.find()
                     start_idx = content.find("## Fiscal Schedule Mappings")
                     if start_idx != -1:
-                        end_idx = content.find("\n##", start_idx + len("## Fiscal Schedule Mappings"))
+                        end_idx = content.find(
+                            "\n##", start_idx + len("## Fiscal Schedule Mappings")
+                        )
                         insert_pos = end_idx if end_idx != -1 else len(content)
                         content = (
                             content[:insert_pos].rstrip()

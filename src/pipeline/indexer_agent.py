@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Dict, List, Any
 
 from src.core.config import load_config
-from src.services.llm_client import LLMClient
+from src.services.llm_client import get_llm_client
 from src.pipeline.curator_agent import strip_markdown_code_blocks
 
 logger = logging.getLogger(__name__)
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class IndexerAgent:
     def __init__(self, settings=None):
         self.settings = settings or load_config()
-        self.llm = LLMClient()
+        self.llm = get_llm_client()
 
     def run_indexing(self, ticker: str) -> None:
         """

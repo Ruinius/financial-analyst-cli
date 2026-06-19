@@ -4,7 +4,7 @@ from rich.console import Console
 
 from src.utils import formatting
 from src.utils.pig_animation import get_input_with_pig
-from src.services.llm_client import LLMClient
+from src.services.llm_client import get_llm_client
 from src.services.math_solver import solve_math
 
 app = typer.Typer()
@@ -20,7 +20,7 @@ def main_chat(ticker: str = typer.Argument(..., help="Company ticker symbol")):
     )
 
     try:
-        llm = LLMClient()
+        llm = get_llm_client()
     except Exception as e:
         formatting.print_error(f"Failed to initialize LLM Client: {e}")
         return

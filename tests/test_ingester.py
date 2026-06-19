@@ -80,15 +80,18 @@ def test_chunk_text():
 
 @patch("src.services.llm_client.load_config")
 @patch("src.pipeline.ingester.load_config")
-@patch("src.services.llm_client.LLMClient.generate")
+@patch("src.pipeline.ingester.get_llm_client")
 def test_ingestion_flow(
-    mock_llm, mock_load_config, mock_llm_load_config, mock_settings
+    mock_get_llm, mock_load_config, mock_llm_load_config, mock_settings
 ):
     mock_load_config.return_value = mock_settings
     mock_llm_load_config.return_value = mock_settings
 
+    mock_llm = MagicMock()
+    mock_get_llm.return_value = mock_llm
+
     # Mock LLM returning metadata JSON
-    mock_llm.return_value = json.dumps(
+    mock_llm.generate.return_value = json.dumps(
         {
             "document_date": "2023-09-30",
             "period_end_date": "2023-09-30",
@@ -145,12 +148,15 @@ def test_job_queue():
 
 @patch("src.services.llm_client.load_config")
 @patch("src.pipeline.ingester.load_config")
-@patch("src.services.llm_client.LLMClient.generate")
+@patch("src.pipeline.ingester.get_llm_client")
 def test_ingestion_limit(
-    mock_llm, mock_load_config, mock_llm_load_config, mock_settings
+    mock_get_llm, mock_load_config, mock_llm_load_config, mock_settings
 ):
     mock_load_config.return_value = mock_settings
     mock_llm_load_config.return_value = mock_settings
+
+    mock_llm = MagicMock()
+    mock_get_llm.return_value = mock_llm
 
     # Each file processed makes 1 LLM call since the second turn was removed
     side_effects = []
@@ -165,7 +171,7 @@ def test_ingestion_limit(
             }
         )
         side_effects.append(val)
-    mock_llm.side_effect = side_effects
+    mock_llm.generate.side_effect = side_effects
 
     workspace = Path(mock_settings.active_workspace_path)
     # Write 3 files
@@ -184,14 +190,17 @@ def test_ingestion_limit(
 
 @patch("src.services.llm_client.load_config")
 @patch("src.pipeline.ingester.load_config")
-@patch("src.services.llm_client.LLMClient.generate")
+@patch("src.pipeline.ingester.get_llm_client")
 def test_ingestion_ignores_readme_and_hidden(
-    mock_llm, mock_load_config, mock_llm_load_config, mock_settings
+    mock_get_llm, mock_load_config, mock_llm_load_config, mock_settings
 ):
     mock_load_config.return_value = mock_settings
     mock_llm_load_config.return_value = mock_settings
 
-    mock_llm.return_value = json.dumps(
+    mock_llm = MagicMock()
+    mock_get_llm.return_value = mock_llm
+
+    mock_llm.generate.return_value = json.dumps(
         {
             "document_date": "2023-09-30",
             "period_end_date": "2023-09-30",
@@ -223,13 +232,16 @@ def test_ingestion_ignores_readme_and_hidden(
 
 @patch("src.services.llm_client.load_config")
 @patch("src.pipeline.ingester.load_config")
-@patch("src.services.llm_client.LLMClient.generate")
+@patch("src.pipeline.ingester.get_llm_client")
 @patch("fitz.open")
 def test_ingestion_pdf(
-    mock_fitz_open, mock_llm, mock_load_config, mock_llm_load_config, mock_settings
+    mock_fitz_open, mock_get_llm, mock_load_config, mock_llm_load_config, mock_settings
 ):
     mock_load_config.return_value = mock_settings
     mock_llm_load_config.return_value = mock_settings
+
+    mock_llm = MagicMock()
+    mock_get_llm.return_value = mock_llm
 
     # Mock PyMuPDF Document and Page
     mock_page = MagicMock()
@@ -240,7 +252,7 @@ def test_ingestion_pdf(
     mock_doc.__iter__.return_value = [mock_page]
     mock_fitz_open.return_value = mock_doc
 
-    mock_llm.return_value = json.dumps(
+    mock_llm.generate.return_value = json.dumps(
         {
             "document_date": "2023-09-30",
             "period_end_date": "2023-09-30",
@@ -270,14 +282,17 @@ def test_ingestion_pdf(
 
 @patch("src.services.llm_client.load_config")
 @patch("src.pipeline.ingester.load_config")
-@patch("src.services.llm_client.LLMClient.generate")
+@patch("src.pipeline.ingester.get_llm_client")
 def test_ingester_offsets(
-    mock_llm, mock_load_config, mock_llm_load_config, mock_settings
+    mock_get_llm, mock_load_config, mock_llm_load_config, mock_settings
 ):
     mock_load_config.return_value = mock_settings
     mock_llm_load_config.return_value = mock_settings
 
-    mock_llm.return_value = json.dumps(
+    mock_llm = MagicMock()
+    mock_get_llm.return_value = mock_llm
+
+    mock_llm.generate.return_value = json.dumps(
         {
             "document_date": "2023-09-30",
             "period_end_date": "2023-09-30",
@@ -326,9 +341,13 @@ def test_ingester_offsets(
 
 
 @patch("src.pipeline.ingester.load_config")
-def test_self_healing_logic(mock_load_config, mock_settings):
+@patch("src.pipeline.ingester.get_llm_client")
+def test_self_healing_logic(mock_get_llm, mock_load_config, mock_settings):
     mock_load_config.return_value = mock_settings
     workspace = Path(mock_settings.active_workspace_path)
+
+    mock_llm = MagicMock()
+    mock_get_llm.return_value = mock_llm
 
     # 1. Create a dummy parsed_data.csv missing the fiscal_year column entirely, and with an incorrect fiscal_quarter
     parsed_dir = workspace / "2_parsed_data"

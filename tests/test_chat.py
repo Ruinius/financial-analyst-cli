@@ -7,7 +7,7 @@ runner = CliRunner()
 
 
 @patch("prompt_toolkit.PromptSession")
-@patch("src.cli.commands.chat.LLMClient")
+@patch("src.cli.commands.chat.get_llm_client")
 @patch("src.cli.commands.chat.get_input_with_pig")
 def test_chat_interaction_flow(
     mock_get_input, mock_llm_client_class, mock_prompt_session_class
@@ -52,7 +52,7 @@ def test_chat_interaction_flow(
 
 
 @patch("prompt_toolkit.PromptSession")
-@patch("src.cli.commands.chat.LLMClient")
+@patch("src.cli.commands.chat.get_llm_client")
 @patch("src.cli.commands.chat.get_input_with_pig")
 def test_chat_keyboard_interrupt(
     mock_get_input, mock_llm_client_class, mock_prompt_session_class

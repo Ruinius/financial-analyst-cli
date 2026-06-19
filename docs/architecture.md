@@ -56,7 +56,7 @@ financial-analyst-cli/
 │   ├── services/                   # External API clients
 │   │   ├── __init__.py
 │   │   ├── edgar_client.py         # SEC EDGAR download API client
-│   │   ├── llm_client.py           # Unified client for text & vision LLMs
+│   │   ├── llm_client.py           # Modular provider-specific clients (Gemini, DeepSeek, OpenRouter) and factory creation
 │   │   ├── market_data.py          # Yahoo Finance market data and ticker checker
 │   │   ├── web_search.py           # Fallback search for accounting classifications
 │   │   └── math_solver.py          # Sandboxed Python execution for custom calculations

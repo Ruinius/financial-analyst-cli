@@ -397,7 +397,7 @@ class Modeler:
         growth_magnitude = (float(g_mag_match.group(1)) / 100.0) if g_mag_match else 0
 
         # For WACC (agentic calculation)
-        from src.services.llm_client import LLMClient
+        from src.services.llm_client import get_llm_client
         from src.pipeline.modeler_agents.wacc_agent import run_wacc_agent
         from src.pipeline.modeler_agents.growth_agent import run_growth_agent
         from src.pipeline.modeler_agents.margin_agent import run_margin_agent
@@ -405,7 +405,7 @@ class Modeler:
             run_non_operating_agent,
         )
 
-        llm = LLMClient()
+        llm = get_llm_client()
         wacc_results = run_wacc_agent(
             ticker=ticker,
             workspace=workspace,
@@ -990,13 +990,13 @@ Date: {today}
         learning_context: str = "",
     ) -> Dict[str, Any]:
         """Leverage the 10-turn DCF modeling agent to estimate final assumptions."""
-        from src.services.llm_client import LLMClient
+        from src.services.llm_client import get_llm_client
         from src.pipeline.modeler_agents.dcf_modeling_agent import (
             run_dcf_modeling_agent,
         )
 
         formatting.print_info(f"Running 10-Turn DCF Modeling Agent for {ticker}...")
-        llm = LLMClient()
+        llm = get_llm_client()
         final_assumptions, comments, history_text = run_dcf_modeling_agent(
             ticker=ticker,
             workspace=workspace,

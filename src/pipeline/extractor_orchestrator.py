@@ -8,7 +8,7 @@ from typing import List
 from pydantic import BaseModel
 
 from src.core.config import load_config
-from src.services.llm_client import LLMClient
+from src.services.llm_client import get_llm_client
 from src.pipeline.queue import JobQueue
 from src.tools.find_chunk import get_chunk_by_id
 
@@ -94,7 +94,7 @@ def clean_val(val: str) -> float:
 class Extractor:
     def __init__(self):
         self.settings = load_config()
-        self.llm = LLMClient()
+        self.llm = get_llm_client()
         self._extract_context_cache = None
         self._dict_cache = {}
 

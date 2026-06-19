@@ -10,7 +10,7 @@ from typing import Dict, List, Tuple
 from bs4 import BeautifulSoup, NavigableString
 
 from src.core.config import load_config
-from src.services.llm_client import LLMClient
+from src.services.llm_client import get_llm_client
 from src.pipeline.queue import JobQueue
 
 logger = logging.getLogger(__name__)
@@ -154,7 +154,7 @@ def chunk_text(text: str, max_chars: int = 5000) -> List[str]:
 class Ingester:
     def __init__(self):
         self.settings = load_config()
-        self.llm = LLMClient()
+        self.llm = get_llm_client()
 
     def get_parsed_registry_path(self) -> Path:
         workspace = Path(self.settings.active_workspace_path)

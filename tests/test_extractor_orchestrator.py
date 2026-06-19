@@ -208,9 +208,9 @@ This is chunk 2 content
 
 @patch("src.pipeline.extractor_orchestrator.load_config")
 @patch("src.pipeline.curator_agent.CuratorAgent")
-@patch("src.pipeline.extractor_orchestrator.LLMClient")
+@patch("src.pipeline.extractor_orchestrator.get_llm_client")
 def test_extract_different_document_types(
-    mock_llm_class, mock_curator, mock_load_config, tmp_path
+    mock_get_llm, mock_curator, mock_load_config, tmp_path
 ):
     workspace = tmp_path / "AAPL"
     workspace.mkdir()
@@ -227,7 +227,7 @@ def test_extract_different_document_types(
 
     mock_llm = MagicMock()
     mock_llm.generate.return_value = '{"thought": "Finalizing", "tool": "finalize", "arguments": {"economic_moat": "Wide", "economic_moat_rationale": "Strong moat", "margin_outlook": "Stable", "margin_magnitude": "0 pp", "margin_rationale": "...", "growth_outlook": "Stable", "growth_magnitude": "0 pp", "growth_rationale": "..."}}'
-    mock_llm_class.return_value = mock_llm
+    mock_get_llm.return_value = mock_llm
 
     extractor = Extractor()
 
@@ -265,9 +265,9 @@ Analyst discussion of moat and growth
 
 @patch("src.pipeline.extractor_orchestrator.load_config")
 @patch("src.pipeline.curator_agent.CuratorAgent")
-@patch("src.pipeline.extractor_orchestrator.LLMClient")
+@patch("src.pipeline.extractor_orchestrator.get_llm_client")
 def test_extract_financials_stages(
-    mock_llm_class, mock_curator, mock_load_config, tmp_path
+    mock_get_llm, mock_curator, mock_load_config, tmp_path
 ):
     workspace = tmp_path / "AAPL"
     workspace.mkdir()
@@ -283,6 +283,7 @@ def test_extract_financials_stages(
     mock_load_config.return_value = mock_settings
 
     mock_llm = MagicMock()
+    mock_get_llm.return_value = mock_llm
 
     def mock_generate(prompt, system_prompt=None, stream_thinking=True):
         p_lower = prompt.lower()
@@ -340,7 +341,6 @@ def test_extract_financials_stages(
         )
 
     mock_llm.generate.side_effect = mock_generate
-    mock_llm_class.return_value = mock_llm
 
     extractor = Extractor()
 
@@ -567,8 +567,8 @@ def test_extractor_files_to_process(
     assert f2 not in called_paths
 
 
-@patch("src.pipeline.curator_agent.LLMClient")
-def test_curator_agent_curate_and_self_healing(mock_llm_class, tmp_path):
+@patch("src.pipeline.curator_agent.get_llm_client")
+def test_curator_agent_curate_and_self_healing(mock_get_llm, tmp_path):
     # Setup paths
     workspace = tmp_path / "AAPL"
     workspace.mkdir()
@@ -585,7 +585,7 @@ def test_curator_agent_curate_and_self_healing(mock_llm_class, tmp_path):
 
     mock_llm = MagicMock()
     mock_llm.generate.return_value = "Updated mock learning file content"
-    mock_llm_class.return_value = mock_llm
+    mock_get_llm.return_value = mock_llm
 
     curator = CuratorAgent(mock_settings)
     curator._ensure_files_exist(

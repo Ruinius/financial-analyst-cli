@@ -11,6 +11,7 @@ requires-python = ">=3.14"
 dependencies = [
     "beautifulsoup4>=4.15.0",
     "duckduckgo-search>=8.1.1",
+    "google-genai>=2.9.0",
     "httpx>=0.28.1",
     "prompt-toolkit>=3.0.52",
     "pydantic>=2.13.4",
