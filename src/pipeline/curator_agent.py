@@ -125,11 +125,11 @@ class CuratorAgent:
                 content = extract.read_text(encoding="utf-8")
                 # Add Preferred Currency & Unit section if missing
                 if "## Preferred Currency & Unit" not in content:
-                    mappings_match = re.search(
-                        r"## Fiscal Schedule Mappings.*?(?=\n##|$)", content, re.DOTALL
-                    )
-                    if mappings_match:
-                        insert_pos = mappings_match.end()
+                    # ⚡ Bolt Optimization: Replace O(N^2) re.DOTALL regex with fast str.find()
+                    start_idx = content.find("## Fiscal Schedule Mappings")
+                    if start_idx != -1:
+                        end_idx = content.find("\n##", start_idx + len("## Fiscal Schedule Mappings"))
+                        insert_pos = end_idx if end_idx != -1 else len(content)
                         content = (
                             content[:insert_pos].rstrip()
                             + "\n\n## Preferred Currency & Unit\n- Currency: N/A\n- Unit: Millions\n\n"
