@@ -10,7 +10,7 @@ This document defines the structural schema, storage mechanics, state transition
 
 In production multi-agent systems, the standard approach is to use **one blackboard per operational boundary (i.e., one per company/ticker)**.
 
-We will implement a **Single Blackboard Per Ticker** pattern (saved as `workspaces/[TICKER]/4_extracted_data/workspace_state.json`).
+We will implement a **Single Blackboard Per Ticker** pattern (saved as `workspaces/[TICKER]/workspace_state.json`).
 
 #### Why a Unified Shared Blackboard is a Bad Idea:
 
@@ -88,12 +88,19 @@ class CompanyMetadata(BaseModel):
 # 3. COMPANY LEVEL DATA (Self-Learning Context & Historical Tables)
 # =====================================================================
 
+class AgentExecutionMetrics(BaseModel):
+    """Tracks run performance statistics for a specific agent type and document format."""
+    total_runs: int = 0
+    last_turn_count: int = 0
+    average_turn_count: float = 0.0
+
 class ExtractAgentLearning(BaseModel):
     """Specific learnings gathered for a single micro-agent's task to guide future runs."""
     successful_keywords: List[str] = []
     avoid_keywords: List[str] = []
     successful_chunk: List[str] = []
     avoid_chunk: List[str] = []
+    metrics: AgentExecutionMetrics = Field(default_factory=AgentExecutionMetrics)
 
 class DocumentTypeLearnings(BaseModel):
     """Micro-agent extract learnings grouped for a specific document format."""
@@ -112,7 +119,7 @@ class LearningsSchema(BaseModel):
 
 class CompanyLevelData(BaseModel):
     learnings: LearningsSchema = Field(default_factory=LearningsSchema)
-    # Historical lists matching financials_quarter.md, financials_year.md, and analyst_views.md
+    # Historical lists storing longitudinal trends and views directly (replacing separate markdown files)
     quarterly_financials: List[Dict[str, Any]] = []
     yearly_financials: List[Dict[str, Any]] = []
     historical_analyst_views: List[Dict[str, Any]] = []
@@ -234,14 +241,17 @@ class BaseFinancialModel(BaseModel):
 
 class TemporalBlackboard(BaseModel):
     """All data and status flags for a single period (Quarter or Year)."""
-    period: str  # e.g., "2024_Q3", "2024_FY"
+    fiscal_year: int # can only be 4 digit year
+    fiscal_period: str  # can only be "Q1", "Q2", "Q3", "Q4", "FY"
     is_quarterly: bool
     source_file: str
 
-    # Status Flags
+    # Status Flags (check-out / check-in lock mechanism to prevent duplicate agent execution)
     balance_sheet_status: Literal["pending", "running", "completed", "failed"] = "pending"
     income_statement_status: Literal["pending", "running", "completed", "failed"] = "pending"
-    shares_growth_status: Literal["pending", "running", "completed", "failed"] = "pending"
+    shares_status: Literal["pending", "running", "completed", "failed"] = "pending"
+    organic_growth_status: Literal["pending", "running", "completed", "failed"] = "pending"
+    ebita_status: Literal["pending", "running", "completed", "failed"] = "pending"
     tax_status: Literal["pending", "running", "completed", "failed"] = "pending"
     modeling_status: Literal["pending", "running", "completed", "failed"] = "pending"
 
@@ -254,7 +264,7 @@ class TemporalBlackboard(BaseModel):
     arithmetic_errors: List[str] = []
 
 class WorkspaceContext(BaseModel):
-    """The root Blackboard schema stored inside workspaces/[TICKER]/4_extracted_data/workspace_state.json."""
+    """The root Blackboard schema stored inside workspaces/[TICKER]/workspace_state.json."""
     metadata: CompanyMetadata
     company_data: CompanyLevelData
     reports: Dict[str, TemporalBlackboard] = {}  # Keyed by period (e.g., "2024_Q3")
@@ -269,14 +279,14 @@ class WorkspaceContext(BaseModel):
 While the **Base Financial Model** (representing the standard estimates derived by the pipeline agents) is stored directly on the blackboard per period, **Scenario Models** must reside **completely outside the Blackboard**:
 
 - **Why**: The blackboard is the shared state of the _autonomous pipeline_. If users run ad-hoc sensitivity checks, change margins, or tweak growth rates using the Interactive Web Viewer, saving these dynamic iterations to the main `workspace_state.json` would contaminate the base pipeline state and disrupt autonomous agents.
-- **Where**: Scenario models are stored locally inside the web viewer's storage (e.g. browser `localStorage` or a dedicated viewer server directory `workspaces/[TICKER]/6_financial_model/scenarios/`).
+- **Where**: Scenario models are stored locally inside the web viewer's storage (e.g. browser `localStorage` or a dedicated viewer server directory `workspaces/[TICKER]/9_scenario_model_json/`).
 - **Structure**: Each scenario stores a delta of modified assumptions (e.g., `{"scenario_name": "Bull Case", "wacc": 0.08, "margin_yr5": 0.18}`) and the resulting calculations, referencing the parent `base_model` version.
 
 ---
 
 ## 4. Mathematical Verification & Reconciliation Logic
 
-The **Supervisor Agent** triggers a reconciliation loop if any of the following programmatic validation formulas fail on fanned-in data.
+The **Blackboard Orchestrator** triggers programmatic validation checks. If any of the following validation formulas fail on fanned-in data, the Orchestrator will prompt the user on the CLI to choose whether to proceed or retry.
 
 ### Rule 1: Balance Sheet Consistency (Double-Entry Match)
 
@@ -325,15 +335,36 @@ If the sub-totals mismatch the reported `operating_income` or `revenue` values, 
 ```mermaid
 stateDiagram-v2
     [*] --> Pending : SCANNER DETECTS FILE
-    Pending --> Running : SUPERVISOR DISPATCHES SPECIALIST
+    Pending --> Running : ORCHESTRATOR SPAWNS SUB-AGENT
     Running --> Completed : ARITHMETIC VERIFICATION PASSES
     Running --> Failed : ARITHMETIC VERIFICATION FAILS
-    Failed --> Running : SUPERVISOR DISPATCHES RETRY WITH ARITHMETIC ERROR
+    Failed --> Running : ORCHESTRATOR SPAWNS RETRY WITH ARITHMETIC ERROR
     Completed --> [*] : ALL SYSTEM FLAGS COMPLETED
 ```
 
-### Persistence Policy
+### Persistence & Concurrency Policy
 
 1. **At Turn Entry**: Read `workspace_state.json` from disk.
-2. **At Turn Tool Execution**: Micro-agents query the file, perform their task, modify the relevant values/status flags, and write the state back to `workspace_state.json` immediately.
-3. **On Completion**: If all status flags of a `TemporalReport` are `completed`, trigger `CuratorAgent` to curate final summaries in the Ticker's Wiki markdown files.
+2. **At Turn Tool Execution**: Micro-agents query the file, perform their task, check out and modify their specific status flags and target data segment, and write the state back to `workspace_state.json` immediately.
+3. **On Completion**: If fanned-in status flags of a `TemporalBlackboard` are completed, the Orchestrator can trigger the `CuratorAgent` at discretionary intervals (either explicitly requested by the user or once per quarter) to curate final summaries in the Ticker's Wiki markdown files. The `LearningAgent` is called at the Orchestrator's discretion (e.g. when a sub-agent takes a long time or encounters a failure milestone).
+
+### Check-Out / Check-In Lock Mechanism
+
+To prevent duplicate execution and coordinate parallel runs (enabling safe concurrency and preventing context contamination):
+
+- **Check-Out (Locking)**: When a sub-agent starts, it executes a deterministic check-out script that inspects and sets its specific task flag on the blackboard to `running`. This locks the small target piece of the blackboard.
+- **Check-In (Unlocking)**: When the sub-agent template finalizes its task, it executes a deterministic check-in script that writes its structured output, transitions the task flag to `completed` (or `failed`), and unlocks the state by saving the changes back to `workspace_state.json`.
+- **Wiki Lock**: The `CuratorAgent` uses a check-in / check-out locking mechanism for `[TICKER]_wiki.md` to prevent any write collisions when compiling qualitative insights from the blackboard.
+
+---
+
+## 6. Outstanding Concurrency & Fault-Tolerance Decisions
+
+Since the Orchestrator runs sub-agents concurrently via `asyncio`, the following design decisions remain outstanding and must be finalized:
+
+1. **Blocking Gates**:
+   - What are the precise execution gates? Which agents/processes must complete successfully before downstream agents are allowed to start (e.g., ingestion -> extraction, extraction tier 1 -> tier 2, extraction -> model)?
+2. **Asynchronous Failure and Reconciliation Queue**:
+   - What happens to other concurrently running agents when a single agent fails or a math reconciliation check fails?
+   - We need to design a prompt failure queue to process failed cases in order, allowing the user to inspect, retry, override, or proceed.
+   - We must also provide a "stop all agents" option to immediately terminate all running and queued tasks.
