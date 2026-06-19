@@ -1,20 +1,21 @@
-from src.utils.tools import extract_json_from_text
-import json
 import logging
 from pathlib import Path
-from src.core.exceptions import LLMError
 
-from src.tools.keyword_search import find_keyword_contexts
+from src.tools.keyword_search import (
+    find_keyword_contexts as orchestrator_find_keyword_contexts,
+)
+from src.tools.find_chunk import get_chunk_by_id as orchestrator_get_chunk
 from src.utils.tools import (
-    append_markdown,
-    edit_markdown,
+    append_markdown as orchestrator_append_markdown,
+    edit_markdown as orchestrator_edit_markdown,
     validate_markdown_table_syntax,
 )
+from src.agents.agent_executor import run_agent_loop
 
 logger = logging.getLogger(__name__)
 
 
-def check_income_statement_quality(
+def check_income_statement_quality_helper(
     filepath: str, extractor, is_quarterly: bool = True
 ) -> str:
     path = Path(filepath)
@@ -70,7 +71,7 @@ def run_income_statement_agent(
         if is_quarterly
         else "fiscal year (twelve months)"
     )
-    history = []
+
     initial_prompt = (
         f"Starting extraction for source file: '{file_path.name}'.\n"
         f"Target output path: '{target_output_path.as_posix()}'\n"
@@ -85,25 +86,9 @@ def run_income_statement_agent(
     if learning_context:
         initial_prompt += f'\n\nHere is the active company extraction learning context to guide your extraction decision logic:\n"""\n{learning_context}\n"""'
 
-    history.append({"role": "user", "content": initial_prompt})
-
     system_prompt = (
         "You are Sir Pennyworth, a senior financial analyst acting as the Income Statement Agent. Your task is to locate and extract the COMPLETE Income Statement.\n"
         f"Specifically, we are focused on the {focus_period} time period. Ensure you extract the statement for this focused period.\n"
-        "You must execute actions by outputting a valid JSON object containing 'thought', 'tool', and 'arguments'.\n"
-        "Available tools:\n"
-        "- 'find_keyword_contexts': arguments: {'keywords': list, 'window': int}\n"
-        "- 'get_chunk_by_id': arguments: {'chunk_id': int}\n"
-        "- 'append_markdown': arguments: {'text': str}\n"
-        "- 'edit_markdown': arguments: {'target_text': str, 'replacement_text': str}\n"
-        "- 'check_income_statement_quality': arguments: {}\n"
-        "- 'finalize': arguments: {'currency': str, 'unit': str}\n\n"
-        "Example format:\n"
-        "{\n"
-        '  "thought": "First, I need to search for keywords related to the income statement to find relevant chunks.",\n'
-        '  "tool": "find_keyword_contexts",\n'
-        '  "arguments": {"keywords": ["revenue", "profit", "tax"]}\n'
-        "}\n\n"
         "Rules:\n"
         "1. You start with only file name and chunk IDs. You must find relevant chunks using keywords first.\n"
         "2. Fetch chunk content using get_chunk_by_id.\n"
@@ -114,110 +99,58 @@ def run_income_statement_agent(
         "7. Currency & Unit detection: Identify the reporting currency and unit of the financial statements in the document. Prefer the local currency (e.g. CNY, JPY, EUR, GBP) and consistent units (ideally millions, but check if `Preferred Currency & Unit` is specified in the learning context). You MUST write `**Currency**: <Currency>` and `**Unit**: <Unit>` on separate lines at the very top of the output file (using append_markdown/edit_markdown) before any table or content. Ensure all extracted numerical values in your table match this currency and unit."
     )
 
-    max_turns = 10
-    finalized = False
-    for turn in range(max_turns):
-        if turn == max_turns - 1:
-            # We are on the last turn, append a strict instruction to finalize
-            history[-1]["content"] += (
-                "\n\nCRITICAL: This is your final turn (turn 10 of 10). You must call the 'finalize' tool immediately with your current best estimates. Do not call find_keyword_contexts or get_chunk_by_id again."
-            )
+    # Define tools as inner functions
+    def find_keyword_contexts(keywords: list, window: int = 200) -> str:
+        """Search the document content for occurrences of keywords within a window of characters."""
+        return str(orchestrator_find_keyword_contexts(content, keywords, window))
 
-        prompt = ""
-        for h in history:
-            prompt += f"\n\n--- {h['role'].upper()} ---\n{h['content']}"
+    def get_chunk_by_id(chunk_id: int) -> str:
+        """Fetch the exact text content of a specific chunk by its ID."""
+        chunk_str = orchestrator_get_chunk(content, int(chunk_id))
+        if not chunk_str:
+            return f"Chunk {chunk_id} not found or empty."
+        return chunk_str
 
-        try:
-            resp = extractor.llm.generate(
-                prompt, system_prompt=system_prompt, stream_thinking=True
-            ).strip()
-        except Exception as e:
-            logger.exception(
-                f"Agent Income Statement failed to generate response at turn {turn}: {e}"
-            )
-            raise LLMError(
-                f"Agent Income Statement failed to generate response at turn {turn}: {e}"
-            )
+    def append_markdown(text: str) -> str:
+        """Append a markdown text segment or table to the income statement output file."""
+        return orchestrator_append_markdown(target_output_path.as_posix(), text)
 
-        history.append({"role": "assistant", "content": resp})
-
-        # Try to parse JSON tool call from assistant response
-        json_str = extract_json_from_text(resp)
-        if not json_str:
-            history.append(
-                {
-                    "role": "user",
-                    "content": "Error: Your response did not contain a valid JSON tool call. Please respond using the specified JSON schema.",
-                }
-            )
-            continue
-
-        try:
-            action = json.loads(json_str)
-        except Exception as e:
-            history.append(
-                {
-                    "role": "user",
-                    "content": f"Error: Failed to parse JSON tool call: {e}. Please respond using a valid JSON schema.",
-                }
-            )
-            continue
-
-        tool = action.get("tool")
-        args = action.get("arguments", {})
-
-        if tool == "finalize":
-            logger.info("Agent Income Statement finalized extraction successfully.")
-            finalized = True
-            break
-
-        # Execute tool
-        result = ""
-        if tool == "find_keyword_contexts":
-            keywords = args.get("keywords", [])
-            window = args.get("window", 200)
-            result = str(find_keyword_contexts(content, keywords, window))
-        elif tool == "get_chunk_by_id":
-            try:
-                chunk_id = int(args.get("chunk_id", 0))
-                from src.tools.find_chunk import (
-                    get_chunk_by_id as orchestrator_get_chunk,
-                )
-
-                result = orchestrator_get_chunk(content, chunk_id)
-                if not result:
-                    result = f"Chunk {chunk_id} not found or empty."
-            except Exception as e:
-                result = f"Error: {e}"
-        elif tool == "append_markdown":
-            result = append_markdown(
-                target_output_path.as_posix(), args.get("text", "")
-            )
-        elif tool == "edit_markdown":
-            result = edit_markdown(
-                target_output_path.as_posix(),
-                args.get("target_text", ""),
-                args.get("replacement_text", ""),
-            )
-        elif tool == "check_income_statement_quality":
-            result = check_income_statement_quality(
-                target_output_path.as_posix(), extractor, is_quarterly=is_quarterly
-            )
-        else:
-            result = f"Error: Unknown tool '{tool}'."
-
-        history.append(
-            {"role": "user", "content": f"Observation from {tool}:\n{result}"}
+    def edit_markdown(target_text: str, replacement_text: str) -> str:
+        """Replace target_text with replacement_text in the output file to fix formatting errors."""
+        return orchestrator_edit_markdown(
+            target_output_path.as_posix(), target_text, replacement_text
         )
 
-    if not finalized:
-        raise LLMError(
-            "Agent Income Statement failed to finalize extraction within the turn limit."
+    def check_income_statement_quality() -> str:
+        """Run a quality check on the currently extracted income statement to verify mathematical consistency and formatting."""
+        return check_income_statement_quality_helper(
+            target_output_path.as_posix(), extractor, is_quarterly=is_quarterly
         )
 
-    # After the loop finishes:
+    def finalize(currency: str, unit: str) -> str:
+        """Finalize the income statement extraction, specifying the detected currency (e.g. 'USD', 'CNY') and unit (e.g. 'Millions')."""
+        return "Income Statement extraction finalized."
+
+    tools = [
+        find_keyword_contexts,
+        get_chunk_by_id,
+        append_markdown,
+        edit_markdown,
+        check_income_statement_quality,
+        finalize,
+    ]
+
+    finalized_args, history = run_agent_loop(
+        client=extractor.llm,
+        system_prompt=system_prompt,
+        initial_prompt=initial_prompt,
+        tools=tools,
+        max_turns=10,
+    )
+
+    # After the loop finishes, run curation
     try:
-        from src.pipeline.curator_agent import CuratorAgent
+        from src.agents.curator_agent import CuratorAgent
 
         ticker = extractor.settings.active_ticker or "UNK"
         history_text = ""

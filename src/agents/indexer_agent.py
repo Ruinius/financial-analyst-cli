@@ -6,7 +6,7 @@ from typing import Dict, List, Any
 
 from src.core.config import load_config
 from src.services.llm_client import get_llm_client
-from src.pipeline.curator_agent import strip_markdown_code_blocks
+from src.agents.curator_agent import strip_markdown_code_blocks
 
 logger = logging.getLogger(__name__)
 

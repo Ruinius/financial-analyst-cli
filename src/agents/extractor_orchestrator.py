@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 from src.core.config import load_config
 from src.services.llm_client import get_llm_client
-from src.pipeline.queue import JobQueue
+from src.agents.queue import JobQueue
 from src.tools.find_chunk import get_chunk_by_id
 
 logger = logging.getLogger(__name__)
@@ -225,13 +225,13 @@ class Extractor:
         # Invoke Curator Agent at the end of extraction
         ticker = self.settings.active_ticker or "UNK"
         logs = f"Executed extraction stage. Processed files: {[f.name for f in files_to_run]}"
-        from src.pipeline.curator_agent import CuratorAgent
+        from src.agents.curator_agent import CuratorAgent
 
         CuratorAgent(self.settings).curate(ticker, "extract", logs)
 
         # Trigger Indexer Agent to update folder index
         try:
-            from src.pipeline.indexer_agent import IndexerAgent
+            from src.agents.indexer_agent import IndexerAgent
 
             IndexerAgent(self.settings).run_indexing(ticker)
         except Exception as e:
@@ -288,7 +288,7 @@ class Extractor:
         success = False
 
         if is_financial:
-            from src.pipeline.extractor_agents.extractor_financials import (
+            from src.agents.extractor_agents.extractor_financials import (
                 extract_financials,
             )
 
@@ -299,7 +299,7 @@ class Extractor:
                 extractor=self,
             )
         elif is_analyst:
-            from src.pipeline.extractor_agents.extractor_analyst_report import (
+            from src.agents.extractor_agents.extractor_analyst_report import (
                 extract_analyst_report,
             )
 
@@ -310,7 +310,7 @@ class Extractor:
                 extractor=self,
             )
         elif is_transcript:
-            from src.pipeline.extractor_agents.extractor_transcript import (
+            from src.agents.extractor_agents.extractor_transcript import (
                 extract_transcript,
             )
 
@@ -321,7 +321,7 @@ class Extractor:
                 extractor=self,
             )
         else:
-            from src.pipeline.extractor_agents.extractor_other import extract_other
+            from src.agents.extractor_agents.extractor_other import extract_other
 
             success = extract_other(
                 file_path=file_path,

@@ -30,7 +30,7 @@ To support multi-company queries in the future **Interactive Chat Mode** (e.g., 
 
 ## 2. Complete Pydantic Domain Schema
 
-The Blackboard acts as a structured model matching the exact mathematical steps in [math.py](file:///f:/AIML%20projects/financial-analyst-cli/src/utils/math.py) and [modeler_orchestrator.py](file:///f:/AIML%20projects/financial-analyst-cli/src/pipeline/modeler_orchestrator.py).
+The Blackboard acts as a structured model matching the exact mathematical steps in [math.py](file:///f:/AIML%20projects/financial-analyst-cli/src/utils/math.py) and [modeler_orchestrator.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/modeler_orchestrator.py).
 
 ```python
 from pydantic import BaseModel, Field

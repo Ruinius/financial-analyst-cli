@@ -360,7 +360,7 @@ def run_wacc_agent(
 
     # Trigger Curator Agent to capture lessons in model_learning.md
     try:
-        from src.pipeline.curator_agent import CuratorAgent
+        from src.agents.curator_agent import CuratorAgent
 
         history_text = ""
         for h in history:

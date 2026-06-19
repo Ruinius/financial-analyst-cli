@@ -7,25 +7,25 @@ import src.utils.math as pipeline_math
 
 
 # Import specialized agents to run or expose them
-from src.pipeline.extractor_agents.extractor_financials_agents.income_statement_agent import (
+from src.agents.extractor_agents.extractor_financials_agents.income_statement_agent import (
     run_income_statement_agent,
 )
-from src.pipeline.extractor_agents.extractor_financials_agents.balance_sheet_agent import (
+from src.agents.extractor_agents.extractor_financials_agents.balance_sheet_agent import (
     run_balance_sheet_agent,
 )
-from src.pipeline.extractor_agents.extractor_financials_agents.interpretation_agent import (
+from src.agents.extractor_agents.extractor_financials_agents.interpretation_agent import (
     run_interpretation_agent,
 )
-from src.pipeline.extractor_agents.extractor_financials_agents.diluted_shares_agent import (
+from src.agents.extractor_agents.extractor_financials_agents.diluted_shares_agent import (
     run_diluted_shares_agent,
 )
-from src.pipeline.extractor_agents.extractor_financials_agents.organic_growth_agent import (
+from src.agents.extractor_agents.extractor_financials_agents.organic_growth_agent import (
     run_organic_growth_agent,
 )
-from src.pipeline.extractor_agents.extractor_financials_agents.ebita_agent import (
+from src.agents.extractor_agents.extractor_financials_agents.ebita_agent import (
     run_ebita_agent,
 )
-from src.pipeline.extractor_agents.extractor_financials_agents.tax_agent import (
+from src.agents.extractor_agents.extractor_financials_agents.tax_agent import (
     run_tax_agent,
 )
 
@@ -38,7 +38,7 @@ def parse_markdown_to_line_items(
     extractor,
     category_default: str,
 ) -> list:
-    from src.pipeline.extractor_orchestrator import LineItem, AuditLinkage, clean_val
+    from src.agents.extractor_orchestrator import LineItem, AuditLinkage, clean_val
 
     if not target_statement_path.exists():
         return []

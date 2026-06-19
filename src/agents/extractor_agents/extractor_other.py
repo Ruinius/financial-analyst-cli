@@ -126,7 +126,7 @@ Note: Set 'all_required_info_found' to true if you have found significant news o
 
     # Invoke Curator Agent to curate lessons
     try:
-        from src.pipeline.curator_agent import CuratorAgent
+        from src.agents.curator_agent import CuratorAgent
 
         ticker = extractor.settings.active_ticker or "UNK"
         history_text = ""

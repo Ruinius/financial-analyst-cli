@@ -4,7 +4,7 @@ import json
 import logging
 from pathlib import Path
 
-from src.pipeline.extractor_orchestrator import LineItem, AuditLinkage
+from src.agents.extractor_orchestrator import LineItem, AuditLinkage
 
 logger = logging.getLogger(__name__)
 

@@ -212,7 +212,7 @@ class Modeler:
 
         # 2. Run Curator Agent first time (before DCF Modeling Agent starts)
         # to consolidate/curate lessons from WACC, Growth, Margin, Non-Operating sub-agents
-        from src.pipeline.curator_agent import CuratorAgent
+        from src.agents.curator_agent import CuratorAgent
 
         try:
             formatting.print_info(
@@ -268,7 +268,7 @@ class Modeler:
 
         # Trigger Indexer Agent to update folder index
         try:
-            from src.pipeline.indexer_agent import IndexerAgent
+            from src.agents.indexer_agent import IndexerAgent
 
             IndexerAgent(self.settings).run_indexing(active_ticker)
         except Exception as e:
@@ -398,10 +398,10 @@ class Modeler:
 
         # For WACC (agentic calculation)
         from src.services.llm_client import get_llm_client
-        from src.pipeline.modeler_agents.wacc_agent import run_wacc_agent
-        from src.pipeline.modeler_agents.growth_agent import run_growth_agent
-        from src.pipeline.modeler_agents.margin_agent import run_margin_agent
-        from src.pipeline.modeler_agents.non_operating_agent import (
+        from src.agents.modeler_agents.wacc_agent import run_wacc_agent
+        from src.agents.modeler_agents.growth_agent import run_growth_agent
+        from src.agents.modeler_agents.margin_agent import run_margin_agent
+        from src.agents.modeler_agents.non_operating_agent import (
             run_non_operating_agent,
         )
 
@@ -991,7 +991,7 @@ Date: {today}
     ) -> Dict[str, Any]:
         """Leverage the 10-turn DCF modeling agent to estimate final assumptions."""
         from src.services.llm_client import get_llm_client
-        from src.pipeline.modeler_agents.dcf_modeling_agent import (
+        from src.agents.modeler_agents.dcf_modeling_agent import (
             run_dcf_modeling_agent,
         )
 

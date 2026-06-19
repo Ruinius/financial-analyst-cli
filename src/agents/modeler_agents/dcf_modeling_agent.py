@@ -28,7 +28,7 @@ def run_dcf_modeling_agent(
         comments: str (val comments & critique)
         history_text: str (full logs of the agent run)
     """
-    from src.pipeline.modeler_orchestrator import Modeler
+    from src.agents.modeler_orchestrator import Modeler
 
     m = Modeler()
 

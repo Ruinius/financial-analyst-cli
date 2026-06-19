@@ -16,9 +16,9 @@ from src.cli.commands import chat as chat_cmd
 from src.cli.commands import viewer as viewer_cmd
 from src.utils import formatting
 from src.services.edgar_client import EdgarClient
-from src.pipeline.ingester import Ingester
-from src.pipeline.extractor_orchestrator import Extractor
-from src.pipeline.modeler import Modeler
+from src.agents.ingester import Ingester
+from src.agents.extractor_orchestrator import Extractor
+from src.agents.modeler import Modeler
 
 
 def patch_typer_help() -> None:
@@ -507,7 +507,7 @@ def run_analyze(
 
     formatting.print_info("Starting historical trend synthesis stage...")
     try:
-        from src.pipeline.analyzer import Analyzer
+        from src.agents.analyzer import Analyzer
 
         analyzer = Analyzer()
         analyzer.run_analysis(limit=limit)

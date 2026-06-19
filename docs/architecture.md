@@ -226,7 +226,7 @@ The self-learning mechanism replaces separate config folders with 4 dedicated ro
 - `[TICKER]_model_learning.md`: Stores modeling lessons (e.g., ADR conversion ratios, base currencies, WACC inputs).
 
 ### Curator Agent Logic (`CuratorAgent`)
-The `CuratorAgent` class (in `src/pipeline/curator_agent.py`) executes compaction after each pipeline stage completes:
+The `CuratorAgent` class (in `src/agents/curator_agent.py`) executes compaction after each pipeline stage completes:
 1. **User Feedback Extraction**: It scans the file for a `## User Feedback` header, extracts everything underneath it, and filters out placeholder HTML comments.
 2. **LLM Compaction**: It feeds the existing markdown body, new user feedback, and recent stage logs (or compiled historical analysis outputs in the case of the analyze stage) to the LLM, instructing it to keep the learnings highly succinct and focused strictly on actionable information that will help future AI agent tasks (such as search keywords or line item mappings), while discarding conversational filler and generic advice.
 3. **Rewrite & Clean**: The LLM compiles the feedback into the lessons sections, rewrites the file to be highly succinct, and resets the `## User Feedback` section back to its blank template state.

@@ -11,7 +11,7 @@ from bs4 import BeautifulSoup, NavigableString
 
 from src.core.config import load_config
 from src.services.llm_client import get_llm_client
-from src.pipeline.queue import JobQueue
+from src.agents.queue import JobQueue
 
 logger = logging.getLogger(__name__)
 
@@ -410,7 +410,7 @@ Please return a valid JSON object matching this structure:
         agent_logs = "\n".join(lines) + "\n\n" + "\n".join(file_logs)
 
         # Trigger Curator Agent
-        from src.pipeline.curator_agent import CuratorAgent
+        from src.agents.curator_agent import CuratorAgent
 
         curator = CuratorAgent(self.settings)
         curator.curate(ticker, "ingest", agent_logs)

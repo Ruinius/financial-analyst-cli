@@ -79,10 +79,38 @@ def safe_console_print(console, text: str, *args, **kwargs) -> None:
                 pass
 
 
+def _get_tool_descriptions(tools: list) -> str:
+    if not tools:
+        return ""
+    import inspect
+
+    descriptions = []
+    for tool in tools:
+        name = getattr(tool, "__name__", str(tool))
+        doc = getattr(tool, "__doc__", "") or "No description provided."
+        sig = inspect.signature(tool)
+        params = []
+        for param_name, param in sig.parameters.items():
+            ann = param.annotation
+            type_str = getattr(ann, "__name__", str(ann))
+            if type_str == "_empty":
+                type_str = "str"
+            params.append(f"{param_name}: {type_str}")
+        params_desc = ", ".join(params)
+        descriptions.append(
+            f"- Tool Name: '{name}'\n"
+            f"  Arguments: {{{params_desc}}}\n"
+            f"  Description: {doc.strip()}"
+        )
+    return "\n".join(descriptions)
+
+
 class ChatSession(ABC):
     @abstractmethod
-    def send_message(self, message: str) -> str:
-        """Sends a user message to the session and returns response text."""
+    def send_message(
+        self, message: str, tool_responses: list = None
+    ) -> Union[str, list]:
+        """Sends a message to the session. If tool_responses is provided, outputs tool results to conversation."""
         pass
 
     @abstractmethod
@@ -110,8 +138,25 @@ class GeminiChatSession(ChatSession):
             config.tools = tools
         self.chat = client.chats.create(model=model, config=config)
 
-    def send_message(self, message: str) -> str:
-        response = self.chat.send_message(message)
+    def send_message(
+        self, message: str, tool_responses: list = None
+    ) -> Union[str, list]:
+        from google.genai import types
+
+        if tool_responses:
+            parts = []
+            for resp in tool_responses:
+                parts.append(
+                    types.Part.from_function_response(
+                        name=resp["name"], response={"result": str(resp["content"])}
+                    )
+                )
+            response = self.chat.send_message(parts)
+        else:
+            response = self.chat.send_message(message)
+
+        if response.function_calls:
+            return response.function_calls
         return response.text or ""
 
     def get_history(self) -> list[dict]:
@@ -140,6 +185,7 @@ class SimulatedChatSession(ChatSession):
         self,
         client,
         system_prompt: str = None,
+        tools: list = None,
         model: str = None,
         temperature: float = 0.1,
     ):
@@ -147,19 +193,65 @@ class SimulatedChatSession(ChatSession):
         self.model = model
         self.temperature = temperature
         self.messages = []
-        if system_prompt:
-            self.messages.append({"role": "system", "content": system_prompt})
+        self.tools = tools or []
 
-    def send_message(self, message: str) -> str:
-        self.messages.append({"role": "user", "content": message})
-        response = self.client.generate(
+        injected_sys = system_prompt or ""
+        if tools:
+            tool_descs = _get_tool_descriptions(tools)
+            injected_sys += (
+                "\n\nYou have access to the following tools:\n"
+                f"{tool_descs}\n\n"
+                "To execute a tool call, respond ONLY with a single valid JSON object of this structure:\n"
+                "{\n"
+                '  "thought": "reasoning for selecting the tool",\n'
+                '  "tool": "tool_name",\n'
+                '  "arguments": {"arg1": val1, ...}\n'
+                "}\n"
+                "Do not add any markdown formatting or surrounding text (like ```json). Respond ONLY with the raw JSON object."
+            )
+
+        if injected_sys:
+            self.messages.append({"role": "system", "content": injected_sys})
+
+    def send_message(
+        self, message: str, tool_responses: list = None
+    ) -> Union[str, list]:
+        from src.utils.tools import extract_json_from_text
+        from types import SimpleNamespace
+
+        if tool_responses:
+            for resp in tool_responses:
+                self.messages.append(
+                    {
+                        "role": "user",
+                        "content": f"Observation from {resp['name']}:\n{resp['content']}",
+                    }
+                )
+        else:
+            self.messages.append({"role": "user", "content": message})
+
+        resp_text = self.client.generate(
             self.messages,
             model=self.model,
             temperature=self.temperature,
             stream_thinking=True,
         )
-        self.messages.append({"role": "assistant", "content": response})
-        return response
+        self.messages.append({"role": "assistant", "content": resp_text})
+
+        # Check if the output contains a tool call request
+        json_str = extract_json_from_text(resp_text)
+        if json_str:
+            try:
+                action = json.loads(json_str)
+                if "tool" in action:
+                    call = SimpleNamespace(
+                        name=action["tool"], args=action.get("arguments", {})
+                    )
+                    return [call]
+            except Exception:
+                pass
+
+        return resp_text
 
     def get_history(self) -> list[dict]:
         return self.messages
@@ -614,6 +706,7 @@ class OpenAICompatibleClient(LLMClient):
         return SimulatedChatSession(
             client=self,
             system_prompt=system_prompt,
+            tools=tools,
             model=model,
             temperature=temperature,
         )

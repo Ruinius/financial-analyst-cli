@@ -1,8 +1,9 @@
-import json
 import logging
-from src.tools.keyword_search import find_keyword_contexts
-from src.utils.tools import extract_json_from_text
-from src.core.exceptions import LLMError
+from src.tools.keyword_search import (
+    find_keyword_contexts as orchestrator_find_keyword_contexts,
+)
+from src.tools.find_chunk import get_chunk_by_id as orchestrator_get_chunk
+from src.agents.agent_executor import run_agent_loop
 
 logger = logging.getLogger(__name__)
 
@@ -13,10 +14,6 @@ def run_ebita_agent(
     income_statement_content: str = "",
     is_quarterly: bool = True,
 ) -> tuple[float, float, list]:
-    op_inc = 0.0
-    ebita = 0.0
-    ebita_adjustments = []
-
     # Load extraction learnings
     learning_context = extractor.get_extract_context()
 
@@ -37,15 +34,6 @@ def run_ebita_agent(
         "identify non-operating/non-recurring operating adjustments (e.g. restructuring charges, asset impairments, "
         "amortization of acquired intangibles in opex) from the income statement and footnotes, and calculate clean Operating EBITA, "
         f"focusing specifically on the {focus_period} time period.\n\n"
-        "You must execute actions by outputting a valid JSON object containing 'thought', 'tool', and 'arguments'.\n"
-        "Available tools:\n"
-        "- 'find_keyword_contexts': arguments: {'keywords': list, 'window': int}\n"
-        "- 'get_chunk_by_id': arguments: {'chunk_id': int}\n"
-        "- 'finalize': arguments: {\n"
-        "    'operating_income': float,\n"
-        "    'operating_ebita': float,\n"
-        "    'ebita_adjustments': list\n"
-        "  }\n\n"
         "Rules:\n"
         "1. You have a maximum of 4 turns. Search for keyword contexts and chunks first to locate the figures.\n"
         "2. Extract Operating Income from the income statement content. Note that if the income statement does not explicitly list it, you must attempt to calculate it starting with a proxy line item that would be close (such as pre-tax income / income before taxes).\n"
@@ -85,109 +73,41 @@ def run_ebita_agent(
     if local_dict_guidance:
         user_content += f"\n\nLocal Dictionary Guidance:\n{local_dict_guidance}\n"
 
-    history = [
-        {
-            "role": "user",
-            "content": user_content,
-        }
-    ]
+    # Define tools as inner functions
+    def find_keyword_contexts(keywords: list, window: int = 250) -> str:
+        """Search the document content for occurrences of keywords within a window of characters."""
+        return str(orchestrator_find_keyword_contexts(content, keywords, window))
 
-    finalized = False
-    for turn in range(4):
-        if turn == 3:
-            # We are on the last turn, append a strict instruction to finalize
-            history[-1]["content"] += (
-                "\n\nCRITICAL: This is your final turn (turn 4 of 4). You must call the 'finalize' tool immediately with your current best estimates. Do not call find_keyword_contexts or get_chunk_by_id again."
-            )
+    def get_chunk_by_id(chunk_id: int) -> str:
+        """Fetch the exact text content of a specific chunk by its ID."""
+        chunk_str = orchestrator_get_chunk(content, int(chunk_id))
+        if not chunk_str:
+            return f"Chunk {chunk_id} not found or empty."
+        return chunk_str
 
-        prompt = ""
-        for h in history:
-            prompt += f"\n\n--- {h['role'].upper()} ---\n{h['content']}"
+    def finalize(
+        operating_income: float, operating_ebita: float, ebita_adjustments: list
+    ) -> str:
+        """Finalize the EBITA extraction, specifying operating_income, operating_ebita, and the adjustments list."""
+        return "EBITA extraction finalized."
 
-        try:
-            resp = extractor.llm.generate(
-                prompt, system_prompt=sys_prompt, stream_thinking=True
-            ).strip()
-        except Exception as e:
-            logger.error(f"EBITA Agent failed at turn {turn}: {e}")
-            raise LLMError(f"EBITA Agent failed at turn {turn}: {e}")
+    tools = [find_keyword_contexts, get_chunk_by_id, finalize]
 
-        history.append({"role": "assistant", "content": resp})
+    finalized_args, history = run_agent_loop(
+        client=extractor.llm,
+        system_prompt=sys_prompt,
+        initial_prompt=user_content,
+        tools=tools,
+        max_turns=4,
+    )
 
-        json_str = extract_json_from_text(resp)
-        if not json_str:
-            history.append(
-                {
-                    "role": "user",
-                    "content": "Error: Your response did not contain a valid JSON tool call. Please respond using the specified JSON schema.",
-                }
-            )
-            continue
-
-        try:
-            action = json.loads(json_str)
-        except Exception as e:
-            history.append(
-                {
-                    "role": "user",
-                    "content": f"Error: Failed to parse JSON tool call: {e}. Please respond using a valid JSON schema.",
-                }
-            )
-            continue
-
-        tool = action.get("tool")
-        args = action.get("arguments", {})
-
-        if tool == "finalize":
-            op_inc = float(args.get("operating_income", 0.0))
-            ebita = float(args.get("operating_ebita", op_inc))
-            ebita_adjustments = args.get("ebita_adjustments", [])
-            finalized = True
-            break
-        elif tool == "find_keyword_contexts":
-            kw = args.get("keywords", [])
-            window = args.get("window", 250)
-            res = str(find_keyword_contexts(content, kw, window))
-            history.append(
-                {
-                    "role": "user",
-                    "content": f"Observation from find_keyword_contexts:\n{res[:4000]}",
-                }
-            )
-        elif tool == "get_chunk_by_id":
-            try:
-                chunk_id = int(args.get("chunk_id", 0))
-                from src.tools.find_chunk import (
-                    get_chunk_by_id as orchestrator_get_chunk,
-                )
-
-                res = orchestrator_get_chunk(content, chunk_id)
-                if not res:
-                    res = f"Chunk {chunk_id} not found or empty."
-            except Exception as e:
-                res = f"Error: {e}"
-            history.append(
-                {
-                    "role": "user",
-                    "content": f"Observation from get_chunk_by_id:\n{res[:4000]}",
-                }
-            )
-        else:
-            history.append(
-                {
-                    "role": "user",
-                    "content": f"Error: Unknown tool '{tool}'. Please use find_keyword_contexts, get_chunk_by_id, or finalize.",
-                }
-            )
-
-    if not finalized:
-        raise LLMError(
-            "EBITA Agent failed to finalize extraction within the turn limit."
-        )
+    op_inc = float(finalized_args.get("operating_income", 0.0))
+    ebita = float(finalized_args.get("operating_ebita", op_inc))
+    ebita_adjustments = finalized_args.get("ebita_adjustments", [])
 
     # After the loop finishes:
     try:
-        from src.pipeline.curator_agent import CuratorAgent
+        from src.agents.curator_agent import CuratorAgent
 
         ticker = extractor.settings.active_ticker or "UNK"
         history_text = ""

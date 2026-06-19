@@ -73,7 +73,7 @@ class Analyzer:
 
         import typer
         from collections import Counter
-        from src.pipeline.extractor_orchestrator import Extractor
+        from src.agents.extractor_orchestrator import Extractor
 
         re_run_files = set()
 
@@ -290,13 +290,13 @@ class Analyzer:
                     )
 
         curator_context = "\n".join(analysis_files_content)
-        from src.pipeline.curator_agent import CuratorAgent
+        from src.agents.curator_agent import CuratorAgent
 
         CuratorAgent(self.settings).curate(ticker, "analyze", curator_context)
 
         # Trigger Indexer Agent to update folder index
         try:
-            from src.pipeline.indexer_agent import IndexerAgent
+            from src.agents.indexer_agent import IndexerAgent
 
             IndexerAgent(self.settings).run_indexing(ticker)
         except Exception as e:

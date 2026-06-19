@@ -12,6 +12,7 @@ Welcome to the `financial-analyst-cli` project.
   - .jules/sentinel.md: Learnings and preventions from path traversal vulnerabilities in local viewer server.
 - Cargo.toml: Cargo configuration for the Rust Core calculation engine.
 - docs/architecture.md: System architecture, folder structure, and software design decisions.
+- docs/agentic_refactor.md: Architecture and design specs for native tool use and reusable agent execution loop.
 - docs/blackboard_refactor.md: Backlog and plan specifications for blackboard code refactoring ideas.
 - docs/blackboard_design.md: Detailed schema, lifecycle, and storage specifications for the blackboard state.
 - docs/llm_client_refactor.md: Design and implementation plans for refactoring the unified LLM services.
@@ -31,19 +32,20 @@ Welcome to the `financial-analyst-cli` project.
   - src/core/: Settings, custom exception classes, and Pydantic schemas.
     - src/core/config.py: Settings model definition, loading/saving utilities, and API key masking.
     - src/core/exceptions.py: Custom exception classes (e.g. ConfigError, WorkspaceError, LLMError).
-  - src/pipeline/: Execution runner stages (ingest, extract, analyze, model).
-    - src/pipeline/queue.py: Safe job queue and exponential back-off retry manager.
-    - src/pipeline/ingester.py: File parsing, deduplication, chunking, and LLM metadata identification.
-    - src/pipeline/curator_agent.py: Curator agent for summarizing learnings and refining qualitative bull/bear views.
-    - src/pipeline/indexer_agent.py: Indexer agent for maintaining the company folder index of extracted, analysis, and modeling files.
-    - src/pipeline/document_types.json: Mapping definitions for supported financial report types.
-    - src/pipeline/extractor_orchestrator.py: Orchestrates document parsing, metadata processing, and routing of extraction jobs to document-type sub-extractors.
-    - src/pipeline/extractor_agents/: Folder containing all document sub-extractors and agents.
-      - src/pipeline/extractor_agents/extractor_financials.py: Sub-extractor coordinator specialized for 10-K, 10-Q, 20-F, and earnings announcements.
-      - src/pipeline/extractor_agents/extractor_analyst_report.py: Sub-extractor specialized for analyst reports.
-      - src/pipeline/extractor_agents/extractor_transcript.py: Sub-extractor specialized for transcripts.
-      - src/pipeline/extractor_agents/extractor_other.py: Sub-extractor specialized for all other document types.
-      - src/pipeline/extractor_agents/extractor_financials_agents/: Nested directory for the sub-agents.
+  - src/agents/: Execution runner stages (ingest, extract, analyze, model).
+    - src/agents/queue.py: Safe job queue and exponential back-off retry manager.
+    - src/agents/ingester.py: File parsing, deduplication, chunking, and LLM metadata identification.
+    - src/agents/agent_executor.py: Unified agent execution loop coordinator for native and simulated tool calling.
+    - src/agents/curator_agent.py: Curator agent for summarizing learnings and refining qualitative bull/bear views.
+    - src/agents/indexer_agent.py: Indexer agent for maintaining the company folder index of extracted, analysis, and modeling files.
+    - src/agents/document_types.json: Mapping definitions for supported financial report types.
+    - src/agents/extractor_orchestrator.py: Orchestrates document parsing, metadata processing, and routing of extraction jobs to document-type sub-extractors.
+    - src/agents/extractor_agents/: Folder containing all document sub-extractors and agents.
+      - src/agents/extractor_agents/extractor_financials.py: Sub-extractor coordinator specialized for 10-K, 10-Q, 20-F, and earnings announcements.
+      - src/agents/extractor_agents/extractor_analyst_report.py: Sub-extractor specialized for analyst reports.
+      - src/agents/extractor_agents/extractor_transcript.py: Sub-extractor specialized for transcripts.
+      - src/agents/extractor_agents/extractor_other.py: Sub-extractor specialized for all other document types.
+      - src/agents/extractor_agents/extractor_financials_agents/: Nested directory for the sub-agents.
         - income_statement_agent.py: Agent specialized in Income Statement extraction.
         - balance_sheet_agent.py: Agent specialized in Balance Sheet extraction.
         - interpretation_agent.py: Agent specialized in interpreting line item classification.
@@ -51,10 +53,10 @@ Welcome to the `financial-analyst-cli` project.
         - organic_growth_agent.py: Agent specialized in simple and organic revenue growth.
         - ebita_agent.py: Agent specialized in Operating EBITA adjustments and calculations.
         - tax_agent.py: Agent specialized in Adjusted Taxes adjustments and calculations.
-    - src/pipeline/analyzer.py: Longitudinal trend synthesis, analyst view compiling, and Q4 deduction engine.
-    - src/pipeline/modeler.py: Redirect wrapper module for backward compatibility.
-    - src/pipeline/modeler_orchestrator.py: Orchestrates DCF financial modeling and base assumptions.
-    - src/pipeline/modeler_agents/: Directory containing specialized modeling agents.
+    - src/agents/analyzer.py: Longitudinal trend synthesis, analyst view compiling, and Q4 deduction engine.
+    - src/agents/modeler.py: Redirect wrapper module for backward compatibility.
+    - src/agents/modeler_orchestrator.py: Orchestrates DCF financial modeling and base assumptions.
+    - src/agents/modeler_agents/: Directory containing specialized modeling agents.
       - wacc_agent.py: Agent specialized in WACC calculation and beta de-levering/re-levering.
       - growth_agent.py: Agent specialized in estimating future revenue growth rates (near-term, mid-term Year 5, terminal).
       - margin_agent.py: Agent specialized in estimating future EBITA margins (base, Year 5 target, terminal).

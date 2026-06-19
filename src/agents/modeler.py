@@ -1,4 +1,4 @@
-from src.pipeline.modeler_orchestrator import (
+from src.agents.modeler_orchestrator import (
     Modeler,
     clean_value,
     parse_markdown_table,

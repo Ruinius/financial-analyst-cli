@@ -1,18 +1,18 @@
 # Modeler agents package
-from src.pipeline.modeler_agents.wacc_agent import (
+from src.agents.modeler_agents.wacc_agent import (
     run_wacc_agent,
     calculate_wacc_formula,
 )
-from src.pipeline.modeler_agents.growth_agent import (
+from src.agents.modeler_agents.growth_agent import (
     run_growth_agent,
 )
-from src.pipeline.modeler_agents.margin_agent import (
+from src.agents.modeler_agents.margin_agent import (
     run_margin_agent,
 )
-from src.pipeline.modeler_agents.non_operating_agent import (
+from src.agents.modeler_agents.non_operating_agent import (
     run_non_operating_agent,
 )
-from src.pipeline.modeler_agents.dcf_modeling_agent import (
+from src.agents.modeler_agents.dcf_modeling_agent import (
     run_dcf_modeling_agent,
 )
 

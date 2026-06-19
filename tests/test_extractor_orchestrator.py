@@ -3,7 +3,7 @@ from unittest.mock import patch, MagicMock
 from pydantic import ValidationError
 from pathlib import Path
 
-from src.pipeline.extractor_orchestrator import (
+from src.agents.extractor_orchestrator import (
     AuditLinkage,
     LineItem,
     Extractor,
@@ -107,9 +107,9 @@ def test_calculations_logic():
     assert roic == (352.0 / 150.0) * 100.0
 
 
-@patch("src.pipeline.extractor_orchestrator.load_config")
-@patch("src.pipeline.extractor_orchestrator.Extractor.extract_single_file")
-@patch("src.pipeline.curator_agent.CuratorAgent")
+@patch("src.agents.extractor_orchestrator.load_config")
+@patch("src.agents.extractor_orchestrator.Extractor.extract_single_file")
+@patch("src.agents.curator_agent.CuratorAgent")
 def test_extractor_limit(mock_curator, mock_extract, mock_load_config, tmp_path):
     workspace = tmp_path / "AAPL"
     workspace.mkdir()
@@ -138,9 +138,9 @@ def test_extractor_limit(mock_curator, mock_extract, mock_load_config, tmp_path)
     assert mock_extract.call_count == 2
 
 
-@patch("src.pipeline.extractor_orchestrator.load_config")
-@patch("src.pipeline.extractor_orchestrator.Extractor.extract_single_file")
-@patch("src.pipeline.curator_agent.CuratorAgent")
+@patch("src.agents.extractor_orchestrator.load_config")
+@patch("src.agents.extractor_orchestrator.Extractor.extract_single_file")
+@patch("src.agents.curator_agent.CuratorAgent")
 def test_extractor_ignores_readme_and_hidden(
     mock_curator, mock_extract, mock_load_config, tmp_path
 ):
@@ -206,9 +206,9 @@ This is chunk 2 content
     assert chunk_3 == ""
 
 
-@patch("src.pipeline.extractor_orchestrator.load_config")
-@patch("src.pipeline.curator_agent.CuratorAgent")
-@patch("src.pipeline.extractor_orchestrator.get_llm_client")
+@patch("src.agents.extractor_orchestrator.load_config")
+@patch("src.agents.curator_agent.CuratorAgent")
+@patch("src.agents.extractor_orchestrator.get_llm_client")
 def test_extract_different_document_types(
     mock_get_llm, mock_curator, mock_load_config, tmp_path
 ):
@@ -226,7 +226,11 @@ def test_extract_different_document_types(
     mock_load_config.return_value = mock_settings
 
     mock_llm = MagicMock()
-    mock_llm.generate.return_value = '{"thought": "Finalizing", "tool": "finalize", "arguments": {"economic_moat": "Wide", "economic_moat_rationale": "Strong moat", "margin_outlook": "Stable", "margin_magnitude": "0 pp", "margin_rationale": "...", "growth_outlook": "Stable", "growth_magnitude": "0 pp", "growth_rationale": "..."}}'
+    mock_chat = MagicMock()
+    mock_chat.send_message.return_value = '{"thought": "Finalizing", "tool": "finalize", "arguments": {"economic_moat": "Wide", "economic_moat_rationale": "Strong moat", "margin_outlook": "Stable", "margin_magnitude": "0 pp", "margin_rationale": "...", "growth_outlook": "Stable", "growth_magnitude": "0 pp", "growth_rationale": "..."}}'
+    mock_chat.get_history.return_value = []
+    mock_llm.create_chat.return_value = mock_chat
+    mock_llm.generate.return_value = mock_chat.send_message.return_value
     mock_get_llm.return_value = mock_llm
 
     extractor = Extractor()
@@ -263,9 +267,9 @@ Analyst discussion of moat and growth
     assert "## Invested Capital\n" not in content
 
 
-@patch("src.pipeline.extractor_orchestrator.load_config")
-@patch("src.pipeline.curator_agent.CuratorAgent")
-@patch("src.pipeline.extractor_orchestrator.get_llm_client")
+@patch("src.agents.extractor_orchestrator.load_config")
+@patch("src.agents.curator_agent.CuratorAgent")
+@patch("src.agents.extractor_orchestrator.get_llm_client")
 def test_extract_financials_stages(
     mock_get_llm, mock_curator, mock_load_config, tmp_path
 ):
@@ -284,6 +288,27 @@ def test_extract_financials_stages(
 
     mock_llm = MagicMock()
     mock_get_llm.return_value = mock_llm
+
+    mock_chat = MagicMock()
+    mock_chat.get_history.return_value = []
+    current_sys_prompt = ""
+
+    def mock_send_message(message, tool_responses=None):
+        prompt_content = message or ""
+        if tool_responses:
+            prompt_content += "\n".join(
+                f"observation from {r['name']}: {r['content']}" for r in tool_responses
+            )
+        return mock_generate(prompt_content, system_prompt=current_sys_prompt)
+
+    mock_chat.send_message.side_effect = mock_send_message
+
+    def mock_create_chat(system_prompt=None, tools=None, model=None, temperature=0.1):
+        nonlocal current_sys_prompt
+        current_sys_prompt = system_prompt
+        return mock_chat
+
+    mock_llm.create_chat.side_effect = mock_create_chat
 
     def mock_generate(prompt, system_prompt=None, stream_thinking=True):
         p_lower = prompt.lower()
@@ -345,17 +370,17 @@ def test_extract_financials_stages(
     extractor = Extractor()
 
     from src.tools.keyword_search import find_keyword_contexts
-    from src.pipeline.extractor_agents.extractor_financials import (
+    from src.agents.extractor_agents.extractor_financials import (
         extract_financial_statements,
         run_diluted_shares_agent,
         run_organic_growth_agent,
         run_interpretation_agent,
         calculate_deterministic_metrics,
     )
-    from src.pipeline.extractor_agents.extractor_financials_agents.ebita_agent import (
+    from src.agents.extractor_agents.extractor_financials_agents.ebita_agent import (
         run_ebita_agent,
     )
-    from src.pipeline.extractor_agents.extractor_financials_agents.tax_agent import (
+    from src.agents.extractor_agents.extractor_financials_agents.tax_agent import (
         run_tax_agent,
     )
 
@@ -449,8 +474,8 @@ Revenue of $1000. Cash of $500. Shares outstanding basic shares diluted shares o
 
 
 def test_deterministic_metrics_variations():
-    from src.pipeline.extractor_orchestrator import LineItem, AuditLinkage
-    from src.pipeline.extractor_agents.extractor_financials import (
+    from src.agents.extractor_orchestrator import LineItem, AuditLinkage
+    from src.agents.extractor_agents.extractor_financials import (
         calculate_deterministic_metrics,
     )
 
@@ -522,9 +547,9 @@ def test_deterministic_metrics_variations():
             assert True
 
 
-@patch("src.pipeline.extractor_orchestrator.load_config")
-@patch("src.pipeline.extractor_orchestrator.Extractor.extract_single_file")
-@patch("src.pipeline.curator_agent.CuratorAgent")
+@patch("src.agents.extractor_orchestrator.load_config")
+@patch("src.agents.extractor_orchestrator.Extractor.extract_single_file")
+@patch("src.agents.curator_agent.CuratorAgent")
 def test_extractor_files_to_process(
     mock_curator, mock_extract, mock_load_config, tmp_path
 ):
@@ -567,7 +592,7 @@ def test_extractor_files_to_process(
     assert f2 not in called_paths
 
 
-@patch("src.pipeline.curator_agent.get_llm_client")
+@patch("src.agents.curator_agent.get_llm_client")
 def test_curator_agent_curate_and_self_healing(mock_get_llm, tmp_path):
     # Setup paths
     workspace = tmp_path / "AAPL"
@@ -578,7 +603,7 @@ def test_curator_agent_curate_and_self_healing(mock_get_llm, tmp_path):
     model_learning = workspace / "AAPL_model_learning.md"
 
     # 1. Test ensure_files_exist with a brand new workspace
-    from src.pipeline.curator_agent import CuratorAgent
+    from src.agents.curator_agent import CuratorAgent
 
     mock_settings = MagicMock()
     mock_settings.active_workspace_path = str(workspace)
@@ -670,11 +695,11 @@ def test_curator_agent_curate_and_self_healing(mock_get_llm, tmp_path):
 
 
 def test_currency_and_unit_detection_and_formatting(tmp_path):
-    from src.pipeline.extractor_agents.extractor_financials import (
+    from src.agents.extractor_agents.extractor_financials import (
         detect_metadata_from_markdown,
         calculate_deterministic_metrics,
     )
-    from src.pipeline.extractor_orchestrator import LineItem, AuditLinkage
+    from src.agents.extractor_orchestrator import LineItem, AuditLinkage
 
     # 1. Test detect_metadata_from_markdown
     is_content_eur = """# Income Statement

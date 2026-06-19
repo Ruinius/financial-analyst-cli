@@ -5,18 +5,18 @@ from unittest.mock import patch, MagicMock
 import pytest
 
 from src.core.config import Settings
-from src.pipeline.ingester import (
+from src.agents.ingester import (
     compute_sha256,
     html_to_markdown,
     chunk_text,
     Ingester,
 )
-from src.pipeline.queue import JobQueue
+from src.agents.queue import JobQueue
 
 
 @pytest.fixture(autouse=True)
 def mock_curator_agent():
-    with patch("src.pipeline.curator_agent.CuratorAgent.curate") as mock_curate:
+    with patch("src.agents.curator_agent.CuratorAgent.curate") as mock_curate:
         yield mock_curate
 
 
@@ -79,8 +79,8 @@ def test_chunk_text():
 
 
 @patch("src.services.llm_client.load_config")
-@patch("src.pipeline.ingester.load_config")
-@patch("src.pipeline.ingester.get_llm_client")
+@patch("src.agents.ingester.load_config")
+@patch("src.agents.ingester.get_llm_client")
 def test_ingestion_flow(
     mock_get_llm, mock_load_config, mock_llm_load_config, mock_settings
 ):
@@ -147,8 +147,8 @@ def test_job_queue():
 
 
 @patch("src.services.llm_client.load_config")
-@patch("src.pipeline.ingester.load_config")
-@patch("src.pipeline.ingester.get_llm_client")
+@patch("src.agents.ingester.load_config")
+@patch("src.agents.ingester.get_llm_client")
 def test_ingestion_limit(
     mock_get_llm, mock_load_config, mock_llm_load_config, mock_settings
 ):
@@ -189,8 +189,8 @@ def test_ingestion_limit(
 
 
 @patch("src.services.llm_client.load_config")
-@patch("src.pipeline.ingester.load_config")
-@patch("src.pipeline.ingester.get_llm_client")
+@patch("src.agents.ingester.load_config")
+@patch("src.agents.ingester.get_llm_client")
 def test_ingestion_ignores_readme_and_hidden(
     mock_get_llm, mock_load_config, mock_llm_load_config, mock_settings
 ):
@@ -231,8 +231,8 @@ def test_ingestion_ignores_readme_and_hidden(
 
 
 @patch("src.services.llm_client.load_config")
-@patch("src.pipeline.ingester.load_config")
-@patch("src.pipeline.ingester.get_llm_client")
+@patch("src.agents.ingester.load_config")
+@patch("src.agents.ingester.get_llm_client")
 @patch("fitz.open")
 def test_ingestion_pdf(
     mock_fitz_open, mock_get_llm, mock_load_config, mock_llm_load_config, mock_settings
@@ -281,8 +281,8 @@ def test_ingestion_pdf(
 
 
 @patch("src.services.llm_client.load_config")
-@patch("src.pipeline.ingester.load_config")
-@patch("src.pipeline.ingester.get_llm_client")
+@patch("src.agents.ingester.load_config")
+@patch("src.agents.ingester.get_llm_client")
 def test_ingester_offsets(
     mock_get_llm, mock_load_config, mock_llm_load_config, mock_settings
 ):
@@ -310,7 +310,7 @@ def test_ingester_offsets(
     )
 
     # We patch chunk_text to return two small chunks
-    with patch("src.pipeline.ingester.chunk_text") as mock_chunk:
+    with patch("src.agents.ingester.chunk_text") as mock_chunk:
         mock_chunk.return_value = [
             "Financial details part 1...",
             "Financial details part 2...",
@@ -340,8 +340,8 @@ def test_ingester_offsets(
     assert content[start2:end2] == "Financial details part 2..."
 
 
-@patch("src.pipeline.ingester.load_config")
-@patch("src.pipeline.ingester.get_llm_client")
+@patch("src.agents.ingester.load_config")
+@patch("src.agents.ingester.get_llm_client")
 def test_self_healing_logic(mock_get_llm, mock_load_config, mock_settings):
     mock_load_config.return_value = mock_settings
     workspace = Path(mock_settings.active_workspace_path)

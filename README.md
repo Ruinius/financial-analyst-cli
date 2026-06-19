@@ -57,7 +57,7 @@ Instead of external configuration stores, each company's learning is persisted a
 - `[TICKER]_model_learning.md`: Stores valuation assumptions (WACC inputs, growth overrides, and tax preferences).
 
 ### 2. The Curator Agent Compaction Loop
-At the end of every pipeline stage (`ingest`, `extract`, `analyze`, `model`), a dedicated `CuratorAgent` (in [curator_agent.py](file:///f:/AIML projects/financial-analyst-cli/src/pipeline/curator_agent.py)) runs automatically:
+At the end of every pipeline stage (`ingest`, `extract`, `analyze`, `model`), a dedicated `CuratorAgent` (in [curator_agent.py](file:///f:/AIML projects/financial-analyst-cli/src/agents/curator_agent.py)) runs automatically:
 - **Read & Filter**: It scans the active learning markdown file, extracts user feedback written under `## User Feedback`, and gathers execution logs.
 - **Compaction**: It prompts the LLM to compact the compiled logs and user corrections, discarding conversational filler and extracting actionable, concrete guidelines.
 - **Self-Healing Rewrite**: The LLM rewrites the learning document, integrating the new lessons into the main guidelines sections, and resets the `## User Feedback` header back to its empty template state.

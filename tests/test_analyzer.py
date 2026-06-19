@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 from unittest.mock import MagicMock, patch
 
-from src.pipeline.analyzer import Analyzer
+from src.agents.analyzer import Analyzer
 
 
 @pytest.fixture
@@ -201,8 +201,8 @@ def mock_workspace(tmp_path):
     return workspace
 
 
-@patch("src.pipeline.analyzer.load_config")
-@patch("src.pipeline.curator_agent.CuratorAgent")
+@patch("src.agents.analyzer.load_config")
+@patch("src.agents.curator_agent.CuratorAgent")
 def test_historical_synthesis(mock_curator, mock_load_config, mock_workspace):
     """Test longitudinal synthesis, compilation, and Q4 deduction logic."""
     mock_settings = MagicMock()
@@ -267,8 +267,8 @@ def test_baseline_golden_evaluation():
         ), f"Metric {k} diff {diff:.4f} exceeds tolerance of {tolerance}"
 
 
-@patch("src.pipeline.analyzer.load_config")
-@patch("src.pipeline.curator_agent.CuratorAgent")
+@patch("src.agents.analyzer.load_config")
+@patch("src.agents.curator_agent.CuratorAgent")
 def test_historical_synthesis_limit(mock_curator, mock_load_config, mock_workspace):
     """Test run_analysis with limit parameter."""
     mock_settings = MagicMock()
@@ -290,8 +290,8 @@ def test_historical_synthesis_limit(mock_curator, mock_load_config, mock_workspa
     assert "2024-Q4" not in q_content
 
 
-@patch("src.pipeline.analyzer.load_config")
-@patch("src.pipeline.curator_agent.CuratorAgent")
+@patch("src.agents.analyzer.load_config")
+@patch("src.agents.curator_agent.CuratorAgent")
 def test_analyzer_duplicate_handling(mock_curator, mock_load_config, tmp_path):
     ticker = "TEST"
     workspace = tmp_path / ticker
@@ -529,10 +529,10 @@ def test_deduce_q4_financials_growth_fallback():
     assert q4_24["Organic Revenue Growth"] == "14.77%"
 
 
-@patch("src.pipeline.analyzer.load_config")
-@patch("src.pipeline.curator_agent.CuratorAgent")
+@patch("src.agents.analyzer.load_config")
+@patch("src.agents.curator_agent.CuratorAgent")
 @patch("typer.confirm")
-@patch("src.pipeline.extractor_orchestrator.Extractor.run_extraction")
+@patch("src.agents.extractor_orchestrator.Extractor.run_extraction")
 def test_currency_and_unit_inconsistency_and_prompt(
     mock_run_extraction, mock_confirm, mock_curator, mock_load_config, tmp_path
 ):

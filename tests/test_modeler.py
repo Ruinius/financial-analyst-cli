@@ -2,7 +2,7 @@ import pytest
 import json
 from unittest.mock import patch, MagicMock, ANY
 
-from src.pipeline.modeler_orchestrator import Modeler
+from src.agents.modeler_orchestrator import Modeler
 
 
 @pytest.fixture
@@ -36,11 +36,11 @@ def mock_workspace(tmp_path):
     return workspace
 
 
-@patch("src.pipeline.modeler_agents.margin_agent.run_margin_agent")
-@patch("src.pipeline.modeler_agents.growth_agent.run_growth_agent")
-@patch("src.pipeline.modeler_agents.non_operating_agent.run_non_operating_agent")
-@patch("src.pipeline.modeler_agents.wacc_agent.run_wacc_agent")
-@patch("src.pipeline.modeler_orchestrator.load_config")
+@patch("src.agents.modeler_agents.margin_agent.run_margin_agent")
+@patch("src.agents.modeler_agents.growth_agent.run_growth_agent")
+@patch("src.agents.modeler_agents.non_operating_agent.run_non_operating_agent")
+@patch("src.agents.modeler_agents.wacc_agent.run_wacc_agent")
+@patch("src.agents.modeler_orchestrator.load_config")
 @patch("src.services.market_data.get_market_profile")
 def test_calculate_default_assumptions(
     mock_get_profile,
@@ -121,7 +121,7 @@ def test_calculate_default_assumptions(
     assert assumptions["other_financial"] == 0.0
 
 
-@patch("src.pipeline.modeler_orchestrator.load_config")
+@patch("src.agents.modeler_orchestrator.load_config")
 def test_generate_financial_model(mock_load_config, mock_workspace):
     mock_settings = MagicMock()
     mock_settings.active_workspace_path = str(mock_workspace)
@@ -171,7 +171,7 @@ def test_generate_financial_model(mock_load_config, mock_workspace):
 
 
 def test_calculate_wacc_formula():
-    from src.pipeline.modeler_agents.wacc_agent import calculate_wacc_formula
+    from src.agents.modeler_agents.wacc_agent import calculate_wacc_formula
 
     res = calculate_wacc_formula(
         risk_free_rate=0.04,
@@ -197,10 +197,10 @@ def test_calculate_wacc_formula():
     assert res["wacc_final"] == pytest.approx(res["wacc_raw"])
 
 
-@patch("src.pipeline.curator_agent.CuratorAgent")
+@patch("src.agents.curator_agent.CuratorAgent")
 @patch("src.services.llm_client.LLMClient")
 def test_run_wacc_agent(mock_llm_class, mock_curator_class, tmp_path):
-    from src.pipeline.modeler_agents.wacc_agent import run_wacc_agent
+    from src.agents.modeler_agents.wacc_agent import run_wacc_agent
 
     mock_llm = MagicMock()
     # Mock LLM turn responses:
@@ -282,10 +282,10 @@ def test_run_wacc_agent(mock_llm_class, mock_curator_class, tmp_path):
     mock_curator_class.return_value.curate_model_agent.assert_called_once()
 
 
-@patch("src.pipeline.curator_agent.CuratorAgent")
+@patch("src.agents.curator_agent.CuratorAgent")
 @patch("src.services.llm_client.LLMClient")
 def test_run_growth_agent(mock_llm_class, mock_curator_class, tmp_path):
-    from src.pipeline.modeler_agents.growth_agent import run_growth_agent
+    from src.agents.modeler_agents.growth_agent import run_growth_agent
 
     mock_llm = MagicMock()
     # Mock LLM turn responses:
@@ -348,10 +348,10 @@ def test_run_growth_agent(mock_llm_class, mock_curator_class, tmp_path):
     )
 
 
-@patch("src.pipeline.curator_agent.CuratorAgent")
+@patch("src.agents.curator_agent.CuratorAgent")
 @patch("src.services.llm_client.LLMClient")
 def test_run_margin_agent(mock_llm_class, mock_curator_class, tmp_path):
-    from src.pipeline.modeler_agents.margin_agent import run_margin_agent
+    from src.agents.modeler_agents.margin_agent import run_margin_agent
 
     mock_llm = MagicMock()
     # Mock LLM turn responses:
@@ -414,10 +414,10 @@ def test_run_margin_agent(mock_llm_class, mock_curator_class, tmp_path):
     )
 
 
-@patch("src.pipeline.curator_agent.CuratorAgent")
+@patch("src.agents.curator_agent.CuratorAgent")
 @patch("src.services.llm_client.LLMClient")
 def test_run_non_operating_agent(mock_llm_class, mock_curator_class, tmp_path):
-    from src.pipeline.modeler_agents.non_operating_agent import run_non_operating_agent
+    from src.agents.modeler_agents.non_operating_agent import run_non_operating_agent
 
     mock_llm = MagicMock()
     mock_llm.generate.return_value = json.dumps(
@@ -467,7 +467,7 @@ def test_run_non_operating_agent(mock_llm_class, mock_curator_class, tmp_path):
 
 
 def test_calculate_wacc_formula_capping():
-    from src.pipeline.modeler_agents.wacc_agent import calculate_wacc_formula
+    from src.agents.modeler_agents.wacc_agent import calculate_wacc_formula
 
     # Test that WACC is capped at 11% instead of 15%
     # Using high raw beta & equity risk premium to push WACC above 11%
@@ -493,9 +493,9 @@ def test_calculate_wacc_formula_capping():
     assert res["wacc_final"] == pytest.approx(0.11)
 
 
-@patch("src.pipeline.curator_agent.CuratorAgent")
+@patch("src.agents.curator_agent.CuratorAgent")
 def test_run_wacc_agent_llm_failure(mock_curator, tmp_path):
-    from src.pipeline.modeler_agents.wacc_agent import run_wacc_agent
+    from src.agents.modeler_agents.wacc_agent import run_wacc_agent
     from src.core.exceptions import LLMError
 
     mock_llm = MagicMock()
@@ -514,9 +514,9 @@ def test_run_wacc_agent_llm_failure(mock_curator, tmp_path):
     assert "WACC Agent failed during LLM generation" in str(exc_info.value)
 
 
-@patch("src.pipeline.curator_agent.CuratorAgent")
+@patch("src.agents.curator_agent.CuratorAgent")
 def test_run_wacc_agent_finalize_failure(mock_curator, tmp_path):
-    from src.pipeline.modeler_agents.wacc_agent import run_wacc_agent
+    from src.agents.modeler_agents.wacc_agent import run_wacc_agent
     from src.core.exceptions import LLMError
 
     mock_llm = MagicMock()
@@ -544,9 +544,9 @@ def test_run_wacc_agent_finalize_failure(mock_curator, tmp_path):
     )
 
 
-@patch("src.pipeline.curator_agent.CuratorAgent")
+@patch("src.agents.curator_agent.CuratorAgent")
 def test_run_growth_agent_llm_failure(mock_curator, tmp_path):
-    from src.pipeline.modeler_agents.growth_agent import run_growth_agent
+    from src.agents.modeler_agents.growth_agent import run_growth_agent
     from src.core.exceptions import LLMError
 
     mock_llm = MagicMock()
@@ -563,9 +563,9 @@ def test_run_growth_agent_llm_failure(mock_curator, tmp_path):
         )
 
 
-@patch("src.pipeline.curator_agent.CuratorAgent")
+@patch("src.agents.curator_agent.CuratorAgent")
 def test_run_growth_agent_finalize_failure(mock_curator, tmp_path):
-    from src.pipeline.modeler_agents.growth_agent import run_growth_agent
+    from src.agents.modeler_agents.growth_agent import run_growth_agent
     from src.core.exceptions import LLMError
 
     mock_llm = MagicMock()
@@ -589,9 +589,9 @@ def test_run_growth_agent_finalize_failure(mock_curator, tmp_path):
     assert "failed to finalize growth rate assumptions" in str(exc_info.value)
 
 
-@patch("src.pipeline.curator_agent.CuratorAgent")
+@patch("src.agents.curator_agent.CuratorAgent")
 def test_run_margin_agent_llm_failure(mock_curator, tmp_path):
-    from src.pipeline.modeler_agents.margin_agent import run_margin_agent
+    from src.agents.modeler_agents.margin_agent import run_margin_agent
     from src.core.exceptions import LLMError
 
     mock_llm = MagicMock()
@@ -608,9 +608,9 @@ def test_run_margin_agent_llm_failure(mock_curator, tmp_path):
         )
 
 
-@patch("src.pipeline.curator_agent.CuratorAgent")
+@patch("src.agents.curator_agent.CuratorAgent")
 def test_run_margin_agent_finalize_failure(mock_curator, tmp_path):
-    from src.pipeline.modeler_agents.margin_agent import run_margin_agent
+    from src.agents.modeler_agents.margin_agent import run_margin_agent
     from src.core.exceptions import LLMError
 
     mock_llm = MagicMock()
@@ -634,9 +634,9 @@ def test_run_margin_agent_finalize_failure(mock_curator, tmp_path):
     assert "failed to finalize EBITA margin assumptions" in str(exc_info.value)
 
 
-@patch("src.pipeline.curator_agent.CuratorAgent")
+@patch("src.agents.curator_agent.CuratorAgent")
 def test_run_non_operating_agent_missing_files(mock_curator, tmp_path):
-    from src.pipeline.modeler_agents.non_operating_agent import run_non_operating_agent
+    from src.agents.modeler_agents.non_operating_agent import run_non_operating_agent
     from src.core.exceptions import WorkspaceError
 
     mock_llm = MagicMock()
@@ -654,9 +654,9 @@ def test_run_non_operating_agent_missing_files(mock_curator, tmp_path):
     )
 
 
-@patch("src.pipeline.curator_agent.CuratorAgent")
+@patch("src.agents.curator_agent.CuratorAgent")
 def test_run_non_operating_agent_llm_failure(mock_curator, tmp_path):
-    from src.pipeline.modeler_agents.non_operating_agent import run_non_operating_agent
+    from src.agents.modeler_agents.non_operating_agent import run_non_operating_agent
     from src.core.exceptions import LLMError
 
     mock_llm = MagicMock()
@@ -677,9 +677,9 @@ def test_run_non_operating_agent_llm_failure(mock_curator, tmp_path):
         )
 
 
-@patch("src.pipeline.curator_agent.CuratorAgent")
+@patch("src.agents.curator_agent.CuratorAgent")
 def test_run_non_operating_agent_invalid_json(mock_curator, tmp_path):
-    from src.pipeline.modeler_agents.non_operating_agent import run_non_operating_agent
+    from src.agents.modeler_agents.non_operating_agent import run_non_operating_agent
     from src.core.exceptions import LLMError
 
     mock_llm = MagicMock()
@@ -701,11 +701,11 @@ def test_run_non_operating_agent_invalid_json(mock_curator, tmp_path):
     assert "LLM response did not contain a valid JSON object" in str(exc_info.value)
 
 
-@patch("src.pipeline.modeler_agents.margin_agent.run_margin_agent")
-@patch("src.pipeline.modeler_agents.growth_agent.run_growth_agent")
-@patch("src.pipeline.modeler_agents.non_operating_agent.run_non_operating_agent")
-@patch("src.pipeline.modeler_agents.wacc_agent.run_wacc_agent")
-@patch("src.pipeline.modeler_orchestrator.load_config")
+@patch("src.agents.modeler_agents.margin_agent.run_margin_agent")
+@patch("src.agents.modeler_agents.growth_agent.run_growth_agent")
+@patch("src.agents.modeler_agents.non_operating_agent.run_non_operating_agent")
+@patch("src.agents.modeler_agents.wacc_agent.run_wacc_agent")
+@patch("src.agents.modeler_orchestrator.load_config")
 @patch("src.services.market_data.get_market_profile")
 def test_calculate_default_assumptions_ltm_unavailable(
     mock_get_profile,
@@ -790,7 +790,7 @@ def test_calculate_default_assumptions_ltm_unavailable(
     assert assumptions["adjusted_tax_rate"] == pytest.approx(0.30)
 
 
-@patch("src.pipeline.modeler_orchestrator.load_config")
+@patch("src.agents.modeler_orchestrator.load_config")
 def test_generate_financial_model_mid_year_and_markdown(mock_load_config, tmp_path):
     mock_settings = MagicMock()
     mock_settings.active_workspace_path = str(tmp_path)
@@ -872,10 +872,10 @@ def test_generate_financial_model_mid_year_and_markdown(mock_load_config, tmp_pa
     assert "| Calculation Date |" in md_content
 
 
-@patch("src.pipeline.curator_agent.CuratorAgent")
+@patch("src.agents.curator_agent.CuratorAgent")
 @patch("src.services.llm_client.LLMClient")
 def test_run_wacc_agent_with_folder_index(mock_llm_class, mock_curator_class, tmp_path):
-    from src.pipeline.modeler_agents.wacc_agent import run_wacc_agent
+    from src.agents.modeler_agents.wacc_agent import run_wacc_agent
 
     mock_llm = MagicMock()
     mock_llm.generate.return_value = json.dumps(
@@ -922,12 +922,12 @@ def test_run_wacc_agent_with_folder_index(mock_llm_class, mock_curator_class, tm
     assert "latest_balance_sheet.md" in prompt_arg
 
 
-@patch("src.pipeline.curator_agent.CuratorAgent")
+@patch("src.agents.curator_agent.CuratorAgent")
 @patch("src.services.llm_client.LLMClient")
 def test_run_growth_agent_with_folder_index(
     mock_llm_class, mock_curator_class, tmp_path
 ):
-    from src.pipeline.modeler_agents.growth_agent import run_growth_agent
+    from src.agents.modeler_agents.growth_agent import run_growth_agent
 
     mock_llm = MagicMock()
     mock_llm.generate.return_value = json.dumps(
@@ -970,12 +970,12 @@ def test_run_growth_agent_with_folder_index(
     assert "analyst_views.md" in prompt_arg
 
 
-@patch("src.pipeline.curator_agent.CuratorAgent")
+@patch("src.agents.curator_agent.CuratorAgent")
 @patch("src.services.llm_client.LLMClient")
 def test_run_margin_agent_with_folder_index(
     mock_llm_class, mock_curator_class, tmp_path
 ):
-    from src.pipeline.modeler_agents.margin_agent import run_margin_agent
+    from src.agents.modeler_agents.margin_agent import run_margin_agent
 
     mock_llm = MagicMock()
     mock_llm.generate.return_value = json.dumps(
@@ -1017,7 +1017,7 @@ def test_run_margin_agent_with_folder_index(
 
 
 def test_run_dcf_modeling_agent(tmp_path):
-    from src.pipeline.modeler_agents.dcf_modeling_agent import run_dcf_modeling_agent
+    from src.agents.modeler_agents.dcf_modeling_agent import run_dcf_modeling_agent
 
     mock_llm = MagicMock()
     # Mock LLM turn sequences:
@@ -1110,13 +1110,13 @@ def test_run_dcf_modeling_agent(tmp_path):
     assert "run_valuation" in history_text
 
 
-@patch("src.pipeline.modeler_orchestrator.load_config")
-@patch("src.pipeline.modeler_orchestrator.Modeler.calculate_default_assumptions")
-@patch("src.pipeline.modeler_orchestrator.Modeler.estimate_llm_assumptions")
-@patch("src.pipeline.modeler_orchestrator.Modeler.propose_and_validate_assumptions")
-@patch("src.pipeline.modeler_orchestrator.Modeler.generate_financial_model")
-@patch("src.pipeline.curator_agent.CuratorAgent")
-@patch("src.pipeline.indexer_agent.IndexerAgent")
+@patch("src.agents.modeler_orchestrator.load_config")
+@patch("src.agents.modeler_orchestrator.Modeler.calculate_default_assumptions")
+@patch("src.agents.modeler_orchestrator.Modeler.estimate_llm_assumptions")
+@patch("src.agents.modeler_orchestrator.Modeler.propose_and_validate_assumptions")
+@patch("src.agents.modeler_orchestrator.Modeler.generate_financial_model")
+@patch("src.agents.curator_agent.CuratorAgent")
+@patch("src.agents.indexer_agent.IndexerAgent")
 @patch("src.cli.commands.use.main_use")
 def test_run_modeling_curator_calls(
     mock_main_use,

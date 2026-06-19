@@ -128,7 +128,7 @@ Config      Ingestion   Extraction  History     Modeling    Interactive
 - **5.1 Default Assumptions Calculator**:
   - [x] Develop deterministic estimators for base WACC, capital turnover, and growth rates.
   - [x] **Agentic Refactor (Core Modeling Pipeline)**: Transition the modeling pipeline to use specialized, multi-turn modeling agents:
-    - [x] Create a `modeler_agents` directory (`src/pipeline/modeler_agents/`) to house specialized agents and leave the orchestration to `modeler_orchestrator.py`.
+    - [x] Create a `modeler_agents` directory (`src/agents/modeler_agents/`) to house specialized agents and leave the orchestration to `modeler_orchestrator.py`.
     - [x] **WACC Agent**: A 4-turn agent specialized in WACC calculation that delevers/relevers beta using a full formula. The agent takes share price, market cap, beta, and latest financial reports as input, documenting the calculations at the top of the model markdown file and calling the curator agent to update the `## WACC` section in `[TICKER]_model_learning.md`.
     - [x] **Growth Agent**: A 4-turn agent specialized in estimating future revenue growth rates (near-term, mid-term Year 5, and terminal) with rationale. The agent documents the growth assumptions at the top of the model markdown and curates lessons under `## Growth` in `[TICKER]_model_learning.md`.
     - [x] **Margin Agent**: A 4-turn agent specialized in estimating future EBITA margins (base, Year 5 target, and terminal) with rationale. The agent documents margin assumptions at the top of the model markdown and curates lessons under `## Margin` in `[TICKER]_model_learning.md`.

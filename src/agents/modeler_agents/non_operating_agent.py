@@ -177,7 +177,7 @@ Extract the non-operating categories and return the JSON object matching this st
 
     # Trigger Curator Agent to capture lessons in model_learning.md
     try:
-        from src.pipeline.curator_agent import CuratorAgent
+        from src.agents.curator_agent import CuratorAgent
 
         history_text = f"User: Extract non-operating items.\nAssistant: {json.dumps(final_results, indent=2)}"
         curator = CuratorAgent(llm.settings)

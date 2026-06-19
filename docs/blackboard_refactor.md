@@ -5,8 +5,8 @@ This document specifies the target architecture, backlog, and plan for refactori
 ## 1. Context & Motivation
 
 The current architecture operates as a linear, hardcoded Python pipeline:
-- **Linear Orchestration**: [extractor_orchestrator.py](file:///f:/AIML%20projects/financial-analyst-cli/src/pipeline/extractor_orchestrator.py) relies on static conditional statements (`if is_financial: ... elif is_analyst: ...`) to coordinate extraction.
-- **Verbose Loop Boilerplate**: Sub-agents like [income_statement_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/pipeline/extractor_agents/extractor_financials_agents/income_statement_agent.py) run manual `for` loops inside Python, parsing raw text responses for JSON commands, appending to lists, and managing state transitions.
+- **Linear Orchestration**: [extractor_orchestrator.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_orchestrator.py) relies on static conditional statements (`if is_financial: ... elif is_analyst: ...`) to coordinate extraction.
+- **Verbose Loop Boilerplate**: Sub-agents like [income_statement_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/extractor_financials_agents/income_statement_agent.py) run manual `for` loops inside Python, parsing raw text responses for JSON commands, appending to lists, and managing state transitions.
 - **Context Pollution**: Large files force agents to query multiple contexts without isolation of state.
 
 ### Target Vision: Focus on Autonomous Pipeline & LLMWiki Generation
@@ -77,7 +77,7 @@ The Blackboard acts as a structured domain model for a single target company wor
   - `FinancialModel`: Tracks valuation parameters (WACC Cost of Capital, margins, DCF assumptions).
   - `TemporalReport`: Tracks period-specific statement items and status flags (e.g. `balance_sheet_status = "completed"`).
 
-#### 2. Supervisor Orchestrator Agent (`src/pipeline/supervisor_orchestrator.py`)
+#### 2. Supervisor Orchestrator Agent (`src/agents/supervisor_orchestrator.py`)
 - Coordinates the pipeline dynamically based on the Blackboard state.
 - **Decision Loop**:
   1. Read `workspace_state.json`.
@@ -86,7 +86,7 @@ The Blackboard acts as a structured domain model for a single target company wor
   4. Run validation checks. If validation fails (e.g., balance sheet mismatch), set `arithmetic_errors` and trigger the sub-agent again with error details (reconciliation loop).
   5. Once all flags are `completed` and validation passes, compile the final report, compute deterministic DCF models, and update **LLMWiki**.
 
-#### 3. Micro-Agents (`src/pipeline/extractor_agents/` & `src/pipeline/modeler_agents/`)
+#### 3. Micro-Agents (`src/agents/extractor_agents/` & `src/agents/modeler_agents/`)
 - Pure-functional inputs/outputs: consumes specific portions of the document and outputs a structured Pydantic schema matching its specialist task.
 - Zero awareness of downstream agents—they only know their immediate input and the target Blackboard structure they must write to.
 
@@ -102,14 +102,14 @@ The Blackboard acts as a structured domain model for a single target company wor
 
 ### Phase 2: Blackboard State & Pydantic Micro-Agents
 - Define the `WorkspaceContext` (Blackboard) schema and write state load/save utilities under `src/core/blackboard.py`.
-- Refactor [income_statement_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/pipeline/extractor_agents/extractor_financials_agents/income_statement_agent.py), [balance_sheet_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/pipeline/extractor_agents/extractor_financials_agents/balance_sheet_agent.py), etc.
+- Refactor [income_statement_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/extractor_financials_agents/income_statement_agent.py), [balance_sheet_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/extractor_financials_agents/balance_sheet_agent.py), etc.
 - Standardize these micro-agents as callable Python functions with clear Pydantic schemas mapping directly to the Blackboard state.
 - Use Gemini's **Structured Outputs** (`response_schema`) to bypass verbose prompt-based JSON schemas.
 
 ### Phase 3: Agentic Supervisor Decision Loop (Autonomous Focus)
-- Create the `SupervisorAgent` in `src/pipeline/supervisor_orchestrator.py`.
+- Create the `SupervisorAgent` in `src/agents/supervisor_orchestrator.py`.
 - Connect the Supervisor's prompt logic to check status flags on the Blackboard and execute micro-agents sequentially or concurrently.
-- Replace the legacy control flow in [extractor_orchestrator.py](file:///f:/AIML%20projects/financial-analyst-cli/src/pipeline/extractor_orchestrator.py).
+- Replace the legacy control flow in [extractor_orchestrator.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_orchestrator.py).
 
 ### Phase 4: Interactive Chat & Multi-Company Analytics (Deferred)
 - Create the `CrossCompanyChatAgent` CLI commands under `src/cli/commands/chat.py`.

@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import patch, MagicMock
 
-from src.pipeline.indexer_agent import IndexerAgent
+from src.agents.indexer_agent import IndexerAgent
 
 
 @pytest.fixture
@@ -46,8 +46,8 @@ def mock_workspace(tmp_path):
     return workspace
 
 
-@patch("src.pipeline.indexer_agent.load_config")
-@patch("src.pipeline.indexer_agent.get_llm_client")
+@patch("src.agents.indexer_agent.load_config")
+@patch("src.agents.indexer_agent.get_llm_client")
 def test_indexer_llm_success(mock_get_llm, mock_load_config, mock_workspace):
     """Test indexer when LLM returns a valid response."""
     mock_settings = MagicMock()
@@ -69,8 +69,8 @@ def test_indexer_llm_success(mock_get_llm, mock_load_config, mock_workspace):
     assert "LLM Generated Folder Index" in content
 
 
-@patch("src.pipeline.indexer_agent.load_config")
-@patch("src.pipeline.indexer_agent.get_llm_client")
+@patch("src.agents.indexer_agent.load_config")
+@patch("src.agents.indexer_agent.get_llm_client")
 def test_indexer_fallback_on_llm_failure(
     mock_get_llm, mock_load_config, mock_workspace
 ):
