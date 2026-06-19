@@ -273,6 +273,15 @@ class GeminiClient(LLMClient):
         ):
             target_model = self.default_model
 
+        if target_model and (
+            "gemini-2.5" in target_model.lower()
+            or "gemini-3" in target_model.lower()
+            or "thinking" in target_model.lower()
+        ):
+            config.thinking_config = types.ThinkingConfig(
+                thinking_budget=-1, include_thoughts=True
+            )
+
         if stream_thinking:
             from rich.console import Console
 
@@ -282,18 +291,46 @@ class GeminiClient(LLMClient):
                 model=target_model, contents=contents, config=config
             )
             full_content = []
+            started_thinking = False
 
-            safe_console_print(
-                console,
-                "[dim]Extracting metrics... [/dim]",
-                end="",
-                markup=True,
-            )
             for chunk in response:
-                if chunk.text:
-                    safe_console_print(console, ".", end="", flush=True)
+                if chunk.candidates:
+                    for candidate in chunk.candidates:
+                        if candidate.content and candidate.content.parts:
+                            for part in candidate.content.parts:
+                                if getattr(part, "thought", False):
+                                    if part.text:
+                                        if not started_thinking:
+                                            safe_console_print(
+                                                console,
+                                                "[italic dim]Sir Pennyworth is pondering... [/italic dim]",
+                                                end="",
+                                                markup=True,
+                                            )
+                                            started_thinking = True
+                                        safe_console_print(
+                                            console,
+                                            part.text,
+                                            end="",
+                                            style="italic dim",
+                                        )
+                                        console.file.flush()
+                                elif part.text:
+                                    if started_thinking:
+                                        safe_console_print(console, "")
+                                        started_thinking = False
+
+                                    full_content.append(part.text)
+                                    safe_console_print(console, ".", end="", flush=True)
+                elif chunk.text:
+                    if started_thinking:
+                        safe_console_print(console, "")
+                        started_thinking = False
                     full_content.append(chunk.text)
-            safe_console_print(console, "")
+                    safe_console_print(console, ".", end="", flush=True)
+
+            if started_thinking or len(full_content) > 0:
+                safe_console_print(console, "")
             return "".join(full_content)
         else:
             response = self.gemini_client.models.generate_content(
