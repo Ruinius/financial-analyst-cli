@@ -2,7 +2,9 @@ import re
 import bisect
 
 
-def find_keyword_contexts(content: str, keywords: list, window: int = 200) -> list:
+def find_keyword_contexts(
+    content: str, keywords: list, window: int = 200, max_matches: int = 15
+) -> list:
     """Find occurrences of keywords in content and return snippets of 200 chars before and after, along with the chunk ID they were found in."""
     if window < 100:
         window = 100
@@ -48,6 +50,7 @@ def find_keyword_contexts(content: str, keywords: list, window: int = 200) -> li
     for kw in keywords:
         kw_lower = kw.lower()
         start = 0
+        match_count = 0
         while True:
             pos = content_lower.find(kw_lower, start)
             if pos == -1:
@@ -62,6 +65,9 @@ def find_keyword_contexts(content: str, keywords: list, window: int = 200) -> li
             if seen_key not in seen:
                 seen.add(seen_key)
                 snippets.append({"chunk_id": chunk_id, "snippet": snippet})
+                match_count += 1
+                if match_count >= max_matches:
+                    break
 
             start = pos + len(kw)
             if start >= len(content):

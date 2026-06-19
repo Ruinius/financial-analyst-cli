@@ -92,6 +92,7 @@ Welcome to the `financial-analyst-cli` project.
   - tests/test_markdown_table_validator.py: Unit tests for markdown table syntax validation.
   - tests/test_math_solver.py: Unit tests for the AST-sandboxed mathematical equation solver.
   - tests/test_modeler.py: Unit tests for DCF modeling, WACC calculation, and intrinsic valuation.
+  - tests/test_partial_json_parser.py: Unit tests for streaming partial JSON tool call parsing.
   - tests/test_query.py: Unit tests for database query parsing and execution.
   - tests/test_viewer.py: Unit tests for local scenario server and viewer page routing.
   - tests/data/golden_aapl_2024.json: Golden evaluation baseline dataset for AAPL.
