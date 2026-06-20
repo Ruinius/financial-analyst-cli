@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 from src.core.config import load_config
 from src.services.llm_client import get_llm_client
-from src.agents.queue import JobQueue
+from src.services.queue import JobQueue
 from src.tools.find_chunk import get_chunk_by_id
 
 logger = logging.getLogger(__name__)

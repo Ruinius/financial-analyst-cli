@@ -11,7 +11,7 @@ from src.agents.ingester import (
     chunk_text,
     Ingester,
 )
-from src.agents.queue import JobQueue
+from src.services.queue import JobQueue
 
 
 @pytest.fixture(autouse=True)

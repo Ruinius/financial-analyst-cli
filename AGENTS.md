@@ -33,12 +33,10 @@ Welcome to the `financial-analyst-cli` project.
     - src/core/config.py: Settings model definition, loading/saving utilities, and API key masking.
     - src/core/exceptions.py: Custom exception classes (e.g. ConfigError, WorkspaceError, LLMError).
   - src/agents/: Execution runner stages (ingest, extract, analyze, model).
-    - src/agents/queue.py: Safe job queue and exponential back-off retry manager.
     - src/agents/ingester.py: File parsing, deduplication, chunking, and LLM metadata identification.
     - src/agents/agent_executor.py: Unified agent execution loop coordinator for native and simulated tool calling.
     - src/agents/curator_agent.py: Curator agent for summarizing learnings and refining qualitative bull/bear views.
     - src/agents/indexer_agent.py: Indexer agent for maintaining the company folder index of extracted, analysis, and modeling files.
-    - src/agents/document_types.json: Mapping definitions for supported financial report types.
     - src/agents/extractor_orchestrator.py: Orchestrates document parsing, metadata processing, and routing of extraction jobs to document-type sub-extractors.
     - src/agents/extractor_agents/: Folder containing all document sub-extractors and agents.
       - src/agents/extractor_agents/extractor_financials.py: Sub-extractor coordinator specialized for 10-K, 10-Q, 20-F, and earnings announcements.
@@ -66,10 +64,12 @@ Welcome to the `financial-analyst-cli` project.
     - src/services/edgar_client.py: SEC EDGAR download API client.
     - src/services/llm_client.py: Modular class hierarchy with provider-specific clients (Gemini, DeepSeek, OpenRouter) and factory creation.
     - src/services/market_data.py: Yahoo Finance market data and ticker checker.
+    - src/services/queue.py: Safe job queue and exponential back-off retry manager.
   - src/rust_core/lib.rs: Rust module with PyO3 bindings for DCF financial modeling.
   - src/rust_core/fallback.py: Pure Python fallback for DCF modeling when Rust library is not compiled.
-  - src/rust_core/**init**.py: Hybrid import loader for the DCF modeling engine.
+  - src/rust_core/__init__.py: Hybrid import loader for the DCF modeling engine.
   - src/viewer/index.html: Interactive zero-dependency web viewer template.
+  - src/resources/document_types.json: Mapping definitions for supported financial report types.
   - src/resources/dictionary/: Central accounting glossary and classification dictionary containing definition markdowns and valuation treatment guidelines.
     - income_statement.md: Table mapping of typical income statement line items.
     - balance_sheet.md: Table mapping of typical balance sheet line items.

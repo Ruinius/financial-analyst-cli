@@ -75,6 +75,9 @@ Implement the central blackboard schema (`WorkspaceContext`) and refactor the sp
     2. Atomically replace the target file using `os.replace` to prevent state corruption during execution crashes.
 - [ ] **Refactor Extraction Sub-Agents**
   - Standardize sub-agents as stateless functions with no file I/O that return Pydantic outputs and strictly enforce turn limits and tool restrictions.
+  - [ ] **`MetadataAgent`**: [metadata_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/metadata_agent.py)
+    - Tools: `get_first_chunk`, `keyword_search` (10-turn limit).
+    - Scans fanned-in documents in the parsed folder to extract company metadata (name, description, fiscal calendar dates, currencies, conversion factors) to establish the prerequisite setup before spawning other agents.
   - [ ] **`BalanceSheetAgent`**: [balance_sheet_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/extractor_financials_agents/balance_sheet_agent.py)
     - Tools: `find_chunk`, `keyword_search` (20-turn limit).
   - [ ] **`IncomeStatementAgent`**: [income_statement_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/extractor_financials_agents/income_statement_agent.py)
@@ -142,12 +145,13 @@ Implement the central pipeline coordinator (`BlackboardOrchestrator`) that manag
   - On orchestrator restart, scans for dangling `running` items and marks them `failed`/`pending` for safe recovery.
 - [ ] **Enforce Execution Gates & Dependencies**
   - Group parallel and sequential tasks inside the async event loop:
-    1. **Extraction Phase (Parallel)**: Launch `balance_sheet`, `income_statement`, `analyst_report`, and `other_doc` concurrently.
-    2. **Metrics Level 1 (Parallel)**: Launch `diluted_shares`, `organic_growth`, and `interpretation` concurrently.
-    3. **Metrics Level 2 (Sequential)**: Run `operating_ebita` (depends on `interpretation` output).
-    4. **Metrics Level 3 (Sequential)**: Run `adjusted_taxes` (depends on `operating_ebita` output).
-    5. **Modeling Level 1 (Parallel)**: Launch `wacc`, `growth`, `margin`, and `non_operating` concurrently.
-    6. **Modeling Level 2 (Sequential)**: Run `dcf_modeling_agent` (depends on Level 1 modeling inputs).
+    1. **Setup Phase (Sequential)**: Run `metadata_agent` first to populate company metadata (`WorkspaceContext.metadata`). This acts as a blocking gate prerequisite; subsequent agent phases cannot run if company metadata is not successfully completed.
+    2. **Extraction Phase (Parallel)**: Launch `balance_sheet`, `income_statement`, `analyst_report`, and `other_doc` concurrently.
+    3. **Metrics Level 1 (Parallel)**: Launch `diluted_shares`, `organic_growth`, and `interpretation` concurrently.
+    4. **Metrics Level 2 (Sequential)**: Run `operating_ebita` (depends on `interpretation` output).
+    5. **Metrics Level 3 (Sequential)**: Run `adjusted_taxes` (depends on `operating_ebita` output).
+    6. **Modeling Level 1 (Parallel)**: Launch `wacc`, `growth`, `margin`, and `non_operating` concurrently.
+    7. **Modeling Level 2 (Sequential)**: Run `dcf_modeling_agent` (depends on Level 1 modeling inputs).
 - [ ] **Implement Multi-Document Period Processing & Merge Policies**
   - Accumulate source documents into `source_files: List[str]`.
   - **GAAP Override**: Structured balance sheet and income statement models from formal filings (10-Q/10-K) overwrite earnings announcement extractions.

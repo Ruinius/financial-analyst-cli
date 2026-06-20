@@ -152,27 +152,29 @@ To support decoupled execution, we establish a strict tool permission registry. 
 4. **`web_search`**: Runs external web queries targeting accounting standards and guidelines (e.g., Investopedia).
 5. **`market_data`**: Service API to pull current stock prices, market capitalizations, beta values, and other trading data (e.g., Yahoo Finance).
 6. **`query_blackboard`**: Allows a specialist sub-agent to query specific sections of the active blackboard state (such as company metadata, historical reports, or other periods' extracted metrics) in a read-only manner.
+7. **`get_first_chunk`**: Retrieves the first chunk of a target parsed document (typically containing document metadata, file header registry, and introduction).
 
-### Tool Assignment Matrix
-
-| Specialist Sub-Agent Template | Category   | Permitted Tools / Services             | Rationale                                                                                               |
-| :---------------------------- | :--------- | :------------------------------------- | :------------------------------------------------------------------------------------------------------ |
-| **`BalanceSheetAgent`**       | Extraction | `find_chunk`, `keyword_search`         | Scans raw filings to extract assets, liabilities, and equity tables to return to the Orchestrator.      |
-| **`IncomeStatementAgent`**    | Extraction | `find_chunk`, `keyword_search`         | Scans raw filings to extract revenue, expenses, and income tables to return to the Orchestrator.        |
-| **`AnalystReportAgent`**      | Extraction | `find_chunk`, `keyword_search`         | Scans broker reports to extract moats, margins, and growth views.                                       |
-| **`OtherDocAgent`**           | Extraction | `find_chunk`, `keyword_search`         | Scans transcripts, press releases, and other general filings to generate qualitative summaries.         |
-| **`DilutedSharesAgent`**      | Metrics    | `keyword_search`, `query_blackboard`   | Searches share counts tables, footnotes, and conversions in filings; extracts basic and diluted shares. |
-| **`OrganicGrowthAgent`**      | Metrics    | `keyword_search`, `query_blackboard`   | Searches constant currency and M&A impact disclosures; extracts organic revenue growth.                 |
-| **`InterpretationAgent`**     | Metrics    | `access_resources`, `query_blackboard` | Resolves ambiguous/generic lines against dictionaries; performs cross-statement validation checks.      |
-| **`OperatingEbitaAgent`**     | Metrics    | `keyword_search`, `query_blackboard`   | Extracts operating income and audits non-recurring adjustments to calculate clean Operating EBITA.      |
-| **`AdjustedTaxesAgent`**      | Metrics    | `keyword_search`, `query_blackboard`   | Scans tax rate reconciliation tables and footnotes; calculates adjusted taxes and tax rate.             |
-| **`WaccAgent`**               | Modeling   | `market_data`, `query_blackboard`      | Fetches stock details and computes WACC parameters; queries latest reports for debt/cash details.       |
-| **`GrowthAgent`**             | Modeling   | `web_search`, `query_blackboard`       | Formulates growth projections; retrieves historical revenues and margins.                               |
-| **`MarginAgent`**             | Modeling   | `web_search`, `query_blackboard`       | Formulates margin targets; retrieves historical margins and analyst views.                              |
-| **`NonOperatingAgent`**       | Modeling   | `access_resources`, `query_blackboard` | Queries/extracts the 6 non-operating categories from the latest fanned-in balance sheet state.          |
-| **`DcfModelingAgent`**        | Modeling   | `query_blackboard`                     | Sanity-checks and critiques the completed valuation parameters and assumptions.                         |
-| **`CuratorAgent`**            | Curation   | `query_blackboard`                     | Solely responsible for writing and updating the `[TICKER]_wiki.md` file.                                |
-| **`LearningAgent`**           | Learning   | `query_blackboard`                     | Responsible for writing and maintaining the run learnings and feedback logs into the blackboard.        |
+| Specialist Sub-Agent Template | Category   | Permitted Tools / Services             | Mandatory Input Context                                                                               | Rationale                                                                                                                |
+| :---------------------------- | :--------- | :------------------------------------- | :---------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------- |
+| **`Ingester`**                | Ingestion  | None                                   | Active Ticker                                                                                         | Parses, hashes, and chunks raw documents, running initial LLM metadata identification.                                   |
+| **`MetadataAgent`**           | Setup      | `get_first_chunk`, `keyword_search`    | list of parsed document filenames                                                                     | Runs once across all parsed documents to extract company name, description, fiscal boundaries, and currency definitions. |
+| **`BalanceSheetAgent`**       | Extraction | `find_chunk`, `keyword_search`         | target document filename, target period, agent learnings                                              | Scans raw filings to extract assets, liabilities, and equity tables to return to the Orchestrator.                       |
+| **`IncomeStatementAgent`**    | Extraction | `find_chunk`, `keyword_search`         | target document filename, target period, agent learnings                                              | Scans raw filings to extract revenue, expenses, and income tables to return to the Orchestrator.                         |
+| **`AnalystReportAgent`**      | Extraction | `find_chunk`, `keyword_search`         | target document filename, target period, agent learnings                                              | Scans broker reports to extract moats, margins, and growth views.                                                        |
+| **`OtherDocAgent`**           | Extraction | `find_chunk`, `keyword_search`         | target document filename, target period, agent learnings                                              | Scans transcripts, press releases, and other general filings to generate qualitative summaries.                          |
+| **`DilutedSharesAgent`**      | Metrics    | `keyword_search`, `query_blackboard`   | target period, company metadata, income_statement, 10-Q/10-K filename, earnings announcement filename | Searches share counts tables, footnotes, and conversions in filings; extracts basic and diluted shares.                  |
+| **`OrganicGrowthAgent`**      | Metrics    | `keyword_search`, `query_blackboard`   | target period, company metadata, income_statement, 10-Q/10-K filename, earnings announcement filename | Searches constant currency and M&A impact disclosures; extracts organic revenue growth.                                  |
+| **`InterpretationAgent`**     | Metrics    | `access_resources`, `query_blackboard` | target period, income_statement, balance_sheet                                                        | Resolves ambiguous/generic lines against dictionaries; performs cross-statement validation checks.                       |
+| **`OperatingEbitaAgent`**     | Metrics    | `keyword_search`, `query_blackboard`   | target period, income_statement, 10-Q/10-K filename, earnings announcement filename                   | Extracts operating income and audits non-recurring adjustments to calculate clean Operating EBITA.                       |
+| **`AdjustedTaxesAgent`**      | Metrics    | `keyword_search`, `query_blackboard`   | target period, income_statement, 10-Q/10-K filename, earnings announcement filename                   | Scans tax rate reconciliation tables and footnotes; calculates adjusted taxes and tax rate.                              |
+| **`Analyzer`**                | Analysis   | `query_blackboard`                     | WorkspaceContext reports dictionary                                                                   | Compiles longitudinal trend tables (yearly and quarterly) and updates the blackboard.                                    |
+| **`WaccAgent`**               | Modeling   | `market_data`, `query_blackboard`      | Active Ticker, latest temporal period slice, company metadata                                         | Fetches stock details and computes WACC parameters; queries latest reports for debt/cash details.                        |
+| **`GrowthAgent`**             | Modeling   | `web_search`, `query_blackboard`       | latest temporal period slice, company metadata, trend tables                                          | Formulates growth projections; retrieves historical revenues and margins.                                                |
+| **`MarginAgent`**             | Modeling   | `web_search`, `query_blackboard`       | latest temporal period slice, company metadata, trend tables                                          | Formulates margin targets; retrieves historical margins and analyst views.                                               |
+| **`NonOperatingAgent`**       | Modeling   | `access_resources`, `query_blackboard` | latest temporal period slice                                                                          | Queries/extracts the 6 non-operating categories from the latest fanned-in balance sheet state.                           |
+| **`DcfModelingAgent`**        | Modeling   | `query_blackboard`                     | latest temporal period slice, model assumptions                                                       | Sanity-checks and critiques the completed valuation parameters and assumptions.                                          |
+| **`CuratorAgent`**            | Curation   | `query_blackboard`                     | Active Ticker, complete WorkspaceContext                                                              | Solely responsible for writing and updating the `[TICKER]_wiki.md` file.                                                 |
+| **`LearningAgent`**           | Learning   | `query_blackboard`                     | target sub-agent name, document type, turn counts/run logs                                            | Responsible for writing and maintaining the run learnings and feedback logs into the blackboard.                         |
 
 ---
 
@@ -192,18 +194,20 @@ There are four distinct execution modes:
 
 - **a. Full Pipeline Run**:
   - Enforces the following exact execution and dependency order:
-    1. **Extraction Phase (Parallel)**:
+    1. **Setup Phase (Sequential)**:
+       - `metadata_agent` runs once across all parsed documents to extract company name, description, fiscal dates, currencies, and conversion rates, populating the root `WorkspaceContext.metadata`. This acts as a blocking gate prerequisite; no other agents can be spawned if the metadata has not been successfully populated.
+    2. **Extraction Phase (Parallel)**:
        - `balance_sheet`, `income_statement`, `analyst_report`, and `other_doc` execute in parallel across fanned-in documents.
-    2. **Metrics Phase**:
+    3. **Metrics Phase**:
        - **Level 1 (Parallel)**: `diluted_shares`, `organic_growth`, and `interpretation` execute in parallel.
        - **Level 2 (Sequential)**: `operating_ebita` runs sequentially (depends on `interpretation` output).
        - **Level 3 (Sequential)**: `adjusted_taxes` runs sequentially (depends on `operating_ebita` output).
-    3. **Modeling Phase**:
+    4. **Modeling Phase**:
        - **Level 1 (Parallel)**: `wacc`, `growth`, `margin`, and `non_operating` execute in parallel.
        - **Level 2 (Sequential)**: `dcf_modeling_agent` runs last (depends on all Level 1 modeling outputs).
 - **b. Specific Phase Run**:
   - Runs a specific phase (e.g. `extraction`) in single or batch mode across tickers.
-  - No blocking gates exist within the run, but the orchestrator validates prerequisite states (e.g. parsed files must exist for extraction).
+  - No blocking gates exist within the run, but the orchestrator validates prerequisite states (e.g. company metadata must be completed, and parsed files must exist for extraction).
 - **c. Specific Agent Run**:
   - Runs a single target agent (e.g. `balance_sheet`) in single or batch mode.
   - No gates exist, but prerequisite states are checked first.

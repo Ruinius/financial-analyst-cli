@@ -330,6 +330,7 @@ class WorkspaceContext(BaseModel):
     raw_documents: List[RawDocumentState] = []
 
     # Company-level process statuses
+    metadata_status: Literal["pending", "running", "completed", "failed"] = "pending"
     analyzer_status: Literal["pending", "running", "completed", "failed"] = "pending"
     curator_status: Literal["pending", "running", "completed", "failed"] = "pending"
 ```

@@ -11,7 +11,7 @@ from bs4 import BeautifulSoup, NavigableString
 
 from src.core.config import load_config
 from src.services.llm_client import get_llm_client
-from src.agents.queue import JobQueue
+from src.services.queue import JobQueue
 
 logger = logging.getLogger(__name__)
 
@@ -209,7 +209,9 @@ class Ingester:
     ) -> Tuple[str, str, str, str, str]:
         """Use LLM to identify document_date, document_type, fiscal_quarter, fiscal_year, and period_end_date."""
         # Load document types spec
-        doc_types_path = Path(__file__).parent / "document_types.json"
+        doc_types_path = (
+            Path(__file__).parent.parent / "resources" / "document_types.json"
+        )
         doc_types_str = ""
         if doc_types_path.exists():
             with open(doc_types_path, "r", encoding="utf-8") as f:
