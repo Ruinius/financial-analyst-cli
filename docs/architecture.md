@@ -38,7 +38,10 @@ The repository is structured as a hybrid Python-Rust application using `maturin`
 financial-analyst-cli/
 ├── docs/                           # Project documentation
 │   ├── architecture.md
+│   ├── blackboard_design.md        # Specs for blackboard state schema
+│   ├── blackboard_refactor.md      # Refactoring plan for blackboard state
 │   ├── cli_spec.md
+│   ├── llm_client_refactor.md      # Refactoring plan for LLM client/factory
 │   ├── requirements.md
 │   └── roadmap.md
 ├── tmp/                            # Temporary logs, scratchpads, and scripts
@@ -48,22 +51,23 @@ financial-analyst-cli/
 │   │   ├── __init__.py
 │   │   ├── commands/               # Sub-commands (run, query, config, viewer, chat)
 │   │   └── main.py
-│   ├── core/                       # Shared models, settings, and constants
+│   ├── core/                       # Shared configuration & custom exceptions
 │   │   ├── __init__.py
 │   │   ├── config.py               # Credentials & active workspace configurations
-│   │   ├── exceptions.py           # Custom exception classes
-│   │   └── models.py               # Pydantic schemas for verification
-│   ├── services/                   # External API clients
+│   │   └── exceptions.py           # Custom exception classes
+│   ├── services/                   # External API clients & sandbox tools
 │   │   ├── __init__.py
 │   │   ├── edgar_client.py         # SEC EDGAR download API client
-│   │   ├── llm_client.py           # Modular provider-specific clients (Gemini, DeepSeek, OpenRouter) and factory creation
+│   │   ├── llm_client.py           # Unified model client with Gemini / Simulated chat sessions
 │   │   ├── market_data.py          # Yahoo Finance market data and ticker checker
-│   │   ├── web_search.py           # Fallback search for accounting classifications
 │   │   └── math_solver.py          # Sandboxed Python execution for custom calculations
-│   ├── pipeline/                   # Sequential pipeline orchestration
+│   ├── agents/                     # Execution runner stages (ingest, extract, analyze, model)
 │   │   ├── __init__.py
 │   │   ├── queue.py                # Safe job queue & retry manager
 │   │   ├── ingester.py             # File ingestion, hashing & chunking
+│   │   ├── agent_executor.py       # Unified agent turn-based execution loop coordinator
+│   │   ├── curator_agent.py        # Curator agent for learning/wiki compaction
+│   │   ├── indexer_agent.py        # Workspace file catalog indexer agent
 │   │   ├── document_types.json     # Mapping definitions for supported report types
 │   │   ├── extractor_orchestrator.py # Routing extraction jobs to sub-extractors
 │   │   ├── extractor_agents/        # Folder containing specialized extractors and agents
@@ -101,15 +105,14 @@ financial-analyst-cli/
 │   ├── resources/                  # Static assets and reference documentation
 │   │   └── dictionary/             # Central accounting classification guidelines
 │   │       ├── index.md            # Registry index of all tracked financial line items
-│   │       ├── revenue.md          # Revenue definitions and treatment
-│   │       ├── operating_income.md # Operating income treatment
-│   │       └── ...                 # Other individual line item markdowns
+│   │       ├── income_statement.md # Income statement definitions
+│   │       └── balance_sheet.md    # Balance sheet definitions
 │   └── utils/                      # Formatting and filesystem utilities
 │       ├── __init__.py
 │       ├── formatting.py           # Rich-based console output utilities
 │       ├── math.py                 # Pure Python financial calculations
 │       ├── pig_animation.py        # Sir Pennyworth pig console animation
-│       └── tools.py                # Universal utility tools (context finding, appenders)
+│       └── tools.py                # Universal utility tools (context finding, markdown appenders, editors)
 ├── Cargo.toml                      # Cargo manifest for Rust module
 ├── pyproject.toml                  # uv / maturin configuration
 └── main.py                         # Root entry point delegating to src/cli/main.py
@@ -230,3 +233,26 @@ The `CuratorAgent` class (in `src/agents/curator_agent.py`) executes compaction 
 1. **User Feedback Extraction**: It scans the file for a `## User Feedback` header, extracts everything underneath it, and filters out placeholder HTML comments.
 2. **LLM Compaction**: It feeds the existing markdown body, new user feedback, and recent stage logs (or compiled historical analysis outputs in the case of the analyze stage) to the LLM, instructing it to keep the learnings highly succinct and focused strictly on actionable information that will help future AI agent tasks (such as search keywords or line item mappings), while discarding conversational filler and generic advice.
 3. **Rewrite & Clean**: The LLM compiles the feedback into the lessons sections, rewrites the file to be highly succinct, and resets the `## User Feedback` section back to its blank template state.
+
+---
+
+## 7. Reusable Agent Loop & Native Function Calling (Agentic Refactor)
+
+The extraction and modeling sub-agents execute inside a unified turn-based loop coordinated by `src/agents/agent_executor.py`. This design replaces ad-hoc turn tracking and custom text-based JSON tool parser wrappers with Google's native Gemini API capabilities (Native Function Calling/Tool Use and Native Chat Sessions) while preserving compatibility for simulated tool execution with non-native APIs.
+
+### Architecture Components:
+
+1. **Centralized Agent Executor (`run_agent_loop` in `agent_executor.py`)**:
+   - Manages the structured execution turn loop across all sub-agents.
+   - Restricts agents to a configurable `max_turns` limit and injects safety warnings/finalization prompts (e.g. `CRITICAL: This is your final turn...`).
+   - Standardizes tool results injection back to the chat history, verifying schemas and catching tool execution failures cleanly.
+
+2. **Native Tool Calling (`GeminiChatSession` in `llm_client.py`)**:
+   - Directly configures Google's Gemini client with standard Python functions as tools (`config.tools`).
+   - Automatically handles function dispatching when Gemini requests a tool call.
+   - Feeds observations back to Gemini via `types.Part.from_function_response`.
+
+3. **Fallback Simulation (`SimulatedChatSession` in `llm_client.py`)**:
+   - Guarantees backward compatibility for OpenAI-compatible models (DeepSeek, OpenRouter).
+   - Automatically generates tool text definitions using python introspection (inspecting tool docstrings and standard type hints) and appends them to the system prompt instructions.
+   - Instructs the LLM to output a standard JSON action block, parses the action with `extract_json_from_text`, and maps it back to tool namespace executions, providing a transparent interface to `run_agent_loop`.

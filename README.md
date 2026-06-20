@@ -119,6 +119,7 @@ I am constantly learning and growing. I am incredibly grateful for any comments,
 4. **Self-Learning LLMWiki**: Centralized ticker wiki and stage-specific learning registers that automatically consolidate, refine, and compact lessons and user feedback after each agent run.
 5. **Interactive REPL / Analyst Shell (`fa chat`)**: Talk directly to Sir Pennyworth. Probe extracted financial metrics, execute custom math formulas in a sandboxed execution environment, and audit statements.
 6. **Zero-Dependency DCF Viewer**: Start a local viewer server to dynamically tune DCF assumptions and save custom scenarios back to the workspace.
+7. **Native Tool Use & Reusable Agent Loop**: Expose standard python functions as native tools to Gemini (`GeminiChatSession`) with a centralized executor loop (`AgentExecutor`) and an emulated fallback translation layer (`SimulatedChatSession`) for DeepSeek and OpenRouter models.
 
 ---
 
@@ -282,7 +283,7 @@ uv run fa config set --provider gemini --gemini-model gemini-3-flash-preview
 
 The codebase is organized as a hybrid Python-Rust application:
 
-* **`src/`**: Contains the active application source code, including sub-commands (`cli/`), execution pipeline steps (`pipeline/`), external API clients and sandboxed execution tools (`services/`), PyO3 Rust bindings (`rust_core/`), accounting classification dictionaries (`resources/`), and console/file utilities (`utils/`).
+* **`src/`**: Contains the active application source code, including sub-commands (`cli/`), execution agent stages (`agents/`), external API clients and sandboxed execution tools (`services/`), PyO3 Rust bindings (`rust_core/`), accounting classification dictionaries (`resources/`), and console/file utilities (`utils/`).
 * **`tmp/`**: Dedicated local directory for temporary developer logs, scratchpads, and execution scripts.
 * **`docs/`**: Full project specification, requirements, and design documents.
 * **`tests/`**: Complete unit, E2E, and regression evaluation suite.

@@ -37,15 +37,8 @@ from pydantic import BaseModel, Field
 from typing import List, Dict, Optional, Literal
 
 # =====================================================================
-# 1. CORE SUPPORTING MODELS & AUDIT TRAILS
+# 1. CORE SUPPORTING MODELS
 # =====================================================================
-
-class AuditLinkage(BaseModel):
-    source_file: str
-    chunk_id: int
-    exact_snippet: str
-    extracted_by: str  # e.g., "income_statement_agent"
-    timestamp: str
 
 class LineItem(BaseModel):
     line_name: str
@@ -57,9 +50,10 @@ class LineItem(BaseModel):
         "noncurrent_assets",
         "current_liabilities",
         "noncurrent_liabilities",
+        "equity",
         "income_statement"
     ]
-    audit: AuditLinkage
+
 
 # =====================================================================
 # 2. COMPANY METADATA (Ingestion & Setup Properties)
@@ -96,6 +90,7 @@ class AgentExecutionMetrics(BaseModel):
 
 class ExtractAgentLearning(BaseModel):
     """Specific learnings gathered for a single micro-agent's task to guide future runs."""
+    status: Literal["pending", "running", "completed", "failed"] = "pending"
     successful_keywords: List[str] = []
     avoid_keywords: List[str] = []
     successful_chunk: List[str] = []
@@ -117,12 +112,46 @@ class LearningsSchema(BaseModel):
     quarterly_filing: DocumentTypeLearnings = Field(default_factory=DocumentTypeLearnings)
     earnings_announcement: DocumentTypeLearnings = Field(default_factory=DocumentTypeLearnings)
 
+class HistoricalFinancialSummary(BaseModel):
+    """Holds a flat, high-level summary of historical financial metrics for longitudinal views."""
+    fiscal_year: int
+    fiscal_period: str  # "Q1", "Q2", "Q3", "Q4", "FY"
+    revenue: float
+    operating_income: float
+    ebita: float
+    reported_tax_provision: float
+    adjusted_taxes: float
+    adjusted_tax_rate: float
+    basic_shares: float
+    diluted_shares: float
+    simple_growth: float
+    organic_growth: float
+    net_working_capital: float
+    net_long_term_operating_assets: float
+    invested_capital: float
+    capital_turnover: float
+    nopat: float
+    roic: float
+
+class HistoricalAnalystView(BaseModel):
+    """Holds a structured summary of qualitative views from analyst reports over time."""
+    report_date: str
+    source_file: str
+    economic_moat: str
+    economic_moat_rationale: str
+    margin_outlook: str
+    margin_magnitude: str
+    margin_rationale: str
+    growth_outlook: str
+    growth_magnitude: str
+    growth_rationale: str
+
 class CompanyLevelData(BaseModel):
     learnings: LearningsSchema = Field(default_factory=LearningsSchema)
     # Historical lists storing longitudinal trends and views directly (replacing separate markdown files)
-    quarterly_financials: List[Dict[str, Any]] = []
-    yearly_financials: List[Dict[str, Any]] = []
-    historical_analyst_views: List[Dict[str, Any]] = []
+    quarterly_financials: List[HistoricalFinancialSummary] = []
+    yearly_financials: List[HistoricalFinancialSummary] = []
+    historical_analyst_views: List[HistoricalAnalystView] = []
 
 # =====================================================================
 # 4. EXTRACTED DATA PER PERIOD (Quarters & Years)
@@ -168,12 +197,10 @@ class AnalystReportExtraction(BaseModel):
     growth_outlook: str
     growth_magnitude: str
     growth_rationale: str
-    audit: AuditLinkage
 
 class OtherExtraction(BaseModel):
     source_file: str
     summary: str  # Short summary of the document/release
-    audit: AuditLinkage
 
 class ExtractedOtherData(BaseModel):
     """Non-financial statement qualitative extractions."""
@@ -187,9 +214,27 @@ class ExtractedOtherData(BaseModel):
 class ModelAssumptions(BaseModel):
     """The DCF inputs and estimations populated by modeling agents."""
     wacc: float = 0.09
+
+    # WACC inputs and calculation outputs
+    company_beta_levered: float = 1.0
+    company_beta_unlevered: float = 1.0
+    industry_beta_unlevered: float = 1.0
+    risk_free_rate: float = 0.042
+    equity_risk_premium: float = 0.05
+    pretax_cost_of_debt: float = 0.062
+    cost_of_equity: float = 0.092
+    weight_equity: float = 1.0
+    weight_debt: float = 0.0
+    target_debt_to_equity: float = 0.0
+    interest_expense: float = 0.0
+
     capital_turnover: float = 1.0
-    revenue_growth_rate: float = 0.05
-    margin_yr5: float = 0.15
+    base_revenue: float = 0.0
+    base_invested_capital: float = 0.0
+    revenue_growth_base: float = 0.05
+    revenue_growth_yr5: float = 0.05
+    ebita_margin_base: float = 0.15
+    ebita_margin_yr5: float = 0.15
     terminal_margin: float = 0.15
     terminal_growth_rate: float = 0.03
     adjusted_tax_rate: float = 0.21
@@ -244,30 +289,49 @@ class TemporalBlackboard(BaseModel):
     fiscal_year: int # can only be 4 digit year
     fiscal_period: str  # can only be "Q1", "Q2", "Q3", "Q4", "FY"
     is_quarterly: bool
-    source_file: str
+    source_files: List[str] = []
 
-    # Status Flags (check-out / check-in lock mechanism to prevent duplicate agent execution)
+    # Extractor Sub-Agent Statuses (check-out / check-in lock mechanism to prevent duplicate agent execution)
     balance_sheet_status: Literal["pending", "running", "completed", "failed"] = "pending"
     income_statement_status: Literal["pending", "running", "completed", "failed"] = "pending"
     shares_status: Literal["pending", "running", "completed", "failed"] = "pending"
     organic_growth_status: Literal["pending", "running", "completed", "failed"] = "pending"
     ebita_status: Literal["pending", "running", "completed", "failed"] = "pending"
     tax_status: Literal["pending", "running", "completed", "failed"] = "pending"
-    modeling_status: Literal["pending", "running", "completed", "failed"] = "pending"
 
     # Structured Contents
     financial_data: ExtractedFinancialData
     other_data: ExtractedOtherData
     base_model: Optional[BaseFinancialModel] = None
 
+    # Modeling Sub-Agent Statuses (per period)
+    wacc_agent_status: Literal["pending", "running", "completed", "failed"] = "pending"
+    growth_agent_status: Literal["pending", "running", "completed", "failed"] = "pending"
+    margin_agent_status: Literal["pending", "running", "completed", "failed"] = "pending"
+    non_operating_agent_status: Literal["pending", "running", "completed", "failed"] = "pending"
+    dcf_modeling_status: Literal["pending", "running", "completed", "failed"] = "pending"
+
     # Error audit trail specific to this period
     arithmetic_errors: List[str] = []
+
+class RawDocumentState(BaseModel):
+    """Tracks ingestion status of a raw file before/during parsing."""
+    file_name: str
+    sha256: str
+    ingestion_status: Literal["pending", "running", "completed", "failed"] = "pending"
 
 class WorkspaceContext(BaseModel):
     """The root Blackboard schema stored inside workspaces/[TICKER]/workspace_state.json."""
     metadata: CompanyMetadata
     company_data: CompanyLevelData
     reports: Dict[str, TemporalBlackboard] = {}  # Keyed by period (e.g., "2024_Q3")
+
+    # Ingestion status per raw document
+    raw_documents: List[RawDocumentState] = []
+
+    # Company-level process statuses
+    analyzer_status: Literal["pending", "running", "completed", "failed"] = "pending"
+    curator_status: Literal["pending", "running", "completed", "failed"] = "pending"
 ```
 
 ---
@@ -286,7 +350,15 @@ While the **Base Financial Model** (representing the standard estimates derived 
 
 ## 4. Mathematical Verification & Reconciliation Logic
 
-The **Blackboard Orchestrator** triggers programmatic validation checks. If any of the following validation formulas fail on fanned-in data, the Orchestrator will prompt the user on the CLI to choose whether to proceed or retry.
+The **Blackboard Orchestrator** triggers programmatic validation checks.
+
+### Storing in Raw Absolute Units
+
+To prevent rounding errors and scaling confusion, all values stored on the Blackboard must be normalized to their **raw absolute currency units** (e.g., standard absolute dollar/euro amounts, not scaled to thousands or millions) during the extraction stage. Scaling is only performed at the user interface (CLI display/Web Viewer) representation layers.
+
+### Tolerant Checks for Float Operations
+
+Since financial math operates on `float` values, strict `1.0` difference assertions are prone to failures due to minor floating-point issues or exchange/FX conversions. All checks must utilize relative and absolute tolerances.
 
 ### Rule 1: Balance Sheet Consistency (Double-Entry Match)
 
@@ -294,10 +366,15 @@ The sum of operating and non-operating assets must equal liabilities and equity:
 $$\text{Total Assets} = \text{Total Liabilities} + \text{Total Equity}$$
 
 - **Verification Rule**:
+
   ```python
+  import math
+
   total_assets = sum(item.value for item in report.financial_data.line_items if "assets" in item.category)
   total_liabilities_equity = sum(item.value for item in report.financial_data.line_items if "liabilities" in item.category or item.category == "equity")
-  if abs(total_assets - total_liabilities_equity) > 1.0:
+
+  # Check consistency with a relative tolerance of 1e-4 or absolute tolerance of $100.0
+  if not math.isclose(total_assets, total_liabilities_equity, rel_tol=1e-4, abs_tol=100.0):
       report.balance_sheet_status = "failed"
       report.arithmetic_errors.append(f"Balance sheet mismatch: Assets ({total_assets}) != Liab+Eq ({total_liabilities_equity})")
   ```
@@ -310,6 +387,8 @@ $$\text{Invested Capital} = (\text{Operating Current Assets} - \text{Operating C
 - **Verification Rule**:
 
   ```python
+  import math
+
   oca = sum(item.value for item in report.financial_data.line_items if item.category == "current_assets" and item.operating)
   ocl = sum(item.value for item in report.financial_data.line_items if item.category == "current_liabilities" and item.operating)
   onca = sum(item.value for item in report.financial_data.line_items if item.category == "noncurrent_assets" and item.operating)
@@ -318,7 +397,9 @@ $$\text{Invested Capital} = (\text{Operating Current Assets} - \text{Operating C
   nwc = oca - ocl
   nltoa = onca - oncl
   expected_ic = nwc + nltoa
-  if abs(report.financial_data.invested_capital - expected_ic) > 1.0:
+
+  # Check consistency with a relative tolerance of 1e-4 or absolute tolerance of $100.0
+  if not math.isclose(report.financial_data.invested_capital, expected_ic, rel_tol=1e-4, abs_tol=100.0):
       report.arithmetic_errors.append(f"Invested Capital mismatch: calculated expected {expected_ic}, found {report.financial_data.invested_capital}")
   ```
 
@@ -326,7 +407,7 @@ $$\text{Invested Capital} = (\text{Operating Current Assets} - \text{Operating C
 
 The sub-totals extracted by the agents must sum to reported items:
 $$\text{Revenue} - \text{Cost of Goods Sold} - \text{SG&A Expense} - \text{R&D Expense} = \text{Operating Income}$$
-If the sub-totals mismatch the reported `operating_income` or `revenue` values, the extraction is marked `failed` and rescheduled.
+If the sub-totals mismatch the reported `operating_income` or `revenue` values (beyond a relative tolerance of `1e-4` or absolute tolerance of `$100.0`), the extraction is marked `failed` and rescheduled.
 
 ---
 
@@ -342,29 +423,74 @@ stateDiagram-v2
     Completed --> [*] : ALL SYSTEM FLAGS COMPLETED
 ```
 
-### Persistence & Concurrency Policy
+### Persistence & Concurrency Policy (Single-Writer Pattern)
 
-1. **At Turn Entry**: Read `workspace_state.json` from disk.
-2. **At Turn Tool Execution**: Micro-agents query the file, perform their task, check out and modify their specific status flags and target data segment, and write the state back to `workspace_state.json` immediately.
-3. **On Completion**: If fanned-in status flags of a `TemporalBlackboard` are completed, the Orchestrator can trigger the `CuratorAgent` at discretionary intervals (either explicitly requested by the user or once per quarter) to curate final summaries in the Ticker's Wiki markdown files. The `LearningAgent` is called at the Orchestrator's discretion (e.g. when a sub-agent takes a long time or encounters a failure milestone).
+To eliminate race conditions and data corruption, the system employs a **Single-Writer Pattern**. Sub-agents must remain purely functional and stateless—they do not perform file I/O or directly write updates to the Blackboard. Instead, the **Blackboard Orchestrator** manages all state changes in-memory and serializes updates to disk.
 
-### Check-Out / Check-In Lock Mechanism
+1. **State Loading**: At the start of execution, the Orchestrator reads `workspace_state.json` into memory.
+2. **In-Memory Modification**: During execution, only the Orchestrator mutates state flags (e.g., transition of task status) or writes fanned-in outputs.
+3. **Atomic Disk Serialization**: To prevent partial or corrupt writes in the event of an unexpected crash, all disk saves are atomic:
+   - The Orchestrator writes state to a temporary file in the workspace directory: `workspace_state.json.tmp`.
+   - The Orchestrator atomically replaces the original file using an OS-level replacement: `os.replace("workspace_state.json.tmp", "workspace_state.json")`.
+4. **Discretionary Triggers**: On phase completions, the Orchestrator triggers the `LearningAgent` as required. Curation of the qualitative wiki file `[TICKER]_wiki.md` via the `CuratorAgent` is decoupled and must be run explicitly by the user using `fa run curate_wiki` (or via separate user-configured cron triggers) to avoid LLM token overhead during frequent modeling and analysis iterations.
 
-To prevent duplicate execution and coordinate parallel runs (enabling safe concurrency and preventing context contamination):
+### Check-Out / Check-In State Management
 
-- **Check-Out (Locking)**: When a sub-agent starts, it executes a deterministic check-out script that inspects and sets its specific task flag on the blackboard to `running`. This locks the small target piece of the blackboard.
-- **Check-In (Unlocking)**: When the sub-agent template finalizes its task, it executes a deterministic check-in script that writes its structured output, transitions the task flag to `completed` (or `failed`), and unlocks the state by saving the changes back to `workspace_state.json`.
-- **Wiki Lock**: The `CuratorAgent` uses a check-in / check-out locking mechanism for `[TICKER]_wiki.md` to prevent any write collisions when compiling qualitative insights from the blackboard.
+State isolation and progress coordination are managed via in-memory status transitions rather than raw file locks:
+
+- **Check-Out (Reservation)**: Prior to launching an async sub-agent, the Orchestrator transitions that agent's status flag on the blackboard to `running` and saves the state atomically to disk. This establishes a persistent checkpoint.
+- **Check-In (Release)**: Once the stateless sub-agent task coroutine resolves and returns its Pydantic output, the Orchestrator intercepts the payload, writes it to the appropriate data block, sets the task status to `completed` (or `failed`), and commits the updated blackboard to disk atomically.
+- **Interrupted Recovery**: If the system crashes mid-execution, any task marked as `running` on disk is identified at the next startup. The Orchestrator safely marks it as `failed` or `pending` to enable a clean retry.
+- **Wiki Lock**: The `CuratorAgent` coordinates writing to `[TICKER]_wiki.md` through an in-memory lock during compilation to prevent collision with other curation requests.
+
+### Multi-Document Period Processing & non-GAAP Merge Policy
+
+When both an earnings announcement (press release) and a formal SEC filing (10-Q or 10-K) are processed for the same fiscal period:
+
+1. **Source File Cumulative Tracking**:
+   - The `TemporalBlackboard` tracks all source documents contributing to the period:
+     ```python
+     source_files: List[str] = []  # E.g., ["AAPL_Q3_2024_EA.md", "AAPL_10Q_2024_Q3.md"]
+     ```
+2. **Deterministic Statement Replacement (GAAP Override)**:
+   - Structured GAAP elements like the balance sheet and income statement line items extracted from the `10-Q`/`10-K` are of higher fidelity and **always overwrite** any raw tables or numbers extracted from the preliminary earnings announcement.
+3. **Non-GAAP Adjustment Preservation**:
+   - Metrics such as **Organic Growth** (constant currency, M&A segment adjustments), **Operating EBITA** (non-recurring adjustments), and **Adjusted Taxes** are frequently disclosed in the non-GAAP reconciliation sections of the earnings announcement and may be absent or less detailed in the formal SEC filing.
+   - If these metrics are successfully extracted during the earnings announcement run (`completed` status), their values are **preserved** on the blackboard and are not overwritten or reset to `pending` during the 10-Q run, unless the 10-Q contains a newer, audited version of the non-GAAP reconciliation tables.
+4. **Multi-Source Tool Execution**:
+   - The entire document is NEVER passed directly as context to a sub-agent prompt. Instead, when invoking metrics agents (`OrganicGrowthAgent`, `OperatingEbitaAgent`, `AdjustedTaxesAgent`), the Orchestrator grants permission to the search tool (`keyword_search`) to query _both_ the 10-Q/10-K and the earnings announcement files simultaneously for that period, enabling the agents to query and reconcile GAAP and non-GAAP details.
+
+### Concurrency, Gating, and Fault Tolerance
+
+1. **Parallel Execution Domains**:
+   - **Company Parallelism**: Separate company workspaces have independent orchestrators and execute concurrently.
+   - **Document Parallelism**: Inside a workspace, extraction/metrics tasks run concurrently across different period documents (quarterly reports, annual filings) managed by the Orchestrator's event loop.
+   - **Concurrency Knobs**: Concurrency limits are configurable at three scope levels (by Company, by Document, and by Phase) via command-line flags or environment variables, utilizing `asyncio.Semaphore` to protect LLM endpoints from HTTP 429 rate-limiting.
+
+2. **Execution Gating & Modes**:
+   - _Full Pipeline_: Enforces sequential gates with the following exact execution and dependency order:
+     1. **Extraction Phase (Parallel)**:
+        - `balance_sheet`, `income_statement`, `analyst_report`, and `other_doc` execute in parallel across fanned-in documents.
+     2. **Metrics Phase**:
+        - **Level 1 (Parallel)**: `diluted_shares`, `organic_growth`, and `interpretation` execute in parallel.
+        - **Level 2 (Sequential)**: `operating_ebita` runs sequentially (depends on `interpretation` output).
+        - **Level 3 (Sequential)**: `adjusted_taxes` runs sequentially (depends on `operating_ebita` output).
+     3. **Modeling Phase**:
+        - **Level 1 (Parallel)**: `wacc`, `growth`, `margin`, and `non_operating` execute in parallel.
+        - **Level 2 (Sequential)**: `dcf_modeling_agent` runs last (depends on all Level 1 modeling outputs).
+   - _Phase / Agent Runs_: No pipeline gates, but checks prerequisites (e.g. parsed document exists before running balance sheet agent).
+   - _Pre-Flight Checks_: Any missing prerequisite immediately terminates execution before any LLM API costs are incurred.
+
+3. **Fault Tolerance & Mode-Specific Recovery (Fix E)**:
+   - If a sub-agent fails or math validation fails, the failed task is queued in a sequential **Prompt Failure Queue**.
+   - **Headless / Non-Interactive Mode (`--non-interactive` flag)**:
+     - The CLI **does not block** or prompt standard input.
+     - For LLM API or network-level errors, the Orchestrator retries the task automatically up to a configurable number of times (e.g. default 3 times).
+     - For programmatic validation or math consistency failures, the Orchestrator **does not retry** (it bypasses retries), immediately marks the task status as `failed` on the blackboard, and the run immediately aborts, terminating with a non-zero exit code.
+   - **Interactive Developer Mode (Default CLI)**:
+     - The CLI blocks and prompts the developer to select an interactive recovery strategy:
+       - **Retry**: Re-submit the task (allowing prompt refinement or transient API retry).
+       - **Don't Retry**: Keep the task state as `failed` on the blackboard and skip downstream tasks dependent on it.
+       - **Stop All**: Abort all running/queued tasks, immediately cancelling all pending `asyncio` tasks.
 
 ---
-
-## 6. Outstanding Concurrency & Fault-Tolerance Decisions
-
-Since the Orchestrator runs sub-agents concurrently via `asyncio`, the following design decisions remain outstanding and must be finalized:
-
-1. **Blocking Gates**:
-   - What are the precise execution gates? Which agents/processes must complete successfully before downstream agents are allowed to start (e.g., ingestion -> extraction, extraction tier 1 -> tier 2, extraction -> model)?
-2. **Asynchronous Failure and Reconciliation Queue**:
-   - What happens to other concurrently running agents when a single agent fails or a math reconciliation check fails?
-   - We need to design a prompt failure queue to process failed cases in order, allowing the user to inspect, retry, override, or proceed.
-   - We must also provide a "stop all agents" option to immediately terminate all running and queued tasks.
