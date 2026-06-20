@@ -304,11 +304,17 @@ class Analyzer:
 
     def parse_chunk_summaries(self, content: str) -> str:
         """Extract summaries from the Chunk Summaries section."""
-        match = re.search(
-            r"## Chunk Summaries\s*\n(.*?)(?:\n---|\n##|$)", content, re.DOTALL
-        )
-        if match:
-            return match.group(1).strip()
+        # ⚡ Bolt Optimization: Replace O(N) re.DOTALL with fast str.find()
+        start_idx = content.find("## Chunk Summaries")
+        if start_idx != -1:
+            start_idx = content.find("\n", start_idx)
+            if start_idx != -1:
+                end_idx = len(content)
+                for marker in ["\n---", "\n##"]:
+                    pos = content.find(marker, start_idx)
+                    if pos != -1 and pos < end_idx:
+                        end_idx = pos
+                return content[start_idx:end_idx].strip()
         return "No chunk summaries found."
 
     def parse_analyst_report_fields(self, content: str) -> Dict[str, str]:
@@ -420,18 +426,25 @@ class Analyzer:
     def parse_financial_summary(self, content: str) -> Dict[str, str]:
         """Parse values from the Financial Summary markdown table."""
         metrics = {}
-        match = re.search(
-            r"## Financial Summary\s*\n(.*?)(?:\n---|\n##|$)", content, re.DOTALL
-        )
-        if match:
-            table_text = match.group(1)
-            for line in table_text.split("\n"):
-                if "|" in line and "---" not in line and "Metric" not in line:
-                    parts = [p.strip() for p in line.split("|")]
-                    if len(parts) >= 3:
-                        metric_name = parts[1].replace("**", "").strip()
-                        metric_val = parts[2].replace("**", "").strip()
-                        metrics[metric_name] = metric_val
+        # ⚡ Bolt Optimization: Replace O(N) re.DOTALL with fast str.find()
+        start_idx = content.find("## Financial Summary")
+        if start_idx != -1:
+            start_idx = content.find("\n", start_idx)
+            if start_idx != -1:
+                end_idx = len(content)
+                for marker in ["\n---", "\n##"]:
+                    pos = content.find(marker, start_idx)
+                    if pos != -1 and pos < end_idx:
+                        end_idx = pos
+
+                table_text = content[start_idx:end_idx]
+                for line in table_text.split("\n"):
+                    if "|" in line and "---" not in line and "Metric" not in line:
+                        parts = [p.strip() for p in line.split("|")]
+                        if len(parts) >= 3:
+                            metric_name = parts[1].replace("**", "").strip()
+                            metric_val = parts[2].replace("**", "").strip()
+                            metrics[metric_name] = metric_val
         return metrics
 
     def deduce_q4_financials(
