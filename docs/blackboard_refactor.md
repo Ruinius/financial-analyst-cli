@@ -176,48 +176,13 @@ To support decoupled execution, we establish a strict tool permission registry. 
 
 ---
 
-## 4. Implementation Roadmap
-
-### Phase 1: Client Provider Separation (Foundation)
-
-- Refactor [llm_client.py](file:///f:/AIML%20projects/financial-analyst-cli/src/services/llm_client.py) to split generic provider logic into dedicated, isolated clients:
-  - `src/services/gemini_client.py`: Uses official `google-genai` SDK, native structured outputs, and automatic function calling.
-  - `src/services/deepseek_client.py`: Tailors reasoning token parameters and handles thoughts.
-  - `src/services/openrouter_client.py`: Standardizes routing and specific headers.
-
-### Phase 2: Blackboard State & Pydantic Micro-Agents
-
-- Define the `WorkspaceContext` (Blackboard) schema and write state load/save utilities under `src/core/blackboard.py`.
-- Refactor [income_statement_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/extractor_financials_agents/income_statement_agent.py), [balance_sheet_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/extractor_financials_agents/balance_sheet_agent.py), etc.
-- Standardize these micro-agents as callable Python functions with clear Pydantic schemas mapping directly to the Blackboard state.
-- Use Gemini's **Structured Outputs** (`response_schema`) to bypass verbose prompt-based JSON schemas.
-
-### Phase 3: Blackboard Orchestrator Integration
-
-- Create the unified `BlackboardOrchestrator` in `src/agents/blackboard_orchestrator.py`.
-- **Consolidation Target:** Replace, consolidate, and delete the redundant coordination loops currently residing in:
-  - `src/agents/extractor_orchestrator.py` (legacy extraction pipeline)
-  - `src/agents/extractor_agents/extractor_financials.py` (legacy financials coordination)
-  - `src/agents/analyzer.py` (legacy trend reports and files compilation)
-  - `src/agents/modeler_orchestrator.py` (legacy DCF pipeline)
-- Implement the consolidated transition loop:
-  - Audits the blackboard, executes programmatic validation checks, handles checkout/check-in locking, manages concurrency, and coordinates Wacc/DCF/Curation/Learning runs.
-
-### Phase 4: Interactive Chat & Multi-Company Analytics (Deferred)
-
-- Create the `CrossCompanyChatAgent` CLI commands under `src/cli/commands/chat.py`.
-- **Decoupled Chat Reasoning:** Decouple Chat reasoning from pipeline execution. The Chat Agent runs in its own session and is given access to high-level query tools: `read_blackboard(ticker, period)`, `search_wiki(query)`, and a macro-tool `trigger_pipeline_run(ticker)` which programmatically invokes the Deterministic Orchestrator if data is missing or stale.
-- The Chat Agent does not spawn individual micro-agents directly, keeping chat latency low and tool routing predictable.
-
----
-
-## 5. Verification and Testing
+## 4. Verification and Testing
 
 - **Modular Test Harnesses**: Write tests verifying each micro-agent independently (e.g., passing a simulated parsed page and verifying the exact structure of the Pydantic response).
 - **Blackboard State Tracing**: Ensure that state updates to `workspace_state.json` are written with timestamps and agent-lineage labels, providing an audit log of who changed what value and when.
 - **Golden Evaluator Baseline**: Run [test_extractor_orchestrator.py](file:///f:/AIML%20projects/financial-analyst-cli/tests/test_extractor_orchestrator.py) to guarantee that extracted values match evaluations of the golden datasets.
 
-## 6. Concurrency, Execution Gates & Fault-Tolerance Specification
+## 5. Concurrency, Execution Gates & Fault-Tolerance Specification
 
 To support parallel agent execution via `asyncio` while ensuring data consistency and smooth developer interaction, the Orchestrator implements the following specification:
 
@@ -272,7 +237,7 @@ When a concurrently running sub-agent fails (e.g. API error) or a mathematical v
 
 ---
 
-## 7. CLI Command & Option Modifications
+## 6. CLI Command & Option Modifications
 
 Transitioning from a rigid linear pipeline to a state-driven Blackboard model changes several CLI commands and options in the `fa` command suite:
 

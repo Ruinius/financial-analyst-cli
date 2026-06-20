@@ -13,6 +13,7 @@ Welcome to the `financial-analyst-cli` project.
 - Cargo.toml: Cargo configuration for the Rust Core calculation engine.
 - docs/architecture.md: System architecture, folder structure, and software design decisions.
 - docs/blackboard_refactor.md: Backlog and plan specifications for blackboard code refactoring ideas.
+- docs/refactor_plan.md: Phase-by-phase implementation checklists for the blackboard refactor effort.
 - docs/blackboard_design.md: Detailed schema, lifecycle, and storage specifications for the blackboard state.
 - docs/llm_client_refactor.md: Design and implementation plans for refactoring the unified LLM services.
 - docs/cli_spec.md: CLI command hierarchy, options, parameters, and user experience specification.

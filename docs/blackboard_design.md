@@ -23,8 +23,8 @@ We will implement a **Single Blackboard Per Ticker** pattern (saved as `workspac
 To support multi-company queries in the future **Interactive Chat Mode** (e.g., _"Which company has the highest organic growth rate?"_), we do not query live, fanned-out JSON blackboards. Instead:
 
 - Individual blackboards remain write-only by their respective pipeline runs.
-- At the end of each company run, a lightweight indexer agent crawls the `workspace_state.json` file and synchronizes the flat key metrics into a **global read-only SQLite database** (`workspaces/workspace_index.db`) at the project root.
-- The Chat Agent queries this local SQLite database for instant cross-company comparisons.
+- At the end of each company run, a lightweight indexer agent crawls the `workspace_state.json` file and synchronizes the flat key metrics into a **global read-only JSON index** (`workspaces/workspace_index.json`) at the project root.
+- The Chat Agent queries this local consolidated JSON index for instant cross-company comparisons.
 
 ---
 
@@ -213,45 +213,45 @@ class ExtractedOtherData(BaseModel):
 
 class ModelAssumptions(BaseModel):
     """The DCF inputs and estimations populated by modeling agents."""
-    wacc: float = 0.09
+    wacc: float
 
     # WACC inputs and calculation outputs
-    company_beta_levered: float = 1.0
-    company_beta_unlevered: float = 1.0
-    industry_beta_unlevered: float = 1.0
-    risk_free_rate: float = 0.042
-    equity_risk_premium: float = 0.05
-    pretax_cost_of_debt: float = 0.062
-    cost_of_equity: float = 0.092
-    weight_equity: float = 1.0
-    weight_debt: float = 0.0
-    target_debt_to_equity: float = 0.0
-    interest_expense: float = 0.0
+    company_beta_levered: float
+    company_beta_unlevered: float
+    industry_beta_unlevered: float
+    risk_free_rate: float
+    equity_risk_premium: float
+    pretax_cost_of_debt: float
+    cost_of_equity: float
+    weight_equity: float
+    weight_debt: float
+    target_debt_to_equity: float
+    interest_expense: float
 
-    capital_turnover: float = 1.0
-    base_revenue: float = 0.0
-    base_invested_capital: float = 0.0
-    revenue_growth_base: float = 0.05
-    revenue_growth_yr5: float = 0.05
-    ebita_margin_base: float = 0.15
-    ebita_margin_yr5: float = 0.15
-    terminal_margin: float = 0.15
-    terminal_growth_rate: float = 0.03
-    adjusted_tax_rate: float = 0.21
+    capital_turnover: float
+    base_revenue: float
+    base_invested_capital: float
+    revenue_growth_base: float
+    revenue_growth_yr5: float
+    ebita_margin_base: float
+    ebita_margin_yr5: float
+    terminal_margin: float
+    terminal_growth_rate: float
+    adjusted_tax_rate: float
 
     # Non-operating bridge categories (latest Balance Sheet values)
-    excess_cash: float = 0.0
-    short_term_investments: float = 0.0
-    debt: float = 0.0
-    preferred_equity: float = 0.0
-    minority_interest: float = 0.0
-    other_financial_assets_net: float = 0.0
-    net_debt: float = 0.0
+    excess_cash: float
+    short_term_investments: float
+    debt: float
+    preferred_equity: float
+    minority_interest: float
+    other_financial_assets_net: float
+    net_debt: float
 
     # Capital structure inputs
-    shares_outstanding: float = 0.0
-    share_price: float = 0.0
-    market_cap: float = 0.0
+    shares_outstanding: float
+    share_price: float
+    market_cap: float
 
 class DCFProjectionYear(BaseModel):
     """A single projected year's financials (Years 1-10)."""
