@@ -22,3 +22,6 @@
 ## 2026-06-19 - Replacing re.DOTALL regexes with fast string operations
 **Learning:** Using `re.search` with `re.DOTALL` to parse text blocks triggers an O(N) to O(N^2) evaluation time proportional to string length. Converting parsing logic to `str.find` and custom slicing improves text chunk processing performance significantly.
 **Action:** Replace regex logic involving large chunks and `re.DOTALL` with robust logic utilizing `str.find` for chunk lookups, with correct attention paid to tracking trailing spaces and relative slice lengths.
+## 2024-07-16 - Eliminate re.DOTALL in Markdown Parsing Block Lookups
+**Learning:** Using `re.search` with `re.DOTALL` to grab chunks of markdown between headers triggers an O(N) evaluation proportional to the length of the string, which significantly slows down performance when parsing multiple large files during longitudinal analysis and chunk parsing.
+**Action:** Replaced regex-based string bounds lookups using `re.DOTALL` with fast built-in string methods (`str.find`) for string markers. Utilizing `str.find` to compute `start_idx` and `end_idx` directly speeds up the operation.
