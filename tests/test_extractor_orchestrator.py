@@ -336,7 +336,7 @@ def test_extract_financials_stages(
         ):
             return '{"thought": "Finalizing", "tool": "finalize", "arguments": {"simple_growth": "10%", "organic_growth": "8%", "revenue": "1000.0"}}'
         if "statement interpretation agent" in sys_lower:
-            return '{"line_items": [{"line_name": "Revenue", "value": 1000.0, "category": "income_statement", "operating": true, "calculated": false}, {"line_name": "Cash", "value": 500.0, "category": "current_assets", "operating": true, "calculated": false}]}'
+            return '{"thought": "Finalizing", "tool": "finalize", "arguments": {"line_items": [{"line_name": "Revenue", "value": 1000.0, "category": "income_statement", "operating": true, "calculated": false}, {"line_name": "Cash", "value": 500.0, "category": "current_assets", "operating": true, "calculated": false}]}}'
         if "ebita adjustments" in sys_lower:
             return '{"thought": "Finalizing", "tool": "finalize", "arguments": {"operating_income": 1000.0, "operating_ebita": 1000.0, "ebita_adjustments": []}}'
         if "tax provisions and adjustments" in sys_lower:
@@ -410,21 +410,54 @@ Revenue of $1000. Cash of $500. Shares outstanding basic shares diluted shares o
     assert line_items[1].line_name == "Cash"
 
     # 3. Test run_interpretation_agent
+    from src.core.blackboard import (
+        CompanyMetadata,
+        WorkspaceContext,
+        TemporalBlackboard,
+    )
+
+    company_metadata = CompanyMetadata(ticker="TEST")
+    workspace_state = WorkspaceContext(metadata=company_metadata)
+    parsed_documents = {"20240901_annual_filing.md": content}
+    period_key = "2024_FY"
+
+    report = TemporalBlackboard(
+        fiscal_year=2024, fiscal_period="FY", is_quarterly=False
+    )
+    report.financial_data.raw_income_statement_markdown = "| Revenue | 500 |"
+    report.financial_data.raw_balance_sheet_markdown = "| Assets | 100 |"
+    workspace_state.reports[period_key] = report
+
     interpreted = run_interpretation_agent(
-        line_items, Path("20240901_annual_filing.md"), extractor, is_quarterly=False
+        client=extractor.llm,
+        extracted_line_items=line_items,
+        company_metadata=company_metadata,
+        workspace_state=workspace_state,
+        period_key=period_key,
+        is_quarterly=False,
     )
     assert len(interpreted) == 2
     assert interpreted[0].operating is True
 
     # 4. Test run_diluted_shares_agent & run_organic_growth_agent
     basic_shares, diluted_shares = run_diluted_shares_agent(
-        content, extractor, is_quarterly=False
+        client=extractor.llm,
+        parsed_documents=parsed_documents,
+        company_metadata=company_metadata,
+        workspace_state=workspace_state,
+        period_key=period_key,
+        is_quarterly=False,
     )
     assert basic_shares == 100.0
     assert diluted_shares == 110.0
 
     simple_growth, organic_growth, revenue_val = run_organic_growth_agent(
-        content, extractor, is_quarterly=False
+        client=extractor.llm,
+        parsed_documents=parsed_documents,
+        company_metadata=company_metadata,
+        workspace_state=workspace_state,
+        period_key=period_key,
+        is_quarterly=False,
     )
     assert simple_growth == 0.10
     assert organic_growth == 0.08
@@ -432,11 +465,19 @@ Revenue of $1000. Cash of $500. Shares outstanding basic shares diluted shares o
 
     # 5. Test calculate_deterministic_metrics
     op_inc, ebita, ebita_adjustments = run_ebita_agent(
-        content, extractor, is_quarterly=False
+        client=extractor.llm,
+        parsed_documents=parsed_documents,
+        company_metadata=company_metadata,
+        workspace_state=workspace_state,
+        period_key=period_key,
+        is_quarterly=False,
     )
     inc_bt, rep_tax, adj_taxes, tax_adjustments = run_tax_agent(
-        content,
-        extractor,
+        client=extractor.llm,
+        parsed_documents=parsed_documents,
+        company_metadata=company_metadata,
+        workspace_state=workspace_state,
+        period_key=period_key,
         operating_income=op_inc,
         operating_ebita=ebita,
         ebita_adjustments=ebita_adjustments,

@@ -97,19 +97,19 @@ Implement the central blackboard schema (`WorkspaceContext`) and refactor the sp
 
 ### Phase 2.3: Stateless Metrics Sub-Agents
 - Refactor agents to rely on `query_blackboard` for read-only state dependencies:
-  - [ ] **`DilutedSharesAgent`**: [diluted_shares_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/extractor_financials_agents/diluted_shares_agent.py)
+  - [x] **`DilutedSharesAgent`**: [diluted_shares_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/extractor_financials_agents/diluted_shares_agent.py)
     - Tools: `keyword_search`, `query_blackboard` (10-turn limit).
     - Mandatory Input Context: `company metadata, income_statement, 10-Q/10-K filename, earnings announcement filename`.
-  - [ ] **`OrganicGrowthAgent`**: [organic_growth_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/extractor_financials_agents/organic_growth_agent.py)
+  - [x] **`OrganicGrowthAgent`**: [organic_growth_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/extractor_financials_agents/organic_growth_agent.py)
     - Tools: `keyword_search`, `query_blackboard` (10-turn limit).
     - Mandatory Input Context: `company metadata, income_statement, 10-Q/10-K filename, earnings announcement filename`.
-  - [ ] **`InterpretationAgent`**: [interpretation_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/extractor_financials_agents/interpretation_agent.py)
+  - [x] **`InterpretationAgent`**: [interpretation_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/extractor_financials_agents/interpretation_agent.py)
     - Tools: `access_resources`, `query_blackboard` (10-turn limit).
     - Mandatory Input Context: `company metadata, income_statement, balance_sheet`.
-  - [ ] **`OperatingEbitaAgent`**: [ebita_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/extractor_financials_agents/ebita_agent.py)
+  - [x] **`OperatingEbitaAgent`**: [ebita_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/extractor_financials_agents/ebita_agent.py)
     - Tools: `keyword_search`, `query_blackboard` (10-turn limit).
     - Mandatory Input Context: `company metadata, income_statement, 10-Q/10-K filename, earnings announcement filename`.
-  - [ ] **`AdjustedTaxesAgent`**: [tax_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/extractor_financials_agents/tax_agent.py)
+  - [x] **`AdjustedTaxesAgent`**: [tax_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/extractor_financials_agents/tax_agent.py)
     - Tools: `keyword_search`, `query_blackboard` (10-turn limit).
     - Mandatory Input Context: `company metadata, income_statement, 10-Q/10-K filename, earnings announcement filename`.
 

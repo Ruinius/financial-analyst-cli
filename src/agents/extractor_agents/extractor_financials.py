@@ -524,49 +524,123 @@ def extract_financials(
     )
 
     # Phase 2: Financial Statement Interpretation Agent
-    extracted_line_items = run_interpretation_agent(
-        extracted_line_items=extracted_line_items,
-        file_path=file_path,
-        extractor=extractor,
-        is_quarterly=is_quarterly,
+    from src.core.blackboard import (
+        load_workspace_state,
+        TemporalBlackboard,
+        CompanyMetadata,
     )
 
-    # Read the extracted income statement content if available
+    ticker = extractor.settings.active_ticker or "UNK"
+    workspace_state = load_workspace_state(ticker)
+    company_metadata = CompanyMetadata(ticker=ticker)
+    learnings = extractor.get_extract_context()
+
+    # Fetch parsed documents to support keyword search fanning-in
+    parsed_dir = Path(extractor.settings.active_workspace_path) / "2_parsed_data"
+    parsed_documents = {}
+    if parsed_dir.exists():
+        for p in parsed_dir.iterdir():
+            if (
+                p.is_file()
+                and p.suffix.lower() == ".md"
+                and p.name.lower() != "readme.md"
+                and p.name != "parsed_data.csv"
+            ):
+                try:
+                    parsed_documents[p.name] = p.read_text(encoding="utf-8")
+                except Exception:
+                    pass
+    if file_path.name not in parsed_documents:
+        parsed_documents[file_path.name] = content
+
+    # Determine fiscal year and period key
+    fy = metadata.get("fiscal_year")
+    fp = metadata.get("fiscal_period")
+    if not fy:
+        year_match = re.search(r"(\d{4})", file_path.name)
+        fy = int(year_match.group(1)) if year_match else 2024
+    else:
+        fy = int(fy)
+    if not fp:
+        fp = "Q" if is_quarterly else "FY"
+        if fp == "Q":
+            q_match = re.search(r"Q([1-4])", file_path.name, re.IGNORECASE)
+            fp = f"Q{q_match.group(1)}" if q_match else "Q1"
+
+    period_key = f"{fy}_{fp}"
+    if period_key not in workspace_state.reports:
+        workspace_state.reports[period_key] = TemporalBlackboard(
+            fiscal_year=fy,
+            fiscal_period=fp,
+            is_quarterly=is_quarterly,
+        )
+
+    # Update raw markdown fields on blackboard so that subsequent metrics sub-agents can query them via query_blackboard
+    report = workspace_state.reports[period_key]
     extracted_dir = Path(extractor.settings.active_workspace_path) / "4_extracted_data"
     is_path = extracted_dir / f"{file_path.stem}_income_statement.md"
-    income_statement_content = ""
     if is_path.exists():
-        income_statement_content = is_path.read_text(encoding="utf-8")
+        report.financial_data.raw_income_statement_markdown = is_path.read_text(
+            encoding="utf-8"
+        )
+    bs_path = extracted_dir / f"{file_path.stem}_balance_sheet.md"
+    if bs_path.exists():
+        report.financial_data.raw_balance_sheet_markdown = bs_path.read_text(
+            encoding="utf-8"
+        )
+
+    extracted_line_items = run_interpretation_agent(
+        client=extractor.llm,
+        extracted_line_items=extracted_line_items,
+        company_metadata=company_metadata,
+        workspace_state=workspace_state,
+        period_key=period_key,
+        is_quarterly=is_quarterly,
+        learnings=learnings,
+    )
 
     # Phase 3: Diluted Shares, Organic Growth, EBITA, and Adjusted Tax Agents
     basic_shares, diluted_shares = run_diluted_shares_agent(
-        content,
-        extractor,
-        income_statement_content=income_statement_content,
+        client=extractor.llm,
+        parsed_documents=parsed_documents,
+        company_metadata=company_metadata,
+        workspace_state=workspace_state,
+        period_key=period_key,
         is_quarterly=is_quarterly,
+        learnings=learnings,
     )
 
     simple_growth, organic_growth, revenue = run_organic_growth_agent(
-        content,
-        extractor,
-        income_statement_content=income_statement_content,
+        client=extractor.llm,
+        parsed_documents=parsed_documents,
+        company_metadata=company_metadata,
+        workspace_state=workspace_state,
+        period_key=period_key,
         is_quarterly=is_quarterly,
+        learnings=learnings,
     )
+
     op_inc, ebita, ebita_adjustments = run_ebita_agent(
-        content,
-        extractor,
-        income_statement_content=income_statement_content,
+        client=extractor.llm,
+        parsed_documents=parsed_documents,
+        company_metadata=company_metadata,
+        workspace_state=workspace_state,
+        period_key=period_key,
         is_quarterly=is_quarterly,
+        learnings=learnings,
     )
 
     inc_bt, rep_tax, adj_taxes, tax_adjustments = run_tax_agent(
-        content,
-        extractor,
+        client=extractor.llm,
+        parsed_documents=parsed_documents,
+        company_metadata=company_metadata,
+        workspace_state=workspace_state,
+        period_key=period_key,
         operating_income=op_inc,
         operating_ebita=ebita,
         ebita_adjustments=ebita_adjustments,
-        income_statement_content=income_statement_content,
         is_quarterly=is_quarterly,
+        learnings=learnings,
     )
 
     # Phase 4: Deterministic calculations

@@ -85,6 +85,8 @@ Welcome to the `financial-analyst-cli` project.
     - src/tools/keyword_search.py: Tool to find occurrences of keywords.
     - src/tools/investopedia_search.py: Investopedia search tool.
     - src/tools/pull_markdown.py: Tool to safe lookup of markdown files.
+    - src/tools/access_resources.py: Tool to safely look up static markdown dictionary templates.
+    - src/tools/query_blackboard.py: Core helper to query the in-memory blackboard state.
   - src/utils/: CLI output formatting, math utilities, and filesystem helpers.
     - src/utils/formatting.py: Rich terminal formatting helpers and Sir Pennyworth speech bubbles.
     - src/utils/markdown_helper.py: Markdown append/edit utilities, table validation, and JSON text parsing helpers.
