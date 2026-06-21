@@ -97,6 +97,7 @@ class Extractor:
         self.llm = get_llm_client()
         self._extract_context_cache = None
         self._dict_cache = {}
+        self._metadata_cache = None
 
     def get_extract_context(self) -> str:
         if self._extract_context_cache is None:
@@ -238,15 +239,19 @@ class Extractor:
             logger.error(f"Failed to run indexer agent after extraction: {e}")
 
     def get_document_metadata(self, file_name: str) -> dict:
-        parsed_dir = Path(self.settings.active_workspace_path) / "2_parsed_data"
-        csv_path = parsed_dir / "parsed_data.csv"
-        if csv_path.exists():
-            with open(csv_path, "r", encoding="utf-8") as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    if row.get("new_filename") == file_name:
-                        return row
-        return {}
+        # ⚡ Bolt Optimization: Cache parsed_data.csv to prevent N+1 file reads
+        if self._metadata_cache is None:
+            self._metadata_cache = {}
+            parsed_dir = Path(self.settings.active_workspace_path) / "2_parsed_data"
+            csv_path = parsed_dir / "parsed_data.csv"
+            if csv_path.exists():
+                with open(csv_path, "r", encoding="utf-8") as f:
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        if "new_filename" in row:
+                            self._metadata_cache[row["new_filename"]] = row
+
+        return self._metadata_cache.get(file_name, {})
 
     def extract_single_file(self, file_path: Path) -> None:
         logger.info(f"Extracting details from: {file_path.name}")
