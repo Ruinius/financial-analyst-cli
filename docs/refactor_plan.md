@@ -115,23 +115,23 @@ Implement the central blackboard schema (`WorkspaceContext`) and refactor the sp
 
 ### Phase 2.4: Stateless Modeler Sub-Agents
 - Standardize modeling agents to extract assumptions, execute pre-flight dependency checks, and output to the blackboard:
-  - [ ] **`WaccAgent`**: [wacc_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/modeler_agents/wacc_agent.py)
+  - [x] **`WaccAgent`**: [wacc_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/modeler_agents/wacc_agent.py)
     - Tools: `market_data`, `query_blackboard` (10-turn limit).
     - Mandatory Input Context: `company metadata, latest temporal period slice`.
     - Checks for latest balance sheet state, fetches ticker pricing, and calculates debt weights and cost of equity.
-  - [ ] **`GrowthAgent`**: [growth_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/modeler_agents/growth_agent.py)
+  - [x] **`GrowthAgent`**: [growth_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/modeler_agents/growth_agent.py)
     - Tools: `web_search`, `query_blackboard` (10-turn limit).
     - Mandatory Input Context: `latest temporal period slice, company metadata, trend tables`.
     - Checks historical summaries and compiles future revenue growth assumptions.
-  - [ ] **`MarginAgent`**: [margin_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/modeler_agents/margin_agent.py)
+  - [x] **`MarginAgent`**: [margin_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/modeler_agents/margin_agent.py)
     - Tools: `web_search`, `query_blackboard` (10-turn limit).
     - Mandatory Input Context: `latest temporal period slice, company metadata, trend tables`.
     - Analyzes analyst reports and determines short-term and terminal margins.
-  - [ ] **`NonOperatingAgent`**: [non_operating_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/modeler_agents/non_operating_agent.py)
+  - [x] **`NonOperatingAgent`**: [non_operating_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/modeler_agents/non_operating_agent.py)
     - Tools: `access_resources`, `query_blackboard` (10-turn limit).
     - Mandatory Input Context: `latest temporal period slice`.
     - Queries/extracts the 6 non-operating categories from the latest fanned-in balance sheet state.
-  - [ ] **`DcfModelingAgent`**: [dcf_modeling_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/modeler_agents/dcf_modeling_agent.py)
+  - [x] **`DcfModelingAgent`**: [dcf_modeling_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/modeler_agents/dcf_modeling_agent.py)
     - Tools: `query_blackboard` (10-turn limit).
     - Mandatory Input Context: `company metadata, latest temporal period slice, model assumptions`.
     - Reviews calculations, validates assumptions, and formats critique feedback.
@@ -151,10 +151,10 @@ Implement the central blackboard schema (`WorkspaceContext`) and refactor the sp
   - Evaluates turn deviation against `average_turn_count` to run discretionary learnings updates. Writes keywords, target chunks, and execution histories back to `company_data.learnings`.
 
 ### Phase 2.6: Post-Coding Audit (Phase 2)
-1. [ ] **State Deserialization Validation**: Confirm `WorkspaceContext.model_validate_json()` successfully parses complete workspace states without validation errors.
-2. [ ] **Stateless Code Inspection**: Check that all refactored sub-agents contain ZERO file operations (`open()`, `json.dump`, `os.path`) referencing `workspace_state.json`.
-3. [ ] **Dependency Logic Validation**: Verify that WACC, Growth, and Margin modeling agents gracefully return structured dependency errors (instead of throwing tracebacks or crashing) when queried previous metrics do not exist on the blackboard.
-4. [ ] **Atomic Swap Validation**: Check that atomic write triggers yield `workspace_state.json.tmp` files and correctly invoke `os.replace` to replace the final target file.
+1. [x] **State Deserialization Validation**: Confirm `WorkspaceContext.model_validate_json()` successfully parses complete workspace states without validation errors.
+2. [x] **Stateless Code Inspection**: Check that all refactored sub-agents contain ZERO file operations (`open()`, `json.dump`, `os.path`) referencing `workspace_state.json`.
+3. [x] **Dependency Logic Validation**: Verify that WACC, Growth, and Margin modeling agents gracefully return structured dependency errors (instead of throwing tracebacks or crashing) when queried previous metrics do not exist on the blackboard.
+4. [x] **Atomic Swap Validation**: Check that atomic write triggers yield `workspace_state.json.tmp` files and correctly invoke `os.replace` to replace the final target file.
 
 ---
 
