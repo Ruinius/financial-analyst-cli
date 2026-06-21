@@ -13,7 +13,7 @@ from src.agents.extractor_orchestrator import (
     TranscriptExtraction,
     GeneralSummary,
 )
-import src.utils.math as rust_core
+import src.utils.financial_math as rust_core
 
 
 def test_pydantic_schemas():

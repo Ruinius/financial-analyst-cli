@@ -5,7 +5,7 @@ from rich.console import Console
 from src.utils import formatting
 from src.utils.pig_animation import get_input_with_pig
 from src.services.llm_client import get_llm_client
-from src.services.math_solver import solve_math
+from src.services.safe_math_solver import solve_math
 
 app = typer.Typer()
 console = Console()

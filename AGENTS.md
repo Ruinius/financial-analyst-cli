@@ -67,6 +67,8 @@ Welcome to the `financial-analyst-cli` project.
     - src/services/deepseek_client.py: DeepSeek client implementation with thinking token options.
     - src/services/openrouter_client.py: OpenRouter client implementation with standardized headers.
     - src/services/market_data.py: Yahoo Finance market data and ticker checker.
+    - src/services/ddg_search.py: DuckDuckGo search service.
+    - src/services/safe_math_solver.py: AST-sandboxed mathematical equation solver.
     - src/services/queue.py: Safe job queue and exponential back-off retry manager.
   - src/rust_core/lib.rs: Rust module with PyO3 bindings for DCF financial modeling.
   - src/rust_core/fallback.py: Pure Python fallback for DCF modeling when Rust library is not compiled.
@@ -79,12 +81,12 @@ Welcome to the `financial-analyst-cli` project.
   - src/tools/: Reusable agent tools package.
     - src/tools/find_chunk.py: Tool to extract chunk content by ID.
     - src/tools/keyword_search.py: Tool to find occurrences of keywords.
-    - src/tools/web_search.py: Tool to search Investopedia.
+    - src/tools/investopedia_search.py: Investopedia search tool.
     - src/tools/pull_markdown.py: Tool to safe lookup of markdown files.
   - src/utils/: CLI output formatting, math utilities, and filesystem helpers.
     - src/utils/formatting.py: Rich terminal formatting helpers and Sir Pennyworth speech bubbles.
     - src/utils/markdown_helper.py: Markdown append/edit utilities, table validation, and JSON text parsing helpers.
-    - src/utils/math.py: Pure Python financial calculations utility module (EBITA, Invested Capital, Tax Rates, ROIC).
+    - src/utils/financial_math.py: Pure Python financial calculations utility module (EBITA, Invested Capital, Tax Rates, ROIC).
     - src/utils/pig_animation.py: Sir Pennyworth pig snout and ear console animation helper.
 
 - tests/: Test suite folder.
@@ -97,7 +99,7 @@ Welcome to the `financial-analyst-cli` project.
   - tests/test_ingester.py: Unit tests for layout-preserving parsing, file hashing, chunking, and metadata identification.
   - tests/test_indexer.py: Unit tests for the workspace file indexer agent and catalog formatting.
   - tests/test_markdown_table_validator.py: Unit tests for markdown table syntax validation.
-  - tests/test_math_solver.py: Unit tests for the AST-sandboxed mathematical equation solver.
+  - tests/test_safe_math_solver.py: Unit tests for the AST-sandboxed mathematical equation solver.
   - tests/test_modeler.py: Unit tests for DCF modeling, WACC calculation, and intrinsic valuation.
   - tests/test_llm_clients.py: Unit tests for modular LLM client factory, provider-specific implementations, and streaming.
   - tests/test_query.py: Unit tests for database query parsing and execution.

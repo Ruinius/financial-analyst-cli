@@ -1,5 +1,5 @@
 import pytest
-from src.services.math_solver import solve_math
+from src.services.safe_math_solver import solve_math
 
 
 def test_solve_math_basic_operations():

@@ -160,7 +160,7 @@ Config      Ingestion   Extraction  History     Modeling    Interactive
   - [x] Implement `fa query trace <ticker> <metric> <period>` to render the audit trial/provenance of any metric from raw chunks.
 - **6.2 Interactive REPL / Analyst Chat (`fa chat`)**:
   - [x] Implement the interactive console-based session with Sir Pennyworth.
-  - [x] Implement the sandboxed math execution engine (`math_solver.py`) using `RestrictedPython` or `SymPy` with AST filtering and timeout guards.
+  - [x] Implement the sandboxed math execution engine (`safe_math_solver.py`) using `RestrictedPython` or `SymPy` with AST filtering and timeout guards.
 - **6.3 DCF Viewer Server (`fa viewer`)**:
   - [x] Build the zero-dependency interactive HTML browser viewer.
   - [x] Setup a simple Python server to launch the viewer, read from `7_historical_model_json/`, and write back updated override JSON versions (e.g. `YYYYMMDD_ticker_1.json`).

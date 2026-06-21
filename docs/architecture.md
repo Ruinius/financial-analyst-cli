@@ -60,7 +60,7 @@ financial-analyst-cli/
 │   │   ├── edgar_client.py         # SEC EDGAR download API client
 │   │   ├── llm_client.py           # Unified model client with Gemini / Simulated chat sessions
 │   │   ├── market_data.py          # Yahoo Finance market data and ticker checker
-│   │   └── math_solver.py          # Sandboxed Python execution for custom calculations
+│   │   └── safe_math_solver.py     # Sandboxed Python execution for custom calculations
 │   ├── agents/                     # Execution runner stages (ingest, extract, analyze, model)
 │   │   ├── __init__.py
 │   │   ├── queue.py                # Safe job queue & retry manager
@@ -110,7 +110,7 @@ financial-analyst-cli/
 │   └── utils/                      # Formatting and filesystem utilities
 │       ├── __init__.py
 │       ├── formatting.py           # Rich-based console output utilities
-│       ├── math.py                 # Pure Python financial calculations
+│       ├── financial_math.py       # Pure Python financial calculations
 │       ├── pig_animation.py        # Sir Pennyworth pig console animation
 │       └── markdown_helper.py      # Markdown append/edit, table validation, and JSON parsing helpers
 ├── Cargo.toml                      # Cargo manifest for Rust module
@@ -197,11 +197,11 @@ sequenceDiagram
 
 ## 5. Sandboxed Execution Architecture
 
-To execute LLM-generated math calculations safely on the user's host OS (Windows) without the high overhead and dependency requirements of local Docker containers, the `math_solver.py` service implements an in-process AST (Abstract Syntax Tree) sandboxed executor based on `RestrictedPython`:
+To execute LLM-generated math calculations safely on the user's host OS (Windows) without the high overhead and dependency requirements of local Docker containers, the `safe_math_solver.py` service implements an in-process AST (Abstract Syntax Tree) sandboxed executor based on `RestrictedPython`:
 
 ```mermaid
 graph TD
-    LLM[LLM Agent] -->|Generates Python Expression| Solver[math_solver.py]
+    LLM[LLM Agent] -->|Generates Python Expression| Solver[safe_math_solver.py]
     Solver -->|1. Parse AST| ASTFilter[AST Verification Filter]
     ASTFilter -->|Check Allowed Syntax / Disallow __| ExecutionEngine[Restricted Namespace Engine]
     ExecutionEngine -->|2. Inject Whitelisted Scope: math, numpy, data variables| SandboxedRun[Isolated Exec Context]
