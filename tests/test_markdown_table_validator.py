@@ -1,4 +1,4 @@
-from src.utils.tools import validate_markdown_table_syntax
+from src.utils.markdown_helper import validate_markdown_table_syntax
 
 
 def test_valid_markdown_table():

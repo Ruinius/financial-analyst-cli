@@ -2,7 +2,7 @@ import json
 import logging
 from pathlib import Path
 from typing import Dict, Any, Tuple
-from src.utils.tools import extract_json_from_text
+from src.utils.markdown_helper import extract_json_from_text
 from src.services.llm_client import LLMClient
 from src.core.exceptions import LLMError
 from src.tools.pull_markdown import pull_markdown_file

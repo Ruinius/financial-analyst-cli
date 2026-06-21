@@ -112,7 +112,7 @@ financial-analyst-cli/
 │       ├── formatting.py           # Rich-based console output utilities
 │       ├── math.py                 # Pure Python financial calculations
 │       ├── pig_animation.py        # Sir Pennyworth pig console animation
-│       └── tools.py                # Universal utility tools (context finding, markdown appenders, editors)
+│       └── markdown_helper.py      # Markdown append/edit, table validation, and JSON parsing helpers
 ├── Cargo.toml                      # Cargo manifest for Rust module
 ├── pyproject.toml                  # uv / maturin configuration
 └── main.py                         # Root entry point delegating to src/cli/main.py

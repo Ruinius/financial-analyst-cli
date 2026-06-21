@@ -99,7 +99,7 @@ def run_agent_loop(
         # 2. Process Plain Text Responses (non-tool calls)
         else:
             # Check if the text contains a manual tool call string representation (fallback parsing helper)
-            from src.utils.tools import extract_json_from_text
+            from src.utils.markdown_helper import extract_json_from_text
 
             json_str = extract_json_from_text(response)
             if json_str:

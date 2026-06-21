@@ -2,7 +2,7 @@ import re
 import json
 import logging
 from pathlib import Path
-from src.utils.tools import extract_json_from_text
+from src.utils.markdown_helper import extract_json_from_text
 from typing import Dict, Any
 
 from src.services.llm_client import LLMClient

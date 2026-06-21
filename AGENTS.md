@@ -83,7 +83,7 @@ Welcome to the `financial-analyst-cli` project.
     - src/tools/pull_markdown.py: Tool to safe lookup of markdown files.
   - src/utils/: CLI output formatting, math utilities, and filesystem helpers.
     - src/utils/formatting.py: Rich terminal formatting helpers and Sir Pennyworth speech bubbles.
-    - src/utils/tools.py: Universal utility tools (keyword context finding, markdown appenders, editors).
+    - src/utils/markdown_helper.py: Markdown append/edit utilities, table validation, and JSON text parsing helpers.
     - src/utils/math.py: Pure Python financial calculations utility module (EBITA, Invested Capital, Tax Rates, ROIC).
     - src/utils/pig_animation.py: Sir Pennyworth pig snout and ear console animation helper.
 

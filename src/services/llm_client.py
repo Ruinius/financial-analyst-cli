@@ -155,7 +155,7 @@ class SimulatedChatSession(ChatSession):
     def send_message(
         self, message: str, tool_responses: list = None
     ) -> Union[str, list]:
-        from src.utils.tools import extract_json_from_text
+        from src.utils.markdown_helper import extract_json_from_text
         from types import SimpleNamespace
 
         if tool_responses:
@@ -405,7 +405,7 @@ class OpenAICompatibleClient(LLMClient):
             stream_thinking=False,
         )
 
-        from src.utils.tools import extract_json_from_text
+        from src.utils.markdown_helper import extract_json_from_text
 
         json_str = extract_json_from_text(raw_response)
         if not json_str:

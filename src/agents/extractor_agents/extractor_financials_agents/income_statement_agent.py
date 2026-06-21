@@ -5,7 +5,7 @@ from src.tools.keyword_search import (
     find_keyword_contexts as orchestrator_find_keyword_contexts,
 )
 from src.tools.find_chunk import get_chunk_by_id as orchestrator_get_chunk
-from src.utils.tools import (
+from src.utils.markdown_helper import (
     append_markdown as orchestrator_append_markdown,
     edit_markdown as orchestrator_edit_markdown,
     validate_markdown_table_syntax,
