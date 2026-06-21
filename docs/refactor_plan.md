@@ -47,6 +47,7 @@ Refactor `src/services/llm_client.py` to decouple the generic provider logic int
 Implement the central blackboard schema (`WorkspaceContext`) and refactor the specialist sub-extractors, metric agents, and modeling agents to be purely stateless, functional Python callables that read and return Pydantic schemas mapping directly to the blackboard.
 
 ### Phase 2.1: Blackboard Core & Persistence Layer
+
 - [x] **Implement Blackboard Pydantic Domain Schema**
   - Path: [blackboard.py](file:///f:/AIML%20projects/financial-analyst-cli/src/core/blackboard.py)
   - Implement all Pydantic models defined in the [Blackboard Design Specification](file:///f:/AIML%20projects/financial-analyst-cli/docs/blackboard_design.md#L31-L335):
@@ -77,6 +78,7 @@ Implement the central blackboard schema (`WorkspaceContext`) and refactor the sp
     2. Atomically replace the target file using `os.replace` to prevent state corruption during execution crashes.
 
 ### Phase 2.2: Stateless Extractor Sub-Agents
+
 - Standardize sub-agents as stateless functions with no file I/O that return Pydantic outputs and strictly enforce turn limits and tool restrictions:
   - [x] **`MetadataAgent`**: [metadata_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/metadata_agent.py)
     - Tools: `get_first_chunk`, `keyword_search` (10-turn limit).
@@ -96,6 +98,7 @@ Implement the central blackboard schema (`WorkspaceContext`) and refactor the sp
     - Mandatory Input Context: `target document filename, company metadata, agent learnings`.
 
 ### Phase 2.3: Stateless Metrics Sub-Agents
+
 - Refactor agents to rely on `query_blackboard` for read-only state dependencies:
   - [x] **`DilutedSharesAgent`**: [diluted_shares_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/extractor_financials_agents/diluted_shares_agent.py)
     - Tools: `keyword_search`, `query_blackboard` (10-turn limit).
@@ -114,6 +117,7 @@ Implement the central blackboard schema (`WorkspaceContext`) and refactor the sp
     - Mandatory Input Context: `company metadata, income_statement, 10-Q/10-K filename, earnings announcement filename`.
 
 ### Phase 2.4: Stateless Modeler Sub-Agents
+
 - Standardize modeling agents to extract assumptions, execute pre-flight dependency checks, and output to the blackboard:
   - [x] **`WaccAgent`**: [wacc_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/modeler_agents/wacc_agent.py)
     - Tools: `market_data`, `query_blackboard` (10-turn limit).
@@ -137,6 +141,7 @@ Implement the central blackboard schema (`WorkspaceContext`) and refactor the sp
     - Reviews calculations, validates assumptions, and formats critique feedback.
 
 ### Phase 2.5: Curator, Learning, and Turn Warning Mechanisms
+
 - [ ] **Implement Progressive Turn Warning Mechanism**
   - Inject turn instructions containing current counts, remaining allowances, and historical runtimes (`average_turn_count`) to urge optimal, fast sub-agent exit.
 - [ ] **Implement Curator Agent**
@@ -151,6 +156,7 @@ Implement the central blackboard schema (`WorkspaceContext`) and refactor the sp
   - Evaluates turn deviation against `average_turn_count` to run discretionary learnings updates. Writes keywords, target chunks, and execution histories back to `company_data.learnings`.
 
 ### Phase 2.6: Post-Coding Audit (Phase 2)
+
 1. [x] **State Deserialization Validation**: Confirm `WorkspaceContext.model_validate_json()` successfully parses complete workspace states without validation errors.
 2. [x] **Stateless Code Inspection**: Check that all refactored sub-agents contain ZERO file operations (`open()`, `json.dump`, `os.path`) referencing `workspace_state.json`.
 3. [x] **Dependency Logic Validation**: Verify that WACC, Growth, and Margin modeling agents gracefully return structured dependency errors (instead of throwing tracebacks or crashing) when queried previous metrics do not exist on the blackboard.
@@ -165,6 +171,7 @@ Implement the central blackboard schema (`WorkspaceContext`) and refactor the sp
 Implement the central pipeline coordinator (`BlackboardOrchestrator`) that manages in-memory check-out/check-in, enforces execution gates, executes multi-document GAAP merge logic, validates arithmetic constraints, coordinates modeling, and modifies the CLI command suite.
 
 ### Phase 3.1: Orchestration Core & Lifecycle Transitions
+
 - [ ] **Create Blackboard Orchestrator**
   - Path: [blackboard_orchestrator.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/blackboard_orchestrator.py)
   - Implement orchestration supporting full and stage-level execution (`ingest`, `extract`, `analyze`, `model`).
@@ -174,6 +181,7 @@ Implement the central pipeline coordinator (`BlackboardOrchestrator`) that manag
   - On orchestrator restart, scans for dangling `running` items and marks them `failed`/`pending` for safe recovery.
 
 ### Phase 3.2: Execution Gating & Concurrency Control
+
 - [ ] **Enforce Execution Gates & Dependencies**
   - Group parallel and sequential tasks inside the async event loop:
     1. **Setup Phase (Sequential)**: Run `metadata_agent` first to populate company metadata (`WorkspaceContext.metadata`). This acts as a blocking gate prerequisite; subsequent agent phases cannot run if company metadata is not successfully completed.
@@ -187,6 +195,7 @@ Implement the central pipeline coordinator (`BlackboardOrchestrator`) that manag
   - Implement `asyncio.Semaphore` configurations to restrict company, document, and phase concurrency to protect LLM API endpoints.
 
 ### Phase 3.3: Merge Policies & Arithmetic Checks
+
 - [ ] **Implement Multi-Document Period Processing & Merge Policies**
   - Accumulate source documents into `source_files: List[str]`.
   - **GAAP Override**: Structured balance sheet and income statement models from formal filings (10-Q/10-K) overwrite earnings announcement extractions.
@@ -198,6 +207,7 @@ Implement the central pipeline coordinator (`BlackboardOrchestrator`) that manag
   - If a sub-agent fails its quality audit checks and runs out of execution turns, the Orchestrator marks the task state as `failed`.
 
 ### Phase 3.4: Recovery Queue & CLI Restructuring
+
 - [ ] **Implement Failure Queue & Recovery Modes**
   - Pushes failures into a sequential queue.
   - [ ] **Non-Interactive Mode (`--non-interactive` flag)**: No stdin query. Auto retries network failures (up to 3 times). Bypasses retries on validation or quality issues, marks status `failed`, and halts with exit code `1`.
@@ -216,10 +226,53 @@ Implement the central pipeline coordinator (`BlackboardOrchestrator`) that manag
     - [ ] **`fa query` commands**: Streamlines `summary`, `assessment`, and `valuation` to read directly from `workspace_state.json` for speed. Simplifies `trace` to return execution status and timestamps.
 
 ### Phase 3.5: Post-Coding Audit (Phase 3)
+
 1. [ ] **Execution Loop Integration Test**: Verify that the deprecated linear files (`extractor_orchestrator.py`, `extractor_financials.py`, `analyzer.py`, `modeler_orchestrator.py`) have been removed and that `uv run pytest tests/` runs successfully using the new coordinator.
 2. [ ] **Multi-Document Merge Check**: Process an earnings release containing non-GAAP items and a subsequent 10-Q/10-K. Verify that GAAP figures overwrite EA details, but non-GAAP attributes (Organic Growth, Adjusted Taxes, Operating EBITA) are preserved.
 3. [ ] **Validation Logs Check**: Verify that a sub-agent running out of turns with quality audit check failures writes details into the period's `arithmetic_errors` field and correctly marks the task state as `failed`.
 4. [ ] **Recovery Prompt Audit**: Run in `--non-interactive` mode, inject a quality validation failure, and confirm the pipeline halts with exit code `1` immediately without blocking on user input.
+
+### Phase 3.6: Test Suite Refactoring
+
+- [ ] **Establish Modular Test Layout**:
+  - Reorganize directory structure to mirror the `src/` modular layout, performing the following moves and deletions:
+    - [NEW] `tests/conftest.py`: Establish central, reusable mock fixtures (`mock_workspace`, `mock_llm_client`, base settings fixtures).
+    - [NEW] `tests/agents/`: Group unit and LLM-interaction tests for individual specialist sub-agents.
+      - [NEW] `test_wacc_agent.py`: Split out from `test_modeler.py`.
+      - [NEW] `test_growth_agent.py`: Split out from `test_modeler.py`.
+      - [NEW] `test_margin_agent.py`: Split out from `test_modeler.py`.
+      - [NEW] `test_non_operating_agent.py`: Split out from `test_modeler.py`.
+      - [NEW] `test_dcf_modeling_agent.py`: Split out from `test_modeler.py`.
+      - [NEW] `test_balance_sheet_agent.py`: Split out from `test_extractor_orchestrator.py`.
+      - [NEW] `test_income_statement_agent.py`: Split out from `test_extractor_orchestrator.py`.
+      - [NEW] `test_analyst_report_agent.py`: Split out from `test_extractor_orchestrator.py`.
+      - [NEW] `test_metadata_agent.py`: Split out from `test_extractor_orchestrator.py`.
+      - [NEW] `test_other_doc_agent.py`: Split out from `test_extractor_orchestrator.py`.
+      - [MOVE/RENAME] `tests/test_analyzer.py` -> `tests/agents/test_analyzer.py`
+      - [MOVE/RENAME] `tests/test_indexer.py` -> `tests/agents/test_indexer.py`
+      - [MOVE/RENAME] `tests/test_ingester.py` -> `tests/agents/test_ingester.py`
+    - [NEW] `tests/core/`: Keep blackboard and config tests.
+      - [MOVE/RENAME] `tests/test_blackboard.py` -> `tests/core/test_blackboard.py`
+      - [MOVE/RENAME] `tests/test_config.py` -> `tests/core/test_config.py`
+    - [NEW] `tests/services/`: Move LLM, SEC EDGAR, DDG, and math solver tests.
+      - [MOVE/RENAME] `tests/test_llm_clients.py` -> `tests/services/test_llm_clients.py`
+      - [MOVE/RENAME] `tests/test_edgar.py` -> `tests/services/test_edgar.py`
+      - [MOVE/RENAME] `tests/test_safe_math_solver.py` -> `tests/services/test_safe_math_solver.py`
+    - [NEW] `tests/utils/`: Move utilities, terminal layout, and formatting tests.
+      - [MOVE/RENAME] `tests/test_formatting.py` -> `tests/utils/test_formatting.py`
+      - [MOVE/RENAME] `tests/test_markdown_table_validator.py` -> `tests/utils/test_markdown_table_validator.py`
+    - [NEW] `tests/cli/`: Move interactive and query command tests.
+      - [MOVE/RENAME] `tests/test_chat.py` -> `tests/cli/test_chat.py`
+      - [MOVE/RENAME] `tests/test_query.py` -> `tests/cli/test_query.py`
+      - [MOVE/RENAME] `tests/test_viewer.py` -> `tests/cli/test_viewer.py`
+    - [DELETE] Remove original monolithic root files once all contents have been successfully migrated:
+      - `tests/test_modeler.py`
+      - `tests/test_extractor_orchestrator.py`
+- [ ] **Decouple Integration & Unit Testing**:
+  - Restructure tests so that pure logic / formula functions (e.g., WACC calculation capping, Pydantic schemas validation) do not require heavy disk or LLM mocks.
+  - Simplify coordinator/integration testing inside `tests/agents/test_extractor_orchestrator.py` and `tests/agents/test_modeler_orchestrator.py`.
+- [ ] **Verify Execution**:
+  - Assert that all 124 tests continue to pass under the new structure and execution latency is optimized.
 
 ---
 
