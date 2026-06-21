@@ -78,20 +78,20 @@ Implement the central blackboard schema (`WorkspaceContext`) and refactor the sp
 
 ### Phase 2.2: Stateless Extractor Sub-Agents
 - Standardize sub-agents as stateless functions with no file I/O that return Pydantic outputs and strictly enforce turn limits and tool restrictions:
-  - [ ] **`MetadataAgent`**: [metadata_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/metadata_agent.py)
+  - [x] **`MetadataAgent`**: [metadata_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/metadata_agent.py)
     - Tools: `get_first_chunk`, `keyword_search` (10-turn limit).
     - Mandatory Input Context: `list of parsed document filenames`.
     - Scans fanned-in documents in the parsed folder to extract company metadata (name, description, fiscal calendar dates, currencies, conversion factors) to establish the prerequisite setup before spawning other agents.
-  - [ ] **`BalanceSheetAgent`**: [balance_sheet_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/extractor_financials_agents/balance_sheet_agent.py)
-    - Tools: `find_chunk`, `keyword_search` (20-turn limit).
+  - [x] **`BalanceSheetAgent`**: [balance_sheet_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/extractor_financials_agents/balance_sheet_agent.py)
+    - Tools: `find_chunk`, `keyword_search`, `check_balance_sheet_quality` (20-turn limit).
     - Mandatory Input Context: `target document filename, company metadata, agent learnings`.
-  - [ ] **`IncomeStatementAgent`**: [income_statement_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/extractor_financials_agents/income_statement_agent.py)
-    - Tools: `find_chunk`, `keyword_search` (20-turn limit).
+  - [x] **`IncomeStatementAgent`**: [income_statement_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/extractor_financials_agents/income_statement_agent.py)
+    - Tools: `find_chunk`, `keyword_search`, `check_income_statement_quality` (20-turn limit).
     - Mandatory Input Context: `target document filename, company metadata, agent learnings`.
-  - [ ] **`AnalystReportAgent`**: [extractor_analyst_report.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/extractor_analyst_report.py)
+  - [x] **`AnalystReportAgent`**: [extractor_analyst_report.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/extractor_analyst_report.py)
     - Tools: `find_chunk`, `keyword_search` (10-turn limit).
     - Mandatory Input Context: `target document filename, company metadata, agent learnings`.
-  - [ ] **`OtherDocAgent`**: [extractor_other.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/extractor_other.py)
+  - [x] **`OtherDocAgent`**: [extractor_other.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/extractor_other.py)
     - Tools: `find_chunk`, `keyword_search` (10-turn limit).
     - Mandatory Input Context: `target document filename, company metadata, agent learnings`.
 
@@ -192,23 +192,22 @@ Implement the central pipeline coordinator (`BlackboardOrchestrator`) that manag
   - **GAAP Override**: Structured balance sheet and income statement models from formal filings (10-Q/10-K) overwrite earnings announcement extractions.
   - **Non-GAAP Preservation**: Non-GAAP metrics (constant currency organic growth, operating EBITA, adjusted taxes) extracted from earnings announcements are preserved and not cleared/overwritten when the 10-Q/10-K runs.
   - **Simultaneous Search**: Grant permission to search tools to read both filings concurrently when resolving metric values.
-- [ ] **Implement Mathematical Verification Rules**
-  - Support relative tolerance `1e-4` and absolute tolerance `$100.0` for float calculations:
-    - [ ] **Rule 1**: Total Assets == Total Liabilities + Total Equity.
-    - [ ] **Rule 2**: Invested Capital == (Operating Current Assets - Operating Current Liabilities) + (Operating Non-Current Assets - Operating Non-Current Liabilities).
-    - [ ] **Rule 3**: Revenue - Cost of Goods Sold - SG&A - R&D == Operating Income.
+- [ ] **Implement Quality Audit & Validation Checks**
+  - Integrate robust LLM-based quality audit tools `check_balance_sheet_quality` and `check_income_statement_quality` inside the sub-agents before finalizing.
+  - Ensure any quality check warnings or failures are logged and handled.
+  - If a sub-agent fails its quality audit checks and runs out of execution turns, the Orchestrator marks the task state as `failed`.
 
 ### Phase 3.4: Recovery Queue & CLI Restructuring
 - [ ] **Implement Failure Queue & Recovery Modes**
   - Pushes failures into a sequential queue.
-  - [ ] **Non-Interactive Mode (`--non-interactive` flag)**: No stdin query. Auto retries network failures (up to 3 times). Bypasses retries on validation or math issues, marks status `failed`, and halts with exit code `1`.
+  - [ ] **Non-Interactive Mode (`--non-interactive` flag)**: No stdin query. Auto retries network failures (up to 3 times). Bypasses retries on validation or quality issues, marks status `failed`, and halts with exit code `1`.
   - [ ] **Interactive Developer Mode (Default CLI)**: Blocks and requests stdin recovery strategy from user:
     - _Retry_: Re-submits task.
     - _Don't Retry_: Continues pipeline, skipping downstream dependents.
     - _Stop All_: Terminates all active futures and cancels execution.
 - [ ] **Refactor CLI Commands & Sub-commands**
   - Modifies CLI entrypoint `src/cli/main.py` and command routing files:
-    - [ ] **`fa run extract`**: Spawns orchestrator to resolve pending extraction/metric agents and run math verification.
+    - [ ] **`fa run extract`**: Spawns orchestrator to resolve pending extraction/metric agents and run quality validation.
     - [ ] **`fa run analyze`**: Triggers orchestrator to compile longitudinal financial summary tables.
     - [ ] **`fa run model`**: Coordinates modeling agents, executes Rust (or fallback Python) DCF model, and saves outputs.
     - [ ] **`fa run curate_wiki`**: Runs CuratorAgent to compile `[TICKER]_wiki.md` under write lock.
@@ -219,8 +218,8 @@ Implement the central pipeline coordinator (`BlackboardOrchestrator`) that manag
 ### Phase 3.5: Post-Coding Audit (Phase 3)
 1. [ ] **Execution Loop Integration Test**: Verify that the deprecated linear files (`extractor_orchestrator.py`, `extractor_financials.py`, `analyzer.py`, `modeler_orchestrator.py`) have been removed and that `uv run pytest tests/` runs successfully using the new coordinator.
 2. [ ] **Multi-Document Merge Check**: Process an earnings release containing non-GAAP items and a subsequent 10-Q/10-K. Verify that GAAP figures overwrite EA details, but non-GAAP attributes (Organic Growth, Adjusted Taxes, Operating EBITA) are preserved.
-3. [ ] **Arithmetic Logs Check**: Verify that triggering a balance sheet or income statement math validation failure writes details into the period's `arithmetic_errors` field and correctly marks the task state as `failed`.
-4. [ ] **Recovery Prompt Audit**: Run in `--non-interactive` mode, inject a validation failure, and confirm the pipeline halts with exit code `1` immediately without blocking on user input.
+3. [ ] **Validation Logs Check**: Verify that a sub-agent running out of turns with quality audit check failures writes details into the period's `arithmetic_errors` field and correctly marks the task state as `failed`.
+4. [ ] **Recovery Prompt Audit**: Run in `--non-interactive` mode, inject a quality validation failure, and confirm the pipeline halts with exit code `1` immediately without blocking on user input.
 
 ---
 

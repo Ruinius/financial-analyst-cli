@@ -6,6 +6,8 @@ from pathlib import Path
 import src.utils.financial_math as pipeline_math
 
 
+from src.core.blackboard import CompanyMetadata
+
 # Import specialized agents to run or expose them
 from src.agents.extractor_agents.extractor_financials_agents.income_statement_agent import (
     run_income_statement_agent,
@@ -130,24 +132,39 @@ def extract_financial_statements(
     is_path = extracted_dir / f"{file_path.stem}_income_statement.md"
     bs_path = extracted_dir / f"{file_path.stem}_balance_sheet.md"
 
-    # Income Statement Agent
-    run_income_statement_agent(
-        file_path=file_path,
+    company_metadata = CompanyMetadata(ticker=extractor.settings.active_ticker or "UNK")
+    learnings = extractor.get_extract_context()
+
+    # Income Statement Agent (Stateless)
+    is_extraction = run_income_statement_agent(
+        client=extractor.llm,
+        filename=file_path.name,
         content=content,
-        sorted_chunk_ids=sorted_chunk_ids,
-        extractor=extractor,
-        target_output_path=is_path,
+        company_metadata=company_metadata,
+        learnings=learnings,
         is_quarterly=is_quarterly,
     )
+    is_path.write_text(
+        f"**Currency**: {is_extraction.currency}\n"
+        f"**Unit**: {is_extraction.unit}\n\n"
+        f"{is_extraction.raw_income_statement_markdown}",
+        encoding="utf-8",
+    )
 
-    # Balance Sheet Agent
-    run_balance_sheet_agent(
-        file_path=file_path,
+    # Balance Sheet Agent (Stateless)
+    bs_extraction = run_balance_sheet_agent(
+        client=extractor.llm,
+        filename=file_path.name,
         content=content,
-        sorted_chunk_ids=sorted_chunk_ids,
-        extractor=extractor,
-        target_output_path=bs_path,
+        company_metadata=company_metadata,
+        learnings=learnings,
         is_quarterly=is_quarterly,
+    )
+    bs_path.write_text(
+        f"**Currency**: {bs_extraction.currency}\n"
+        f"**Unit**: {bs_extraction.unit}\n\n"
+        f"{bs_extraction.raw_balance_sheet_markdown}",
+        encoding="utf-8",
     )
 
     # Parse and consolidate line items

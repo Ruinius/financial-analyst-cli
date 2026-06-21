@@ -1,6 +1,6 @@
 # Blackboard Design Specification
 
-This document defines the structural schema, storage mechanics, state transition guidelines, and verification formulas for the **Blackboard Pattern** state manager in the `financial-analyst-cli` workspace.
+This document defines the structural schema, storage mechanics, state transition guidelines, and quality audit processes for the **Blackboard Pattern** state manager in the `financial-analyst-cli` workspace.
 
 ---
 
@@ -349,66 +349,20 @@ While the **Base Financial Model** (representing the standard estimates derived 
 
 ---
 
-## 4. Mathematical Verification & Reconciliation Logic
-
-The **Blackboard Orchestrator** triggers programmatic validation checks.
+## 4. Quality Audit & Reconciliation Logic
 
 ### Storing in Raw Absolute Units
 
 To prevent rounding errors and scaling confusion, all values stored on the Blackboard must be normalized to their **raw absolute currency units** (e.g., standard absolute dollar/euro amounts, not scaled to thousands or millions) during the extraction stage. Scaling is only performed at the user interface (CLI display/Web Viewer) representation layers.
 
-### Tolerant Checks for Float Operations
+### Robust LLM-Based Quality Audit Checks
 
-Since financial math operates on `float` values, strict `1.0` difference assertions are prone to failures due to minor floating-point issues or exchange/FX conversions. All checks must utilize relative and absolute tolerances.
+Rather than relying on fragile programmatic formula assertions that are prone to failing on non-GAAP or company-specific structures, the system preserves and enforces robust LLM-based quality checks to audit correctness, period focus, row-by-row layout formatting, and positive/negative sign alignment:
 
-### Rule 1: Balance Sheet Consistency (Double-Entry Match)
+- **`check_balance_sheet_quality`**: Performs LLM auditor validation on the balance sheet markdown table.
+- **`check_income_statement_quality`**: Performs LLM auditor validation on the income statement markdown table.
 
-The sum of operating and non-operating assets must equal liabilities and equity:
-$$\text{Total Assets} = \text{Total Liabilities} + \text{Total Equity}$$
-
-- **Verification Rule**:
-
-  ```python
-  import math
-
-  total_assets = sum(item.value for item in report.financial_data.line_items if "assets" in item.category)
-  total_liabilities_equity = sum(item.value for item in report.financial_data.line_items if "liabilities" in item.category or item.category == "equity")
-
-  # Check consistency with a relative tolerance of 1e-4 or absolute tolerance of $100.0
-  if not math.isclose(total_assets, total_liabilities_equity, rel_tol=1e-4, abs_tol=100.0):
-      report.balance_sheet_status = "failed"
-      report.arithmetic_errors.append(f"Balance sheet mismatch: Assets ({total_assets}) != Liab+Eq ({total_liabilities_equity})")
-  ```
-
-### Rule 2: Invested Capital Derivation (math.py Verification)
-
-Invested capital is calculated from operating categories. The Blackboard verifies:
-$$\text{Invested Capital} = (\text{Operating Current Assets} - \text{Operating Current Liabilities}) + (\text{Operating Non-Current Assets} - \text{Operating Non-Current Liabilities})$$
-
-- **Verification Rule**:
-
-  ```python
-  import math
-
-  oca = sum(item.value for item in report.financial_data.line_items if item.category == "current_assets" and item.operating)
-  ocl = sum(item.value for item in report.financial_data.line_items if item.category == "current_liabilities" and item.operating)
-  onca = sum(item.value for item in report.financial_data.line_items if item.category == "noncurrent_assets" and item.operating)
-  oncl = sum(item.value for item in report.financial_data.line_items if item.category == "noncurrent_liabilities" and item.operating)
-
-  nwc = oca - ocl
-  nltoa = onca - oncl
-  expected_ic = nwc + nltoa
-
-  # Check consistency with a relative tolerance of 1e-4 or absolute tolerance of $100.0
-  if not math.isclose(report.financial_data.invested_capital, expected_ic, rel_tol=1e-4, abs_tol=100.0):
-      report.arithmetic_errors.append(f"Invested Capital mismatch: calculated expected {expected_ic}, found {report.financial_data.invested_capital}")
-  ```
-
-### Rule 3: Income Statement Consistency
-
-The sub-totals extracted by the agents must sum to reported items:
-$$\text{Revenue} - \text{Cost of Goods Sold} - \text{SG&A Expense} - \text{R&D Expense} = \text{Operating Income}$$
-If the sub-totals mismatch the reported `operating_income` or `revenue` values (beyond a relative tolerance of `1e-4` or absolute tolerance of `$100.0`), the extraction is marked `failed` and rescheduled.
+These validation tools are invoked inside the sub-agents before calling `finalize`, passing the extracted markdown content as an argument. If the auditor reports errors, the agent uses its execution turns to correct the statement formatting or values.
 
 ---
 
@@ -418,9 +372,9 @@ If the sub-totals mismatch the reported `operating_income` or `revenue` values (
 stateDiagram-v2
     [*] --> Pending : SCANNER DETECTS FILE
     Pending --> Running : ORCHESTRATOR SPAWNS SUB-AGENT
-    Running --> Completed : ARITHMETIC VERIFICATION PASSES
-    Running --> Failed : ARITHMETIC VERIFICATION FAILS
-    Failed --> Running : ORCHESTRATOR SPAWNS RETRY WITH ARITHMETIC ERROR
+    Running --> Completed : QUALITY AUDIT PASSES
+    Running --> Failed : QUALITY AUDIT FAILS
+    Failed --> Running : ORCHESTRATOR SPAWNS RETRY WITH AUDIT ERROR
     Completed --> [*] : ALL SYSTEM FLAGS COMPLETED
 ```
 
@@ -483,15 +437,13 @@ When both an earnings announcement (press release) and a formal SEC filing (10-Q
    - _Pre-Flight Checks_: Any missing prerequisite immediately terminates execution before any LLM API costs are incurred.
 
 3. **Fault Tolerance & Mode-Specific Recovery (Fix E)**:
-   - If a sub-agent fails or math validation fails, the failed task is queued in a sequential **Prompt Failure Queue**.
-   - **Headless / Non-Interactive Mode (`--non-interactive` flag)**:
-     - The CLI **does not block** or prompt standard input.
-     - For LLM API or network-level errors, the Orchestrator retries the task automatically up to a configurable number of times (e.g. default 3 times).
-     - For programmatic validation or math consistency failures, the Orchestrator **does not retry** (it bypasses retries), immediately marks the task status as `failed` on the blackboard, and the run immediately aborts, terminating with a non-zero exit code.
-   - **Interactive Developer Mode (Default CLI)**:
+    - If a sub-agent fails or quality validation fails, the failed task is queued in a sequential **Prompt Failure Queue**.
+    - **Headless / Non-Interactive Mode (`--non-interactive` flag)**:
+      - The CLI **does not block** or prompt standard input.
+      - For LLM API or network-level errors, the Orchestrator retries the task automatically up to a configurable number of times (e.g. default 3 times).
+      - For validation or quality checks reporting failures, the Orchestrator **does not retry** (it bypasses retries), immediately marks the task status as `failed` on the blackboard, and the run immediately aborts, terminating with a non-zero exit code.
+    - **Interactive Developer Mode (Default CLI)**:
      - The CLI blocks and prompts the developer to select an interactive recovery strategy:
        - **Retry**: Re-submit the task (allowing prompt refinement or transient API retry).
        - **Don't Retry**: Keep the task state as `failed` on the blackboard and skip downstream tasks dependent on it.
        - **Stop All**: Abort all running/queued tasks, immediately cancelling all pending `asyncio` tasks.
-
----

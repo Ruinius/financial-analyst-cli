@@ -158,8 +158,8 @@ To support decoupled execution, we establish a strict tool permission registry. 
 | :---------------------------- | :--------- | :------------------------------------- | :------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------- |
 | **`Ingester`**                | Ingestion  | None                                   | Active Ticker                                                                          | Parses, hashes, and chunks raw documents, running initial LLM metadata identification.                                   |
 | **`MetadataAgent`**           | Setup      | `get_first_chunk`, `keyword_search`    | list of parsed document filenames                                                      | Runs once across all parsed documents to extract company name, description, fiscal boundaries, and currency definitions. |
-| **`BalanceSheetAgent`**       | Extraction | `find_chunk`, `keyword_search`         | target document filename, company metadata, agent learnings                            | Scans raw filings to extract assets, liabilities, and equity tables to return to the Orchestrator.                       |
-| **`IncomeStatementAgent`**    | Extraction | `find_chunk`, `keyword_search`         | target document filename, company metadata, agent learnings                            | Scans raw filings to extract revenue, expenses, and income tables to return to the Orchestrator.                         |
+| **`BalanceSheetAgent`**       | Extraction | `find_chunk`, `keyword_search`, `check_balance_sheet_quality`         | target document filename, company metadata, agent learnings                            | Scans raw filings to extract assets, liabilities, and equity tables to return to the Orchestrator.                       |
+| **`IncomeStatementAgent`**    | Extraction | `find_chunk`, `keyword_search`, `check_income_statement_quality`         | target document filename, company metadata, agent learnings                            | Scans raw filings to extract revenue, expenses, and income tables to return to the Orchestrator.                         |
 | **`AnalystReportAgent`**      | Extraction | `find_chunk`, `keyword_search`         | target document filename, company metadata, agent learnings                            | Scans broker reports to extract moats, margins, and growth views.                                                        |
 | **`OtherDocAgent`**           | Extraction | `find_chunk`, `keyword_search`         | target document filename, company metadata, agent learnings                            | Scans transcripts, press releases, and other general filings to generate qualitative summaries.                          |
 | **`DilutedSharesAgent`**      | Metrics    | `keyword_search`, `query_blackboard`   | company metadata, income_statement, 10-Q/10-K filename, earnings announcement filename | Searches share counts tables, footnotes, and conversions in filings; extracts basic and diluted shares.                  |
@@ -227,12 +227,12 @@ To optimize execution throughput while managing LLM rate limits:
 
 ### 3. Asynchronous Failure and Reconciliation Queue (Fix E)
 
-When a concurrently running sub-agent fails (e.g. API error) or a mathematical verification fails post-LLM extraction (e.g. balance sheet asset/liability mismatch):
+When a concurrently running sub-agent fails (e.g. API error) or a quality validation fails post-LLM extraction:
 
 - **Failure Queue**: Failed tasks are pushed into a sequential **Prompt Failure Queue**.
 - **Headless / Non-Interactive Mode (`--non-interactive` flag)**:
   - The CLI execution does not block or query stdin.
-  - The Orchestrator automatically retries the failed task up to a configurable retry limit (e.g. 3 times) to handle transient network/API issues. For programmatic validation or math consistency failures, it does not retry (it bypasses retries), immediately marks the task state as `failed` on the Blackboard, skips downstream tasks dependent on that value, and exits with a non-zero status code.
+  - The Orchestrator automatically retries the failed task up to a configurable retry limit (e.g. 3 times) to handle transient network/API issues. For validation or quality checks reporting failures, it does not retry (it bypasses retries), immediately marks the task state as `failed` on the Blackboard, skips downstream tasks dependent on that value, and exits with a non-zero status code.
 - **Interactive User Mode (Default CLI)**:
   - The queue processes failures sequentially, prompting the user on the CLI with three options:
     1. **Retry**: Re-run the failed agent task (useful for transient API errors or tweaking feedback).
@@ -263,7 +263,7 @@ All pipeline commands (`fa run extract`, `fa run analyze`, `fa run model`, `fa r
 
 ### 3. Consolidated Execution behavior of `fa run` Commands
 
-- **`fa run extract`**: Reads `workspace_state.json`. Identifies pending/failed extraction or metric tasks for fanned-in documents. Spawns only the corresponding specialist sub-agents concurrently, writes structured outputs directly to `workspace_state.json`, and triggers math validations.
+- **`fa run extract`**: Reads `workspace_state.json`. Identifies pending/failed extraction or metric tasks for fanned-in documents. Spawns only the corresponding specialist sub-agents concurrently, writes structured outputs directly to `workspace_state.json`, and triggers quality validations.
 - **`fa run analyze`**: Updates longitudinal yearly/quarterly financial tables directly inside `workspace_state.json` instead of writing flat files to a historical folder.
 - **`fa run model`**: Spawns modeling agents (WACC, Growth, Margin, Non-Operating) to write valuation assumptions directly into `workspace_state.json` and runs the fallback or Rust DCF engine.
 - **`fa run curate_wiki`**: Invokes the `CuratorAgent` to digest fanned-in data, historical trends, and model outputs from the Blackboard, writing/curating the robust qualitative views (Bull & Bear perspectives) in `[TICKER]_wiki.md`. This is run explicitly after modeling has finalized, preventing high LLM token costs during assumption tweaks/model iterations.

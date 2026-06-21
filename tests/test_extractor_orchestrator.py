@@ -790,3 +790,188 @@ Unit: Billions
     assert "**Currency**: EUR" in out_content
     assert "**Unit**: Billions" in out_content
     assert "Value (in Billions)" in out_content
+
+
+def test_stateless_metadata_agent():
+    import json
+    from src.agents.extractor_agents.metadata_agent import run_metadata_agent
+    from src.core.blackboard import CompanyMetadata
+
+    mock_llm = MagicMock()
+    mock_chat = MagicMock()
+    mock_chat.get_history.return_value = []
+    mock_chat.send_message.return_value = json.dumps(
+        {
+            "thought": "Finalizing",
+            "tool": "finalize",
+            "arguments": {
+                "company_name": "Test Company",
+                "description": "A test business",
+                "fiscal_q4_date": "2024-12-31",
+                "reporting_currency": "EUR",
+                "preferred_unit": "Millions",
+            },
+        }
+    )
+    mock_llm.create_chat.return_value = mock_chat
+    mock_llm.generate.return_value = mock_chat.send_message.return_value
+
+    parsed_docs = {
+        "file1.md": "header info Test Company",
+        "file2.md": "more detail EUR Millions",
+    }
+
+    metadata = run_metadata_agent(mock_llm, "TEST", parsed_docs)
+    assert isinstance(metadata, CompanyMetadata)
+    assert metadata.ticker == "TEST"
+    assert metadata.company_name == "Test Company"
+    assert metadata.reporting_currency == "EUR"
+    assert metadata.preferred_unit == "Millions"
+
+
+def test_stateless_balance_sheet_agent():
+    import json
+    from src.agents.extractor_agents.extractor_financials_agents.balance_sheet_agent import (
+        run_balance_sheet_agent,
+        BalanceSheetExtraction,
+    )
+    from src.core.blackboard import CompanyMetadata
+
+    mock_llm = MagicMock()
+    mock_chat = MagicMock()
+    mock_chat.get_history.return_value = []
+    mock_chat.send_message.return_value = json.dumps(
+        {
+            "thought": "Finalizing",
+            "tool": "finalize",
+            "arguments": {
+                "raw_balance_sheet_markdown": "| Assets | 100 |",
+                "currency": "USD",
+                "unit": "Millions",
+            },
+        }
+    )
+    mock_llm.create_chat.return_value = mock_chat
+
+    company_metadata = CompanyMetadata(ticker="TEST")
+    extraction = run_balance_sheet_agent(
+        client=mock_llm,
+        filename="balance_sheet.md",
+        content="dummy content",
+        company_metadata=company_metadata,
+        is_quarterly=False,
+    )
+    assert isinstance(extraction, BalanceSheetExtraction)
+    assert extraction.raw_balance_sheet_markdown == "| Assets | 100 |"
+    assert extraction.currency == "USD"
+    assert extraction.unit == "Millions"
+
+
+def test_stateless_income_statement_agent():
+    import json
+    from src.agents.extractor_agents.extractor_financials_agents.income_statement_agent import (
+        run_income_statement_agent,
+        IncomeStatementExtraction,
+    )
+    from src.core.blackboard import CompanyMetadata
+
+    mock_llm = MagicMock()
+    mock_chat = MagicMock()
+    mock_chat.get_history.return_value = []
+    mock_chat.send_message.return_value = json.dumps(
+        {
+            "thought": "Finalizing",
+            "tool": "finalize",
+            "arguments": {
+                "raw_income_statement_markdown": "| Revenue | 500 |",
+                "currency": "USD",
+                "unit": "Millions",
+            },
+        }
+    )
+    mock_llm.create_chat.return_value = mock_chat
+
+    company_metadata = CompanyMetadata(ticker="TEST")
+    extraction = run_income_statement_agent(
+        client=mock_llm,
+        filename="income_statement.md",
+        content="dummy content",
+        company_metadata=company_metadata,
+        is_quarterly=True,
+    )
+    assert isinstance(extraction, IncomeStatementExtraction)
+    assert extraction.raw_income_statement_markdown == "| Revenue | 500 |"
+    assert extraction.currency == "USD"
+    assert extraction.unit == "Millions"
+
+
+def test_stateless_analyst_report_agent():
+    import json
+    from src.agents.extractor_agents.extractor_analyst_report import (
+        run_analyst_report_agent,
+    )
+    from src.core.blackboard import CompanyMetadata, AnalystReportExtraction
+
+    mock_llm = MagicMock()
+    mock_chat = MagicMock()
+    mock_chat.get_history.return_value = []
+    mock_chat.send_message.return_value = json.dumps(
+        {
+            "thought": "Finalizing",
+            "tool": "finalize",
+            "arguments": {
+                "economic_moat": "Wide",
+                "economic_moat_rationale": "High switching costs",
+                "margin_outlook": "Increasing",
+                "margin_magnitude": "1 pp",
+                "margin_rationale": "Cost savings program",
+                "growth_outlook": "Accelerating",
+                "growth_magnitude": "2 pp",
+                "growth_rationale": "Product launch",
+            },
+        }
+    )
+    mock_llm.create_chat.return_value = mock_chat
+
+    company_metadata = CompanyMetadata(ticker="TEST")
+    extraction = run_analyst_report_agent(
+        client=mock_llm,
+        filename="analyst_report.md",
+        content="dummy content",
+        company_metadata=company_metadata,
+    )
+    assert isinstance(extraction, AnalystReportExtraction)
+    assert extraction.source_file == "analyst_report.md"
+    assert extraction.economic_moat == "Wide"
+    assert extraction.economic_moat_rationale == "High switching costs"
+
+
+def test_stateless_other_doc_agent():
+    import json
+    from src.agents.extractor_agents.extractor_other import run_other_doc_agent
+    from src.core.blackboard import CompanyMetadata, OtherExtraction
+
+    mock_llm = MagicMock()
+    mock_chat = MagicMock()
+    mock_chat.get_history.return_value = []
+    mock_chat.send_message.return_value = json.dumps(
+        {
+            "thought": "Finalizing",
+            "tool": "finalize",
+            "arguments": {
+                "summary": "Favorable news about product approvals.",
+            },
+        }
+    )
+    mock_llm.create_chat.return_value = mock_chat
+
+    company_metadata = CompanyMetadata(ticker="TEST")
+    extraction = run_other_doc_agent(
+        client=mock_llm,
+        filename="press_release.md",
+        content="dummy content",
+        company_metadata=company_metadata,
+    )
+    assert isinstance(extraction, OtherExtraction)
+    assert extraction.source_file == "press_release.md"
+    assert extraction.summary == "Favorable news about product approvals."

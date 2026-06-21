@@ -43,6 +43,7 @@ Welcome to the `financial-analyst-cli` project.
       - src/agents/extractor_agents/extractor_financials.py: Sub-extractor coordinator specialized for 10-K, 10-Q, 20-F, and earnings announcements.
       - src/agents/extractor_agents/extractor_analyst_report.py: Sub-extractor specialized for analyst reports.
       - src/agents/extractor_agents/extractor_transcript.py: Sub-extractor specialized for transcripts.
+      - src/agents/extractor_agents/metadata_agent.py: Sub-extractor specialized for company-wide metadata extraction.
       - src/agents/extractor_agents/extractor_other.py: Sub-extractor specialized for all other document types.
       - src/agents/extractor_agents/extractor_financials_agents/: Nested directory for the sub-agents.
         - income_statement_agent.py: Agent specialized in Income Statement extraction.
