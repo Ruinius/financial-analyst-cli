@@ -46,9 +46,8 @@ Refactor `src/services/llm_client.py` to decouple the generic provider logic int
 
 Implement the central blackboard schema (`WorkspaceContext`) and refactor the specialist sub-extractors, metric agents, and modeling agents to be purely stateless, functional Python callables that read and return Pydantic schemas mapping directly to the blackboard.
 
-### Checklist
-
-- [ ] **Implement Blackboard Pydantic Domain Schema**
+### Phase 2.1: Blackboard Core & Persistence Layer
+- [x] **Implement Blackboard Pydantic Domain Schema**
   - Path: [blackboard.py](file:///f:/AIML%20projects/financial-analyst-cli/src/core/blackboard.py)
   - Implement all Pydantic models defined in the [Blackboard Design Specification](file:///f:/AIML%20projects/financial-analyst-cli/docs/blackboard_design.md#L31-L335):
     - `LineItem`: Line item name, value, operating status, calculated status, and category.
@@ -70,14 +69,15 @@ Implement the central blackboard schema (`WorkspaceContext`) and refactor the sp
     - `TemporalBlackboard`: Period-specific statements, sub-agent lock-states, structured contents, and arithmetic logs.
     - `RawDocumentState`: Tracks ingest statuses and sha256 checksums per source file.
     - `WorkspaceContext` (Root Blackboard Model) - including `metadata_status`, `analyzer_status`, and `curator_status` process statuses.
-- [ ] **Write Atomic Storage Manager**
+- [x] **Write Atomic Storage Manager**
   - Path: [blackboard.py](file:///f:/AIML%20projects/financial-analyst-cli/src/core/blackboard.py)
   - Implement `load_workspace_state(ticker: str) -> WorkspaceContext`.
   - Implement `save_workspace_state(ticker: str, state: WorkspaceContext)` using the **Single-Writer Pattern** with atomic file replacement:
     1. Serialize state into `workspace_state.json.tmp`.
     2. Atomically replace the target file using `os.replace` to prevent state corruption during execution crashes.
-- [ ] **Refactor Extraction Sub-Agents**
-  - Standardize sub-agents as stateless functions with no file I/O that return Pydantic outputs and strictly enforce turn limits and tool restrictions.
+
+### Phase 2.2: Stateless Extractor Sub-Agents
+- Standardize sub-agents as stateless functions with no file I/O that return Pydantic outputs and strictly enforce turn limits and tool restrictions:
   - [ ] **`MetadataAgent`**: [metadata_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/metadata_agent.py)
     - Tools: `get_first_chunk`, `keyword_search` (10-turn limit).
     - Mandatory Input Context: `list of parsed document filenames`.
@@ -94,8 +94,9 @@ Implement the central blackboard schema (`WorkspaceContext`) and refactor the sp
   - [ ] **`OtherDocAgent`**: [extractor_other.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/extractor_other.py)
     - Tools: `find_chunk`, `keyword_search` (10-turn limit).
     - Mandatory Input Context: `target document filename, company metadata, agent learnings`.
-- [ ] **Refactor Metrics Sub-Agents**
-  - Refactor agents to rely on `query_blackboard` for read-only state dependencies.
+
+### Phase 2.3: Stateless Metrics Sub-Agents
+- Refactor agents to rely on `query_blackboard` for read-only state dependencies:
   - [ ] **`DilutedSharesAgent`**: [diluted_shares_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/extractor_financials_agents/diluted_shares_agent.py)
     - Tools: `keyword_search`, `query_blackboard` (10-turn limit).
     - Mandatory Input Context: `company metadata, income_statement, 10-Q/10-K filename, earnings announcement filename`.
@@ -111,8 +112,9 @@ Implement the central blackboard schema (`WorkspaceContext`) and refactor the sp
   - [ ] **`AdjustedTaxesAgent`**: [tax_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/extractor_financials_agents/tax_agent.py)
     - Tools: `keyword_search`, `query_blackboard` (10-turn limit).
     - Mandatory Input Context: `company metadata, income_statement, 10-Q/10-K filename, earnings announcement filename`.
-- [ ] **Refactor Modeling Sub-Agents**
-  - Standardize modeling agents to extract assumptions, execute pre-flight dependency checks, and output to the blackboard.
+
+### Phase 2.4: Stateless Modeler Sub-Agents
+- Standardize modeling agents to extract assumptions, execute pre-flight dependency checks, and output to the blackboard:
   - [ ] **`WaccAgent`**: [wacc_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/modeler_agents/wacc_agent.py)
     - Tools: `market_data`, `query_blackboard` (10-turn limit).
     - Mandatory Input Context: `company metadata, latest temporal period slice`.
@@ -133,6 +135,8 @@ Implement the central blackboard schema (`WorkspaceContext`) and refactor the sp
     - Tools: `query_blackboard` (10-turn limit).
     - Mandatory Input Context: `company metadata, latest temporal period slice, model assumptions`.
     - Reviews calculations, validates assumptions, and formats critique feedback.
+
+### Phase 2.5: Curator, Learning, and Turn Warning Mechanisms
 - [ ] **Implement Progressive Turn Warning Mechanism**
   - Inject turn instructions containing current counts, remaining allowances, and historical runtimes (`average_turn_count`) to urge optimal, fast sub-agent exit.
 - [ ] **Implement Curator Agent**
@@ -146,8 +150,7 @@ Implement the central blackboard schema (`WorkspaceContext`) and refactor the sp
   - Mandatory Input Context: `target sub-agent name, document type, turn counts/run logs`.
   - Evaluates turn deviation against `average_turn_count` to run discretionary learnings updates. Writes keywords, target chunks, and execution histories back to `company_data.learnings`.
 
-### Post-Coding Audit
-
+### Phase 2.6: Post-Coding Audit (Phase 2)
 1. [ ] **State Deserialization Validation**: Confirm `WorkspaceContext.model_validate_json()` successfully parses complete workspace states without validation errors.
 2. [ ] **Stateless Code Inspection**: Check that all refactored sub-agents contain ZERO file operations (`open()`, `json.dump`, `os.path`) referencing `workspace_state.json`.
 3. [ ] **Dependency Logic Validation**: Verify that WACC, Growth, and Margin modeling agents gracefully return structured dependency errors (instead of throwing tracebacks or crashing) when queried previous metrics do not exist on the blackboard.
@@ -161,8 +164,7 @@ Implement the central blackboard schema (`WorkspaceContext`) and refactor the sp
 
 Implement the central pipeline coordinator (`BlackboardOrchestrator`) that manages in-memory check-out/check-in, enforces execution gates, executes multi-document GAAP merge logic, validates arithmetic constraints, coordinates modeling, and modifies the CLI command suite.
 
-### Checklist
-
+### Phase 3.1: Orchestration Core & Lifecycle Transitions
 - [ ] **Create Blackboard Orchestrator**
   - Path: [blackboard_orchestrator.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/blackboard_orchestrator.py)
   - Implement orchestration supporting full and stage-level execution (`ingest`, `extract`, `analyze`, `model`).
@@ -170,6 +172,8 @@ Implement the central pipeline coordinator (`BlackboardOrchestrator`) that manag
   - Prior to agent launch, reservation transitions status flag on blackboard to `running` (committing atomic checkpoint to disk).
   - On sub-agent resolution, releases lock, writes structured payloads, updates status flag to `completed` or `failed`, and atomic commits to disk.
   - On orchestrator restart, scans for dangling `running` items and marks them `failed`/`pending` for safe recovery.
+
+### Phase 3.2: Execution Gating & Concurrency Control
 - [ ] **Enforce Execution Gates & Dependencies**
   - Group parallel and sequential tasks inside the async event loop:
     1. **Setup Phase (Sequential)**: Run `metadata_agent` first to populate company metadata (`WorkspaceContext.metadata`). This acts as a blocking gate prerequisite; subsequent agent phases cannot run if company metadata is not successfully completed.
@@ -179,6 +183,10 @@ Implement the central pipeline coordinator (`BlackboardOrchestrator`) that manag
     5. **Metrics Level 3 (Sequential)**: Run `adjusted_taxes` (depends on `operating_ebita` output).
     6. **Modeling Level 1 (Parallel)**: Launch `wacc`, `growth`, `margin`, and `non_operating` concurrently.
     7. **Modeling Level 2 (Sequential)**: Run `dcf_modeling_agent` (depends on Level 1 modeling inputs).
+- [ ] **Implement Concurrency Knobs**
+  - Implement `asyncio.Semaphore` configurations to restrict company, document, and phase concurrency to protect LLM API endpoints.
+
+### Phase 3.3: Merge Policies & Arithmetic Checks
 - [ ] **Implement Multi-Document Period Processing & Merge Policies**
   - Accumulate source documents into `source_files: List[str]`.
   - **GAAP Override**: Structured balance sheet and income statement models from formal filings (10-Q/10-K) overwrite earnings announcement extractions.
@@ -189,8 +197,8 @@ Implement the central pipeline coordinator (`BlackboardOrchestrator`) that manag
     - [ ] **Rule 1**: Total Assets == Total Liabilities + Total Equity.
     - [ ] **Rule 2**: Invested Capital == (Operating Current Assets - Operating Current Liabilities) + (Operating Non-Current Assets - Operating Non-Current Liabilities).
     - [ ] **Rule 3**: Revenue - Cost of Goods Sold - SG&A - R&D == Operating Income.
-- [ ] **Implement Concurrency Knobs**
-  - Implement `asyncio.Semaphore` configurations to restrict company, document, and phase concurrency to protect LLM API endpoints.
+
+### Phase 3.4: Recovery Queue & CLI Restructuring
 - [ ] **Implement Failure Queue & Recovery Modes**
   - Pushes failures into a sequential queue.
   - [ ] **Non-Interactive Mode (`--non-interactive` flag)**: No stdin query. Auto retries network failures (up to 3 times). Bypasses retries on validation or math issues, marks status `failed`, and halts with exit code `1`.
@@ -207,11 +215,8 @@ Implement the central pipeline coordinator (`BlackboardOrchestrator`) that manag
     - [ ] **`fa use <ticker>` / `fa config init`**: Simplifies setup to initialize only 4 subdirectories (`1_ingest_data/`, `2_parsed_data/`, `3_archived_data/`, `9_scenario_model_json/`) and deletes deprecated directories (`4_extracted_data/`, `5_historical_analysis/`, and `6_financial_model/`).
     - [ ] **Support options**: Integrates `--non-interactive` / `-n` and `--agent <agent_name>` / `-a <agent_name>` globally.
     - [ ] **`fa query` commands**: Streamlines `summary`, `assessment`, and `valuation` to read directly from `workspace_state.json` for speed. Simplifies `trace` to return execution status and timestamps.
-- [ ] **Verify against Evaluators**
-  - Ensure all golden evaluations (`tests/test_extractor_orchestrator.py`, etc.) pass.
 
-### Post-Coding Audit
-
+### Phase 3.5: Post-Coding Audit (Phase 3)
 1. [ ] **Execution Loop Integration Test**: Verify that the deprecated linear files (`extractor_orchestrator.py`, `extractor_financials.py`, `analyzer.py`, `modeler_orchestrator.py`) have been removed and that `uv run pytest tests/` runs successfully using the new coordinator.
 2. [ ] **Multi-Document Merge Check**: Process an earnings release containing non-GAAP items and a subsequent 10-Q/10-K. Verify that GAAP figures overwrite EA details, but non-GAAP attributes (Organic Growth, Adjusted Taxes, Operating EBITA) are preserved.
 3. [ ] **Arithmetic Logs Check**: Verify that triggering a balance sheet or income statement math validation failure writes details into the period's `arithmetic_errors` field and correctly marks the task state as `failed`.

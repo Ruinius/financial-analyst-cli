@@ -32,6 +32,7 @@ Welcome to the `financial-analyst-cli` project.
   - src/core/: Settings, custom exception classes, and Pydantic schemas.
     - src/core/config.py: Settings model definition, loading/saving utilities, and API key masking.
     - src/core/exceptions.py: Custom exception classes (e.g. ConfigError, WorkspaceError, LLMError).
+    - src/core/blackboard.py: Blackboard domain schemas (Pydantic models) and atomic load/save state managers.
   - src/agents/: Execution runner stages (ingest, extract, analyze, model).
     - src/agents/ingester.py: File parsing, deduplication, chunking, and LLM metadata identification.
     - src/agents/agent_executor.py: Unified agent execution loop coordinator for native and simulated tool calling.
