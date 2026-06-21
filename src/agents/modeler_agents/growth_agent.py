@@ -1,189 +1,143 @@
-import json
 import logging
-from pathlib import Path
-from src.utils.markdown_helper import extract_json_from_text
-from src.tools.pull_markdown import pull_markdown_file
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from src.services.llm_client import LLMClient
 from src.core.exceptions import LLMError
+from src.agents.agent_executor import run_agent_loop
+from src.core.blackboard import WorkspaceContext, CompanyMetadata
 
 logger = logging.getLogger(__name__)
 
 
 def run_growth_agent(
-    ticker: str,
-    workspace: Path,
-    base_growth_rate: float,
-    target_growth_yr5: float,
-    terminal_growth_rate: float,
-    llm: LLMClient,
-    learning_context: str = "",
+    client: LLMClient,
+    company_metadata: CompanyMetadata,
+    workspace_state: WorkspaceContext,
+    period_key: str,
+    learnings: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Run the agentic growth rates calculation workflow.
-    Executes up to 4 turns, enabling Sir Pennyworth to pull financial and qualitative trend markdowns,
-    analyze growth metrics, and finalize three growth assumptions (near-term, mid-term Year 5, terminal).
+    Stateless agent that determines future revenue growth rate assumptions for a company.
+    Returns a dictionary of results.
+    Enforces a 10-turn limit and tool restrictions.
     """
-    # 1. Discover available files or load folder index if available
-    extracted_dir = workspace / "4_extracted_data"
-    analysis_dir = workspace / "5_historical_analysis"
+    # 1. Pre-flight dependency check
+    if period_key not in workspace_state.reports:
+        return {
+            "status": "failed",
+            "error": f"Missing dependency: Period '{period_key}' not initialized on the blackboard.",
+        }
 
-    index_path = workspace / f"{ticker}_folder_index.md"
-    if index_path.exists():
-        try:
-            files_catalog_str = index_path.read_text(encoding="utf-8")
-        except Exception as e:
-            logger.warning(f"Could not read index file: {e}")
-            index_path = None
+    # Retrieve defaults from blackboard if available
+    q_fin = workspace_state.company_data.quarterly_financials
+    latest_q = q_fin[-1] if q_fin else None
 
-    if not index_path or not index_path.exists():
-        available_files = []
-        if extracted_dir.exists():
-            for p in extracted_dir.glob("*.md"):
-                available_files.append(p.name)
-        if analysis_dir.exists():
-            for p in analysis_dir.glob("*.md"):
-                available_files.append(p.name)
-        files_catalog_str = "\n".join(f"- {f}" for f in sorted(available_files))
-
-    # Read starting documents
-    def read_opt(p: Path) -> str:
-        if p.exists():
-            try:
-                return p.read_text(encoding="utf-8")
-            except Exception as e:
-                return f"Error reading file: {e}"
-        return "Not available."
-
-    financials_quarter_str = read_opt(analysis_dir / "financials_quarter.md")
-    analyst_views_str = read_opt(analysis_dir / "analyst_views.md")
-    news_trend_str = read_opt(analysis_dir / "news_trend.md")
-    transcript_trend_str = read_opt(analysis_dir / "transcript_trend.md")
+    default_base_growth = (
+        latest_q.organic_growth / 100.0
+        if (latest_q and latest_q.organic_growth)
+        else 0.05
+    )
+    default_yr5_growth = default_base_growth
+    default_terminal_growth = 0.03
 
     # Default results in case of failure or empty response
     final_growth_results = {
-        "base_growth_rate": base_growth_rate,
-        "revenue_growth_rate": target_growth_yr5,
-        "terminal_growth_rate": terminal_growth_rate,
+        "base_growth_rate": default_base_growth,
+        "revenue_growth_rate": default_yr5_growth,
+        "terminal_growth_rate": default_terminal_growth,
         "explanation": "Default backup growth rates calculated without agent details.",
     }
 
-    # System prompt outlining roles, tools, and expectations
+    # Define tools as inner functions closed over state
+    def query_blackboard(section: str, period: Optional[str] = None) -> str:
+        """
+        Query the active blackboard state in a read-only manner.
+        Arguments:
+          section: The section of the blackboard to query. Options: 'metadata', 'company_data', 'financial_data', 'other_data', 'reports'.
+          period: Optional specific period (e.g., '2024_Q3') if querying 'financial_data' or 'other_data'. If not specified, defaults to the current active period.
+        """
+        from src.tools.query_blackboard import query_blackboard_helper
+
+        return query_blackboard_helper(
+            workspace_state=workspace_state,
+            company_metadata=company_metadata,
+            period_key=period_key,
+            section=section,
+            period=period,
+        )
+
+    def web_search(query: str) -> str:
+        """Search DuckDuckGo with the given query and return summaries of results."""
+        from src.services.ddg_search import ddg_search
+
+        results = ddg_search(query, max_results=3)
+        if results:
+            snippets = []
+            for res in results:
+                snippets.append(f"{res.get('title')}: {res.get('body')}")
+            return "\n".join(snippets)
+        return "No search results found."
+
+    def finalize(
+        base_growth_rate: float,
+        revenue_growth_rate: float,
+        terminal_growth_rate: float,
+        explanation: str,
+    ) -> str:
+        """Conclude growth rate estimation, specifying base, year 5, and terminal growth rates."""
+        final_growth_results["base_growth_rate"] = base_growth_rate
+        final_growth_results["revenue_growth_rate"] = revenue_growth_rate
+        final_growth_results["terminal_growth_rate"] = terminal_growth_rate
+        final_growth_results["explanation"] = explanation
+        return "Growth rate assumptions finalized."
+
     sys_prompt = (
-        "You are Sir Pennyworth, a senior financial analyst. Your goal is to determine three future revenue growth rates for a valuation model with a detailed rationale:\n"
+        "You are Sir Pennyworth, a senior financial analyst acting as the Growth Agent. Your goal is to determine three future revenue growth rates for a valuation model with a detailed rationale:\n"
         "1. base_growth_rate: Near-term / base starting growth rate (often based on historical run-rate or recent quarters).\n"
         "2. revenue_growth_rate: Mid-term Year 5 target growth rate (where simple/organic revenue growth matures to after year 5).\n"
         "3. terminal_growth_rate: Long-term / Terminal growth rate (stable growth rate beyond year 10, typically 2-4% depending on moat).\n\n"
         "You must execute actions by outputting a valid JSON object containing 'thought', 'tool', and 'arguments'.\n"
         "Available tools:\n"
-        "- 'pull_markdown_file': arguments: {'file_name': str}\n"
-        "  Retrieves contents of a file. Use this to pull specific quarterly or annual extracted summaries/files if you need deep-dives.\n"
+        "- 'query_blackboard': arguments: {'section': str, 'period': str}\n"
+        "  Queries the active blackboard state.\n"
+        "- 'web_search': arguments: {'query': str}\n"
+        "  Search the web for news, transcripts, or competitor growth rates.\n"
         "- 'finalize': arguments: {'base_growth_rate': float, 'revenue_growth_rate': float, 'terminal_growth_rate': float, 'explanation': str}\n"
-        "  Finalize the execution and present the final parameters.\n\n"
+        "  Conclude growth rate estimation and present the final parameters.\n\n"
         "Rules:\n"
-        "1. Identify historical revenue growth rates, moat characteristics, qualitative analyst sentiment, news trends, and transcripts details.\n"
+        "1. Identify historical revenue growth rates, moat characteristics, qualitative analyst sentiment, news trends, and transcripts details on the blackboard or via web_search.\n"
         "2. Think step-by-step about what the right three growth rates should be and construct a strong rationale.\n"
-        "3. Call 'finalize' on your last turn. The explanation must describe the line items, trends, or source details extracted and your reasoning."
+        "3. Call 'finalize' on your last turn. The explanation must describe the trends or source details extracted and your reasoning."
     )
 
     user_content = (
-        f"Estimate the growth rate assumptions for {ticker}. You have up to 4 turns.\n\n"
-        f"**Starting Default Estimations:**\n"
-        f"- Base (Starting) Growth Rate: {base_growth_rate * 100:.2f}%\n"
-        f"- Target Year 5 Growth Rate: {target_growth_yr5 * 100:.2f}%\n"
-        f"- Terminal Growth Rate: {terminal_growth_rate * 100:.2f}%\n\n"
-        f"**Available Files Catalog in Workspace:**\n"
-        f"{files_catalog_str}\n\n"
-        f"--- STARTING DOCUMENTS ---\n\n"
-        f"### financials_quarter.md\n"
-        f'"""\n{financials_quarter_str[:6000]}\n"""\n\n'
-        f"### analyst_views.md\n"
-        f'"""\n{analyst_views_str[:6000]}\n"""\n\n'
-        f"### news_trend.md\n"
-        f'"""\n{news_trend_str[:4000]}\n"""\n\n'
-        f"### transcript_trend.md\n"
-        f'"""\n{transcript_trend_str[:4000]}\n"""\n'
+        f"Estimate the growth rate assumptions for {company_metadata.company_name or company_metadata.ticker}. You have up to 10 turns.\n\n"
+        f"**Initial Context Details:**\n"
+        f"- Ticker: {company_metadata.ticker}\n"
+        f"- Target Period: {period_key}\n"
+        f"- Default Base Growth Rate: {default_base_growth * 100:.2f}%\n"
+        f"- Default Year 5 Growth Rate: {default_yr5_growth * 100:.2f}%\n"
+        f"- Default Terminal Growth Rate: {default_terminal_growth * 100:.2f}%\n"
     )
-    if learning_context:
-        user_content += f'\n\nHere is the active company modeling learning context to guide your decisions:\n"""\n{learning_context}\n"""'
+    if learnings:
+        user_content += f'\n\nHere is the active company modeling learning context to guide your decisions:\n"""\n{learnings}\n"""'
 
-    history = [
-        {
-            "role": "user",
-            "content": user_content,
-        }
-    ]
+    tools = [query_blackboard, web_search, finalize]
 
-    for turn in range(4):
-        if turn == 3:
-            history[-1]["content"] += (
-                "\n\nCRITICAL: This is your final turn (turn 4 of 4). You must call the 'finalize' tool immediately with your current best estimates."
-            )
-
-        prompt_str = ""
-        for h in history:
-            prompt_str += f"\n\n--- {h['role'].upper()} ---\n{h['content']}"
-
-        try:
-            resp = llm.generate(prompt_str, system_prompt=sys_prompt).strip()
-        except Exception as e:
-            logger.error(f"Growth Agent failed at turn {turn}: {e}")
-            raise LLMError(
-                f"Growth Agent failed during LLM generation at turn {turn}: {e}"
-            ) from e
-
-        history.append({"role": "assistant", "content": resp})
-
-        json_str = extract_json_from_text(resp)
-        if not json_str:
-            history.append(
-                {
-                    "role": "user",
-                    "content": "Error: Your response did not contain a valid JSON tool call.",
-                }
-            )
-            continue
-
-        try:
-            action = json.loads(json_str)
-        except Exception as e:
-            history.append({"role": "user", "content": f"Error parsing JSON: {e}"})
-            continue
-
-        tool = action.get("tool")
-        args = action.get("arguments", {})
-
-        if tool == "finalize":
-            final_growth_results["base_growth_rate"] = float(
-                args.get("base_growth_rate", base_growth_rate)
-            )
-            final_growth_results["revenue_growth_rate"] = float(
-                args.get("revenue_growth_rate", target_growth_yr5)
-            )
-            final_growth_results["terminal_growth_rate"] = float(
-                args.get("terminal_growth_rate", terminal_growth_rate)
-            )
-            final_growth_results["explanation"] = str(args.get("explanation", ""))
-            break
-
-        elif tool == "pull_markdown_file":
-            file_name = args.get("file_name", "")
-            res = pull_markdown_file(workspace, file_name)
-            # Truncate content to keep prompt window within reasonable limits
-            history.append(
-                {
-                    "role": "user",
-                    "content": f"Observation from pull_markdown_file:\n{res[:8000]}",
-                }
-            )
-
-        else:
-            history.append({"role": "user", "content": f"Error: Unknown tool '{tool}'"})
-    else:
-        raise LLMError(
-            "Growth Agent failed to finalize growth rate assumptions within the maximum turn limit."
+    try:
+        finalized_args, history = run_agent_loop(
+            client=client,
+            system_prompt=sys_prompt,
+            initial_prompt=user_content,
+            tools=tools,
+            max_turns=10,
         )
+    except LLMError as e:
+        raise LLMError(
+            f"Growth Agent failed to finalize growth rate assumptions within the maximum turn limit: {e}"
+        )
+    except Exception as e:
+        raise LLMError(f"Growth Agent failed during LLM generation: {e}")
 
     # Trigger Curator Agent to capture lessons in model_learning.md
     try:
@@ -193,8 +147,8 @@ def run_growth_agent(
         for h in history:
             history_text += f"\n\n--- {h['role'].upper()} ---\n{h['content']}"
 
-        curator = CuratorAgent(llm.settings)
-        curator.curate_model_agent(ticker, "Growth", history_text)
+        curator = CuratorAgent(client.settings)
+        curator.curate_model_agent(company_metadata.ticker, "Growth", history_text)
     except Exception as e:
         logger.error(f"Failed to run curator for Growth agent: {e}")
 

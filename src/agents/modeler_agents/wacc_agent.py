@@ -1,12 +1,11 @@
 import json
 import logging
-from pathlib import Path
-from src.utils.markdown_helper import extract_json_from_text
-from src.tools.pull_markdown import pull_markdown_file
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from src.services.llm_client import LLMClient
 from src.core.exceptions import LLMError
+from src.agents.agent_executor import run_agent_loop
+from src.core.blackboard import WorkspaceContext, CompanyMetadata
 
 logger = logging.getLogger(__name__)
 
@@ -135,49 +134,43 @@ def calculate_wacc_formula(
 
 
 def run_wacc_agent(
-    ticker: str,
-    workspace: Path,
-    share_price: float,
-    market_cap: float,
-    beta: float,
-    tax_rate: float,
-    llm: LLMClient,
-    learning_context: str = "",
+    client: LLMClient,
+    company_metadata: CompanyMetadata,
+    workspace_state: WorkspaceContext,
+    period_key: str,
+    learnings: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Run the agentic WACC calculation workflow.
-    Executes up to 4 turns, enabling Sir Pennyworth to pull financial markdowns,
-    extract parameters, run a WACC calculation tool, and finalize results.
+    Stateless agent that determines the Weighted Average Cost of Capital (WACC)
+    and net debt for a company. Returns a dictionary of results.
+    Enforces a 10-turn limit and tool restrictions.
     """
-    # 1. Discover available files or load folder index if available
-    extracted_dir = workspace / "4_extracted_data"
-    analysis_dir = workspace / "5_historical_analysis"
+    # 1. Pre-flight dependency check
+    if period_key not in workspace_state.reports:
+        return {
+            "status": "failed",
+            "error": f"Missing dependency: Period '{period_key}' not initialized on the blackboard.",
+        }
 
-    index_path = workspace / f"{ticker}_folder_index.md"
-    if index_path.exists():
-        try:
-            files_catalog_str = index_path.read_text(encoding="utf-8")
-        except Exception as e:
-            logger.warning(f"Could not read index file: {e}")
-            index_path = None
+    report = workspace_state.reports[period_key]
+    if (
+        report.balance_sheet_status != "completed"
+        or report.income_statement_status != "completed"
+    ):
+        return {
+            "status": "failed",
+            "error": f"Missing dependency: Balance sheet or Income statement not completed for period '{period_key}'.",
+        }
 
-    if not index_path or not index_path.exists():
-        available_files = []
-        if extracted_dir.exists():
-            for p in extracted_dir.glob("*.md"):
-                available_files.append(p.name)
-        if analysis_dir.exists():
-            for p in analysis_dir.glob("*.md"):
-                available_files.append(p.name)
-        files_catalog_str = "\n".join(f"- {f}" for f in sorted(available_files))
+    tax_rate = report.financial_data.adjusted_tax_rate or 0.21
 
     # Default results in case of failure or empty response
     final_wacc_results = {
         "wacc": 0.08,
         "net_debt": 0.0,
-        "unlevered_beta": beta,
-        "levered_beta": beta,
-        "cost_equity": 0.042 + beta * 0.05,
+        "unlevered_beta": 1.0,
+        "levered_beta": 1.0,
+        "cost_equity": 0.042 + 1.0 * 0.05,
         "cost_debt_pretax": 0.062,
         "cost_debt_aftertax": 0.062 * (1 - tax_rate),
         "weight_equity": 1.0,
@@ -185,178 +178,150 @@ def run_wacc_agent(
         "explanation": "Default backup WACC calculated without agent details.",
     }
 
-    # System prompt outlining roles, tools, and expectations
+    # Define tools as inner functions closed over state
+    def query_blackboard(section: str, period: Optional[str] = None) -> str:
+        """
+        Query the active blackboard state in a read-only manner.
+        Arguments:
+          section: The section of the blackboard to query. Options: 'metadata', 'company_data', 'financial_data', 'other_data', 'reports'.
+          period: Optional specific period (e.g., '2024_Q3') if querying 'financial_data' or 'other_data'. If not specified, defaults to the current active period.
+        """
+        from src.tools.query_blackboard import query_blackboard_helper
+
+        return query_blackboard_helper(
+            workspace_state=workspace_state,
+            company_metadata=company_metadata,
+            period_key=period_key,
+            section=section,
+            period=period,
+        )
+
+    def get_market_data() -> str:
+        """Fetch current share price, market cap, and beta for the active ticker from Yahoo Finance."""
+        from src.services.market_data import get_market_profile
+
+        try:
+            profile = get_market_profile(company_metadata.ticker)
+            return json.dumps(
+                {
+                    "share_price": profile.get("share_price", 0.0),
+                    "market_cap": profile.get("market_cap", 0.0),
+                    "beta": profile.get("beta", 1.0),
+                }
+            )
+        except Exception as e:
+            return f"Error fetching market data: {e}"
+
+    def calculate_wacc(
+        risk_free_rate: float,
+        equity_risk_premium: float,
+        beta: float,
+        share_price: float,
+        shares_outstanding: float,
+        total_debt: float,
+        cash_and_equivalents: float,
+        interest_expense: float,
+        pretax_cost_of_debt: float,
+        tax_rate: float,
+        target_debt_to_equity: Optional[float] = None,
+        market_cap: float = 0.0,
+    ) -> str:
+        """
+        Run the WACC formula (supporting beta de-levering/re-levering).
+        All dollar/currency values should be in millions.
+        """
+        calc_res = calculate_wacc_formula(
+            risk_free_rate=risk_free_rate,
+            equity_risk_premium=equity_risk_premium,
+            beta=beta,
+            share_price=share_price,
+            shares_outstanding=shares_outstanding,
+            total_debt=total_debt,
+            cash_and_equivalents=cash_and_equivalents,
+            interest_expense=interest_expense,
+            pretax_cost_of_debt=pretax_cost_of_debt,
+            tax_rate=tax_rate,
+            target_debt_to_equity=target_debt_to_equity,
+            market_cap=market_cap,
+        )
+        # Store calculation results in case agent finalizes using them
+        final_wacc_results["wacc"] = calc_res["wacc_final"]
+        final_wacc_results["net_debt"] = total_debt - cash_and_equivalents
+        final_wacc_results["unlevered_beta"] = calc_res["unlevered_beta"]
+        final_wacc_results["levered_beta"] = calc_res["levered_beta"]
+        final_wacc_results["cost_equity"] = calc_res["cost_equity"]
+        final_wacc_results["cost_debt_pretax"] = calc_res["cost_debt_pretax"]
+        final_wacc_results["cost_debt_aftertax"] = calc_res["cost_debt_aftertax"]
+        final_wacc_results["weight_equity"] = calc_res["weight_equity"]
+        final_wacc_results["weight_debt"] = calc_res["weight_debt"]
+        final_wacc_results["explanation"] = calc_res["explanation"]
+        return json.dumps({k: v for k, v in calc_res.items() if k != "explanation"})
+
+    def finalize(
+        wacc: float,
+        total_debt: float,
+        cash_and_equivalents: float,
+        pretax_cost_of_debt: float,
+        cost_of_equity: float,
+        unlevered_beta: float,
+        explanation: str,
+    ) -> str:
+        """Finalize the WACC calculation."""
+        final_wacc_results["wacc"] = wacc
+        final_wacc_results["net_debt"] = total_debt - cash_and_equivalents
+        final_wacc_results["unlevered_beta"] = unlevered_beta
+        final_wacc_results["cost_equity"] = cost_of_equity
+        final_wacc_results["cost_debt_pretax"] = pretax_cost_of_debt
+        final_wacc_results["cost_debt_aftertax"] = pretax_cost_of_debt * (1 - tax_rate)
+        final_wacc_results["explanation"] = explanation
+        return "WACC calculation finalized."
+
     sys_prompt = (
-        "You are Sir Pennyworth, a senior financial analyst. Your goal is to determine the Weighted Average Cost of Capital (WACC) and net debt for a company.\n"
+        "You are Sir Pennyworth, a senior financial analyst acting as the WACC Agent. Your goal is to determine the Weighted Average Cost of Capital (WACC) and net debt for a company.\n"
         "You must execute actions by outputting a valid JSON object containing 'thought', 'tool', and 'arguments'.\n"
         "Available tools:\n"
-        "- 'pull_markdown_file': arguments: {'file_name': str}\n"
-        "  Retrieves contents of a file. Use this to pull latest balance sheet, income statement, or extracted files to find debt, cash, and interest metrics.\n"
+        "- 'query_blackboard': arguments: {'section': str, 'period': str}\n"
+        "  Queries the active blackboard state.\n"
+        "- 'get_market_data': arguments: {}\n"
+        "  Fetches current share price, market cap, and beta for the active ticker from Yahoo Finance.\n"
         "- 'calculate_wacc': arguments: {'risk_free_rate': float, 'equity_risk_premium': float, 'beta': float, 'share_price': float, 'shares_outstanding': float, 'total_debt': float, 'cash_and_equivalents': float, 'interest_expense': float, 'pretax_cost_of_debt': float, 'tax_rate': float, 'target_debt_to_equity': float, 'market_cap': float}\n"
         "  Run the WACC formula (supporting beta de-levering/re-levering). Use 0.0 for target_debt_to_equity or omit if not applicable. Pass values in millions.\n"
         "- 'finalize': arguments: {'wacc': float, 'total_debt': float, 'cash_and_equivalents': float, 'pretax_cost_of_debt': float, 'cost_of_equity': float, 'unlevered_beta': float, 'explanation': str}\n"
         "  Finalize the execution and present the final parameters.\n\n"
         "Rules:\n"
-        "1. Identify and inspect the latest Balance Sheet and Income Statement (or extracted markdown summaries) to extract: Total Debt (Short-term debt + Long-term debt), Cash & equivalents, Interest Expense, and Tax Rate.\n"
-        "2. Call 'calculate_wacc' with your extracted values. (Note: risk_free_rate defaults to 0.042 and equity_risk_premium to 0.05 if not specified. Tax rate defaults to the historical tax rate provided).\n"
-        "3. Provide a clear reasoning/thought process in the 'thought' field of each turn.\n"
-        "4. Call 'finalize' on your last turn. The explanation must describe the line items extracted and where they came from (e.g. filename and snippet)."
+        "1. Identify the latest Balance Sheet and Income Statement data on the blackboard (using query_blackboard with section='financial_data' and period='[period]') to extract: Total Debt (Short-term debt + Long-term debt), Cash & equivalents, Interest Expense, and Tax Rate.\n"
+        "2. Call 'get_market_data' to retrieve the current share price, market cap, and beta.\n"
+        "3. Call 'calculate_wacc' with your extracted values. (Note: risk_free_rate defaults to 0.042 and equity_risk_premium to 0.05 if not specified. Tax rate defaults to the historical tax rate provided).\n"
+        "4. Provide a clear reasoning/thought process in the 'thought' field of each turn.\n"
+        "5. Call 'finalize' on your last turn. The explanation must describe the line items extracted and where they came from."
     )
-
-    # Calculate default shares outstanding from market cap
-    shares_outstanding = 0.0
-    if share_price > 0:
-        if market_cap > 1000000:
-            shares_outstanding = (market_cap / 1000000.0) / share_price
-        else:
-            shares_outstanding = market_cap / share_price
 
     user_content = (
-        f"Estimate the WACC for {ticker}. You have up to 4 turns.\n\n"
-        f"**Initial Market Profile Details:**\n"
-        f"- Share Price: ${share_price}\n"
-        f"- Market Cap: ${market_cap}\n"
-        f"- Raw Levered Beta: {beta}\n"
-        f"- Historical/Baseline Tax Rate: {tax_rate * 100:.2f}%\n"
-        f"- Shares Outstanding Estimate: {shares_outstanding:,.2f}M\n\n"
-        f"**Available Files Catalog in Workspace:**\n"
-        f"{files_catalog_str}\n"
+        f"Estimate the WACC for {company_metadata.company_name or company_metadata.ticker}. You have up to 10 turns.\n\n"
+        f"**Initial Context Details:**\n"
+        f"- Ticker: {company_metadata.ticker}\n"
+        f"- Target Period: {period_key}\n"
+        f"- Baseline Tax Rate: {tax_rate * 100:.2f}%\n"
     )
-    if learning_context:
-        user_content += f'\n\nHere is the active company modeling learning context to guide your decisions:\n"""\n{learning_context}\n"""'
+    if learnings:
+        user_content += f'\n\nHere is the active company modeling learning context to guide your decisions:\n"""\n{learnings}\n"""'
 
-    history = [
-        {
-            "role": "user",
-            "content": user_content,
-        }
-    ]
+    tools = [query_blackboard, get_market_data, calculate_wacc, finalize]
 
-    for turn in range(4):
-        if turn == 3:
-            history[-1]["content"] += (
-                "\n\nCRITICAL: This is your final turn (turn 4 of 4). You must call the 'finalize' tool immediately with your current best estimates."
-            )
-
-        prompt_str = ""
-        for h in history:
-            prompt_str += f"\n\n--- {h['role'].upper()} ---\n{h['content']}"
-
-        try:
-            resp = llm.generate(prompt_str, system_prompt=sys_prompt).strip()
-        except Exception as e:
-            logger.error(f"WACC Agent failed at turn {turn}: {e}")
-            raise LLMError(
-                f"WACC Agent failed during LLM generation at turn {turn}: {e}"
-            ) from e
-
-        history.append({"role": "assistant", "content": resp})
-
-        json_str = extract_json_from_text(resp)
-        if not json_str:
-            history.append(
-                {
-                    "role": "user",
-                    "content": "Error: Your response did not contain a valid JSON tool call.",
-                }
-            )
-            continue
-
-        try:
-            action = json.loads(json_str)
-        except Exception as e:
-            history.append({"role": "user", "content": f"Error parsing JSON: {e}"})
-            continue
-
-        tool = action.get("tool")
-        args = action.get("arguments", {})
-
-        if tool == "finalize":
-            final_wacc_results["wacc"] = float(args.get("wacc", 0.08))
-            total_debt = float(args.get("total_debt", 0.0))
-            cash = float(args.get("cash_and_equivalents", 0.0))
-            final_wacc_results["net_debt"] = total_debt - cash
-            final_wacc_results["unlevered_beta"] = float(
-                args.get("unlevered_beta", beta)
-            )
-            final_wacc_results["levered_beta"] = beta
-            final_wacc_results["cost_equity"] = float(args.get("cost_of_equity", 0.0))
-            final_wacc_results["cost_debt_pretax"] = float(
-                args.get("pretax_cost_of_debt", 0.0)
-            )
-            final_wacc_results["cost_debt_aftertax"] = final_wacc_results[
-                "cost_debt_pretax"
-            ] * (1 - tax_rate)
-            final_wacc_results["explanation"] = str(args.get("explanation", ""))
-            break
-
-        elif tool == "pull_markdown_file":
-            file_name = args.get("file_name", "")
-            res = pull_markdown_file(workspace, file_name)
-            # Truncate content to keep prompt window within reasonable limits
-            history.append(
-                {
-                    "role": "user",
-                    "content": f"Observation from pull_markdown_file:\n{res[:8000]}",
-                }
-            )
-
-        elif tool == "calculate_wacc":
-            rf = float(args.get("risk_free_rate", 0.042))
-            erp = float(args.get("equity_risk_premium", 0.05))
-            b = float(args.get("beta", beta))
-            sp = float(args.get("share_price", share_price))
-            so = float(args.get("shares_outstanding", shares_outstanding))
-            td = float(args.get("total_debt", 0.0))
-            ca = float(args.get("cash_and_equivalents", 0.0))
-            ie = float(args.get("interest_expense", 0.0))
-            pt = float(args.get("pretax_cost_of_debt", 0.0))
-            tr = float(args.get("tax_rate", tax_rate))
-            tde = args.get("target_debt_to_equity")
-            if tde is not None:
-                tde = float(tde)
-            mc = float(args.get("market_cap", market_cap))
-
-            calc_res = calculate_wacc_formula(
-                risk_free_rate=rf,
-                equity_risk_premium=erp,
-                beta=b,
-                share_price=sp,
-                shares_outstanding=so,
-                total_debt=td,
-                cash_and_equivalents=ca,
-                interest_expense=ie,
-                pretax_cost_of_debt=pt,
-                tax_rate=tr,
-                target_debt_to_equity=tde,
-                market_cap=mc,
-            )
-
-            # Store calculation results in case agent finalizes using them
-            final_wacc_results["wacc"] = calc_res["wacc_final"]
-            final_wacc_results["net_debt"] = td - ca
-            final_wacc_results["unlevered_beta"] = calc_res["unlevered_beta"]
-            final_wacc_results["levered_beta"] = calc_res["levered_beta"]
-            final_wacc_results["cost_equity"] = calc_res["cost_equity"]
-            final_wacc_results["cost_debt_pretax"] = calc_res["cost_debt_pretax"]
-            final_wacc_results["cost_debt_aftertax"] = calc_res["cost_debt_aftertax"]
-            final_wacc_results["weight_equity"] = calc_res["weight_equity"]
-            final_wacc_results["weight_debt"] = calc_res["weight_debt"]
-            final_wacc_results["explanation"] = calc_res["explanation"]
-
-            history.append(
-                {
-                    "role": "user",
-                    "content": f"Observation from calculate_wacc:\n{json.dumps({k: v for k, v in calc_res.items() if k != 'explanation'}, indent=2)}\n\nCalculated explanation:\n{calc_res['explanation']}",
-                }
-            )
-
-        else:
-            history.append({"role": "user", "content": f"Error: Unknown tool '{tool}'"})
-    else:
-        raise LLMError(
-            "WACC Agent failed to finalize WACC calculations within the maximum turn limit."
+    try:
+        finalized_args, history = run_agent_loop(
+            client=client,
+            system_prompt=sys_prompt,
+            initial_prompt=user_content,
+            tools=tools,
+            max_turns=10,
         )
+    except LLMError as e:
+        raise LLMError(
+            f"WACC Agent failed to finalize WACC calculations within the maximum turn limit: {e}"
+        )
+    except Exception as e:
+        raise LLMError(f"WACC Agent failed during LLM generation: {e}")
 
     # Trigger Curator Agent to capture lessons in model_learning.md
     try:
@@ -366,8 +331,8 @@ def run_wacc_agent(
         for h in history:
             history_text += f"\n\n--- {h['role'].upper()} ---\n{h['content']}"
 
-        curator = CuratorAgent(llm.settings)
-        curator.curate_model_agent(ticker, "WACC", history_text)
+        curator = CuratorAgent(client.settings)
+        curator.curate_model_agent(company_metadata.ticker, "WACC", history_text)
     except Exception as e:
         logger.error(f"Failed to run curator for WACC agent: {e}")
 

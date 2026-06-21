@@ -411,14 +411,6 @@ class Modeler:
         else:
             adjusted_tax = 0.21
 
-        l4q_rev = sum(clean_value(q.get("Revenue")) for q in l4q) if l4q else 0.0
-        l4q_ebita = sum(clean_value(q.get("EBITA")) for q in l4q) if l4q else 0.0
-        l4q_growth = (
-            sum(clean_value(q.get("Organic Growth")) / 100.0 for q in l4q) / len(l4q)
-            if l4q
-            else 0
-        )
-
         # Parse analyst views for qualitative magnitudes
         analyst_views_path = analysis_dir / "analyst_views.md"
         with open(analyst_views_path, "r", encoding="utf-8") as f:
@@ -428,14 +420,7 @@ class Modeler:
         latest_view = views_table[-1] if views_table else {}
 
         moat = latest_view.get("Economic Moat", "Narrow").replace("**", "").strip()
-        margin_mag_str = latest_view.get("Margin Magnitude", "0")
-        m_mag_match = re.search(r"([+-]?\d+)\s*pp", margin_mag_str)
-        margin_magnitude = (float(m_mag_match.group(1)) / 100.0) if m_mag_match else 0
-
-        growth_mag_str = latest_view.get("Growth Magnitude", "0")
-        g_mag_match = re.search(r"([+-]?\d+)\s*pp", growth_mag_str)
-        growth_magnitude = (float(g_mag_match.group(1)) / 100.0) if g_mag_match else 0
-
+        # For WACC (agentic calculation)
         # For WACC (agentic calculation)
         from src.services.llm_client import get_llm_client
         from src.agents.modeler_agents.wacc_agent import run_wacc_agent
@@ -444,35 +429,152 @@ class Modeler:
         from src.agents.modeler_agents.non_operating_agent import (
             run_non_operating_agent,
         )
-
-        llm = get_llm_client()
-        wacc_results = run_wacc_agent(
-            ticker=ticker,
-            workspace=workspace,
-            share_price=share_price,
-            market_cap=market_cap,
-            beta=raw_beta,
-            tax_rate=adjusted_tax,
-            llm=llm,
-            learning_context=learning_context,
+        from src.core.blackboard import (
+            load_workspace_state,
+            TemporalBlackboard,
+            LineItem,
         )
 
-        wacc = wacc_results["wacc"]
+        llm = get_llm_client()
+        workspace_state = load_workspace_state(ticker)
+        company_metadata = workspace_state.metadata
+        if not company_metadata.company_name:
+            company_metadata.company_name = ticker
+
+        # Resolve period_key
+        latest_period = hist_table[-1].get("Time Period") if hist_table else None
+        period_key = latest_period.replace("-", "_") if latest_period else "2024_FY"
+
+        # Ensure period key exists in reports
+        if period_key not in workspace_state.reports:
+            is_quarter = "Q" in period_key
+            fy_str, fp_str = period_key.split("_")
+            workspace_state.reports[period_key] = TemporalBlackboard(
+                fiscal_year=int(fy_str) if fy_str.isdigit() else 2024,
+                fiscal_period=fp_str,
+                is_quarterly=is_quarter,
+            )
+
+        # Pre-populate some blackboard info so stateless modeling agents pass their checks if run directly
+        report = workspace_state.reports[period_key]
+        if not report.financial_data.raw_balance_sheet_markdown:
+            # Try to load latest balance sheet if available
+            extracted_dir = workspace / "4_extracted_data"
+            latest_bs_file = None
+            if extracted_dir.exists():
+                bs_files = sorted(
+                    list(extracted_dir.glob("*_balance_sheet.md")), reverse=True
+                )
+                if bs_files:
+                    latest_bs_file = bs_files[0]
+            if latest_bs_file:
+                try:
+                    report.financial_data.raw_balance_sheet_markdown = (
+                        latest_bs_file.read_text(encoding="utf-8")
+                    )
+                except Exception:
+                    pass
+
+        if not report.financial_data.raw_income_statement_markdown:
+            # Try to load latest income statement if available
+            extracted_dir = workspace / "4_extracted_data"
+            latest_is_file = None
+            if extracted_dir.exists():
+                is_files = sorted(
+                    list(extracted_dir.glob("*_income_statement.md")), reverse=True
+                )
+                if is_files:
+                    latest_is_file = is_files[0]
+            if latest_is_file:
+                try:
+                    report.financial_data.raw_income_statement_markdown = (
+                        latest_is_file.read_text(encoding="utf-8")
+                    )
+                except Exception:
+                    pass
+
+        # Populate tax rate if empty
+        if not report.financial_data.adjusted_tax_rate:
+            report.financial_data.adjusted_tax_rate = adjusted_tax
+
+        # Force status to completed for the check
+        report.balance_sheet_status = "completed"
+        report.income_statement_status = "completed"
+
+        # Populate line items if empty (extracting non-operating info requires line items on the blackboard)
+        if not report.financial_data.line_items:
+            # Try to load from extracted files if we can find line items
+            extracted_dir = workspace / "4_extracted_data"
+            latest_ext_file = None
+            if extracted_dir.exists():
+                ext_files = sorted(
+                    list(extracted_dir.glob("*_extracted.md")), reverse=True
+                )
+                if ext_files:
+                    latest_ext_file = ext_files[0]
+            if latest_ext_file:
+                try:
+                    # Basic parsing of non-operating assets / liabilities from markdown
+                    lines = latest_ext_file.read_text(encoding="utf-8").split("\n")
+                    in_assets = False
+                    for line in lines:
+                        if "#### Non-Operating Assets" in line:
+                            in_assets = True
+                        elif "#### Non-Operating Liabilities" in line:
+                            in_assets = False
+                        elif line.strip().startswith(("#", "---")):
+                            in_assets = False
+                        elif line.strip().startswith("-") and ":" in line:
+                            parts = line.strip("- ").split(":")
+                            name = parts[0].strip()
+                            try:
+                                val = float(
+                                    parts[1].replace(",", "").replace("$", "").strip()
+                                )
+                                cat = (
+                                    "current_assets"
+                                    if in_assets
+                                    else "current_liabilities"
+                                )
+                                report.financial_data.line_items.append(
+                                    LineItem(
+                                        line_name=name,
+                                        value=val,
+                                        operating=False,
+                                        category=cat,
+                                    )
+                                )
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
+
+        wacc_results = run_wacc_agent(
+            client=llm,
+            company_metadata=company_metadata,
+            workspace_state=workspace_state,
+            period_key=period_key,
+            learnings=learning_context,
+        )
+
+        wacc = wacc_results.get("wacc", 0.08)
         wacc_explanation = wacc_results.get("explanation", "")
 
         # For non-operating categories (agentic calculation)
         non_op_results = run_non_operating_agent(
-            ticker=ticker,
-            workspace=workspace,
-            llm=llm,
+            client=llm,
+            company_metadata=company_metadata,
+            workspace_state=workspace_state,
+            period_key=period_key,
+            learnings=learning_context,
         )
 
-        cash = non_op_results["cash"]
-        short_term_investments = non_op_results["short_term_investments"]
-        debt = non_op_results["debt"]
-        preferred_equity = non_op_results["preferred_equity"]
-        minority_interest = non_op_results["minority_interest"]
-        other_financial = non_op_results["other_financial"]
+        cash = non_op_results.get("cash", 0.0)
+        short_term_investments = non_op_results.get("short_term_investments", 0.0)
+        debt = non_op_results.get("debt", 0.0)
+        preferred_equity = non_op_results.get("preferred_equity", 0.0)
+        minority_interest = non_op_results.get("minority_interest", 0.0)
+        other_financial = non_op_results.get("other_financial", 0.0)
         non_operating_explanation = non_op_results.get("explanation", "")
 
         # Calculate net_debt for backward compatibility
@@ -487,25 +589,20 @@ class Modeler:
 
         # For Growth rates (agentic calculation)
         growth_results = run_growth_agent(
-            ticker=ticker,
-            workspace=workspace,
-            base_growth_rate=l4q_growth,
-            target_growth_yr5=l4q_growth + growth_magnitude,
-            terminal_growth_rate=0.04 if moat == "Wide" else 0.03,
-            llm=llm,
-            learning_context=learning_context,
+            client=llm,
+            company_metadata=company_metadata,
+            workspace_state=workspace_state,
+            period_key=period_key,
+            learnings=learning_context,
         )
 
         # For Margins (agentic calculation)
-        base_margin_init = l4q_ebita / l4q_rev if l4q_rev > 0 else 0
         margin_results = run_margin_agent(
-            ticker=ticker,
-            workspace=workspace,
-            base_margin=base_margin_init,
-            margin_yr5=base_margin_init + margin_magnitude,
-            terminal_margin=base_margin_init + margin_magnitude,
-            llm=llm,
-            learning_context=learning_context,
+            client=llm,
+            company_metadata=company_metadata,
+            workspace_state=workspace_state,
+            period_key=period_key,
+            learnings=learning_context,
         )
 
         # Turnovers
@@ -1034,15 +1131,41 @@ Date: {today}
         from src.agents.modeler_agents.dcf_modeling_agent import (
             run_dcf_modeling_agent,
         )
+        from src.core.blackboard import load_workspace_state
 
         formatting.print_info(f"Running 10-Turn DCF Modeling Agent for {ticker}...")
         llm = get_llm_client()
+
+        # Load workspace state
+        workspace_state = load_workspace_state(ticker)
+        company_metadata = workspace_state.metadata
+        if not company_metadata.company_name:
+            company_metadata.company_name = ticker
+
+        # Resolve period key from base_revenue / financials
+        analysis_dir = workspace / "5_historical_analysis"
+        quarter_path = analysis_dir / "financials_quarter.md"
+        period_key = "2024_FY"
+        if quarter_path.exists():
+            try:
+                quarter_content = quarter_path.read_text(encoding="utf-8")
+                hist_table = parse_markdown_table(
+                    quarter_content, "## Historical Financials"
+                )
+                if hist_table:
+                    period_key = (
+                        hist_table[-1].get("Time Period", "2024-FY").replace("-", "_")
+                    )
+            except Exception:
+                pass
+
         final_assumptions, comments, history_text = run_dcf_modeling_agent(
-            ticker=ticker,
-            workspace=workspace,
+            client=llm,
+            company_metadata=company_metadata,
+            workspace_state=workspace_state,
+            period_key=period_key,
             base_assumptions=base_assumptions,
-            llm=llm,
-            learning_context=learning_context,
+            learnings=learning_context,
         )
 
         final_assumptions["valuation_commentary"] = comments

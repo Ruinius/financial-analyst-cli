@@ -201,19 +201,30 @@ def test_calculate_wacc_formula():
 @patch("src.services.llm_client.LLMClient")
 def test_run_wacc_agent(mock_llm_class, mock_curator_class, tmp_path):
     from src.agents.modeler_agents.wacc_agent import run_wacc_agent
+    from src.core.blackboard import (
+        WorkspaceContext,
+        CompanyMetadata,
+        TemporalBlackboard,
+        ExtractedFinancialData,
+    )
 
     mock_llm = MagicMock()
+    mock_llm.settings = MagicMock()
+    mock_llm.settings.base_workspace_dir = str(tmp_path)
+    mock_chat = MagicMock()
+    mock_llm.create_chat.return_value = mock_chat
+    mock_chat.get_history.return_value = []
     # Mock LLM turn responses:
-    # Turn 0: Call pull_markdown_file
+    # Turn 0: Call query_blackboard
     # Turn 1: Call calculate_wacc
     # Turn 2: Call finalize
-    mock_llm.generate.side_effect = [
+    mock_chat.send_message.side_effect = [
         # Turn 0 tool call
         json.dumps(
             {
                 "thought": "I will read the extracted balance sheet file.",
-                "tool": "pull_markdown_file",
-                "arguments": {"file_name": "latest_balance_sheet.md"},
+                "tool": "query_blackboard",
+                "arguments": {"section": "financial_data", "period": "2023_Q4"},
             }
         ),
         # Turn 1 tool call
@@ -253,23 +264,29 @@ def test_run_wacc_agent(mock_llm_class, mock_curator_class, tmp_path):
         ),
     ]
 
-    mock_workspace = tmp_path / "MOCK"
-    mock_workspace.mkdir(parents=True)
-    extracted_dir = mock_workspace / "4_extracted_data"
-    extracted_dir.mkdir(parents=True)
-    (extracted_dir / "latest_balance_sheet.md").write_text(
-        "Dummy balance sheet data", encoding="utf-8"
+    company_metadata = CompanyMetadata(ticker="MOCK", company_name="MOCK Corp")
+    workspace_state = WorkspaceContext(
+        metadata=company_metadata,
+        reports={
+            "2023_Q4": TemporalBlackboard(
+                fiscal_year=2023,
+                fiscal_period="Q4",
+                is_quarterly=True,
+                balance_sheet_status="completed",
+                income_statement_status="completed",
+                financial_data=ExtractedFinancialData(
+                    adjusted_tax_rate=0.20,
+                ),
+            )
+        },
     )
 
     res = run_wacc_agent(
-        ticker="MOCK",
-        workspace=mock_workspace,
-        share_price=150.0,
-        market_cap=1500000000,
-        beta=1.1,
-        tax_rate=0.20,
-        llm=mock_llm,
-        learning_context="Mock learning",
+        client=mock_llm,
+        company_metadata=company_metadata,
+        workspace_state=workspace_state,
+        period_key="2023_Q4",
+        learnings="Mock learning",
     )
 
     assert res["wacc"] == 0.085
@@ -286,18 +303,30 @@ def test_run_wacc_agent(mock_llm_class, mock_curator_class, tmp_path):
 @patch("src.services.llm_client.LLMClient")
 def test_run_growth_agent(mock_llm_class, mock_curator_class, tmp_path):
     from src.agents.modeler_agents.growth_agent import run_growth_agent
+    from src.core.blackboard import (
+        WorkspaceContext,
+        CompanyMetadata,
+        TemporalBlackboard,
+        HistoricalFinancialSummary,
+        CompanyLevelData,
+    )
 
     mock_llm = MagicMock()
+    mock_llm.settings = MagicMock()
+    mock_llm.settings.base_workspace_dir = str(tmp_path)
+    mock_chat = MagicMock()
+    mock_llm.create_chat.return_value = mock_chat
+    mock_chat.get_history.return_value = []
     # Mock LLM turn responses:
-    # Turn 0: Call pull_markdown_file
+    # Turn 0: Call query_blackboard
     # Turn 1: Call finalize
-    mock_llm.generate.side_effect = [
+    mock_chat.send_message.side_effect = [
         # Turn 0 tool call
         json.dumps(
             {
-                "thought": "I will read the analyst views file.",
-                "tool": "pull_markdown_file",
-                "arguments": {"file_name": "analyst_views.md"},
+                "thought": "I will read the analyst views file from blackboard.",
+                "tool": "query_blackboard",
+                "arguments": {"section": "company_data"},
             }
         ),
         # Turn 1 tool call
@@ -315,22 +344,48 @@ def test_run_growth_agent(mock_llm_class, mock_curator_class, tmp_path):
         ),
     ]
 
-    mock_workspace = tmp_path / "MOCK"
-    mock_workspace.mkdir(parents=True)
-    analysis_dir = mock_workspace / "5_historical_analysis"
-    analysis_dir.mkdir(parents=True)
-    (analysis_dir / "analyst_views.md").write_text(
-        "Dummy analyst views data", encoding="utf-8"
+    company_metadata = CompanyMetadata(ticker="MOCK", company_name="MOCK Corp")
+    workspace_state = WorkspaceContext(
+        metadata=company_metadata,
+        company_data=CompanyLevelData(
+            quarterly_financials=[
+                HistoricalFinancialSummary(
+                    fiscal_year=2023,
+                    fiscal_period="Q4",
+                    revenue=1300.0,
+                    operating_income=260.0,
+                    ebita=260.0,
+                    reported_tax_provision=52.0,
+                    adjusted_taxes=52.0,
+                    adjusted_tax_rate=20.0,
+                    basic_shares=10.0,
+                    diluted_shares=10.0,
+                    simple_growth=5.0,
+                    organic_growth=5.0,
+                    net_working_capital=100.0,
+                    net_long_term_operating_assets=400.0,
+                    invested_capital=500.0,
+                    capital_turnover=2.6,
+                    nopat=208.0,
+                    roic=41.6,
+                )
+            ]
+        ),
+        reports={
+            "2023_Q4": TemporalBlackboard(
+                fiscal_year=2023,
+                fiscal_period="Q4",
+                is_quarterly=True,
+            )
+        },
     )
 
     res = run_growth_agent(
-        ticker="MOCK",
-        workspace=mock_workspace,
-        base_growth_rate=0.05,
-        target_growth_yr5=0.08,
-        terminal_growth_rate=0.03,
-        llm=mock_llm,
-        learning_context="Mock learning",
+        client=mock_llm,
+        company_metadata=company_metadata,
+        workspace_state=workspace_state,
+        period_key="2023_Q4",
+        learnings="Mock learning",
     )
 
     assert res["base_growth_rate"] == 0.06
@@ -352,18 +407,30 @@ def test_run_growth_agent(mock_llm_class, mock_curator_class, tmp_path):
 @patch("src.services.llm_client.LLMClient")
 def test_run_margin_agent(mock_llm_class, mock_curator_class, tmp_path):
     from src.agents.modeler_agents.margin_agent import run_margin_agent
+    from src.core.blackboard import (
+        WorkspaceContext,
+        CompanyMetadata,
+        TemporalBlackboard,
+        HistoricalFinancialSummary,
+        CompanyLevelData,
+    )
 
     mock_llm = MagicMock()
+    mock_llm.settings = MagicMock()
+    mock_llm.settings.base_workspace_dir = str(tmp_path)
+    mock_chat = MagicMock()
+    mock_llm.create_chat.return_value = mock_chat
+    mock_chat.get_history.return_value = []
     # Mock LLM turn responses:
-    # Turn 0: Call pull_markdown_file
+    # Turn 0: Call query_blackboard
     # Turn 1: Call finalize
-    mock_llm.generate.side_effect = [
+    mock_chat.send_message.side_effect = [
         # Turn 0 tool call
         json.dumps(
             {
-                "thought": "I will read the analyst views file.",
-                "tool": "pull_markdown_file",
-                "arguments": {"file_name": "analyst_views.md"},
+                "thought": "I will read the analyst views file from blackboard.",
+                "tool": "query_blackboard",
+                "arguments": {"section": "company_data"},
             }
         ),
         # Turn 1 tool call
@@ -381,22 +448,48 @@ def test_run_margin_agent(mock_llm_class, mock_curator_class, tmp_path):
         ),
     ]
 
-    mock_workspace = tmp_path / "MOCK"
-    mock_workspace.mkdir(parents=True)
-    analysis_dir = mock_workspace / "5_historical_analysis"
-    analysis_dir.mkdir(parents=True)
-    (analysis_dir / "analyst_views.md").write_text(
-        "Dummy analyst views data", encoding="utf-8"
+    company_metadata = CompanyMetadata(ticker="MOCK", company_name="MOCK Corp")
+    workspace_state = WorkspaceContext(
+        metadata=company_metadata,
+        company_data=CompanyLevelData(
+            quarterly_financials=[
+                HistoricalFinancialSummary(
+                    fiscal_year=2023,
+                    fiscal_period="Q4",
+                    revenue=1300.0,
+                    operating_income=260.0,
+                    ebita=260.0,
+                    reported_tax_provision=52.0,
+                    adjusted_taxes=52.0,
+                    adjusted_tax_rate=20.0,
+                    basic_shares=10.0,
+                    diluted_shares=10.0,
+                    simple_growth=5.0,
+                    organic_growth=5.0,
+                    net_working_capital=100.0,
+                    net_long_term_operating_assets=400.0,
+                    invested_capital=500.0,
+                    capital_turnover=2.6,
+                    nopat=208.0,
+                    roic=41.6,
+                )
+            ]
+        ),
+        reports={
+            "2023_Q4": TemporalBlackboard(
+                fiscal_year=2023,
+                fiscal_period="Q4",
+                is_quarterly=True,
+            )
+        },
     )
 
     res = run_margin_agent(
-        ticker="MOCK",
-        workspace=mock_workspace,
-        base_margin=0.20,
-        margin_yr5=0.23,
-        terminal_margin=0.23,
-        llm=mock_llm,
-        learning_context="Mock learning",
+        client=mock_llm,
+        company_metadata=company_metadata,
+        workspace_state=workspace_state,
+        period_key="2023_Q4",
+        learnings="Mock learning",
     )
 
     assert res["base_margin"] == 0.22
@@ -418,40 +511,75 @@ def test_run_margin_agent(mock_llm_class, mock_curator_class, tmp_path):
 @patch("src.services.llm_client.LLMClient")
 def test_run_non_operating_agent(mock_llm_class, mock_curator_class, tmp_path):
     from src.agents.modeler_agents.non_operating_agent import run_non_operating_agent
+    from src.core.blackboard import (
+        WorkspaceContext,
+        CompanyMetadata,
+        TemporalBlackboard,
+        LineItem,
+        ExtractedFinancialData,
+    )
 
     mock_llm = MagicMock()
-    mock_llm.generate.return_value = json.dumps(
+    mock_llm.settings = MagicMock()
+    mock_llm.settings.base_workspace_dir = str(tmp_path)
+    mock_chat = MagicMock()
+    mock_llm.create_chat.return_value = mock_chat
+    mock_chat.get_history.return_value = []
+    mock_chat.send_message.return_value = json.dumps(
         {
-            "cash": 20.0,
-            "short_term_investments": 10.0,
-            "debt": 100.0,
-            "preferred_equity": 5.0,
-            "minority_interest": 0.0,
-            "other_financial": -2.0,
-            "explanation": "Mocked successful extraction.",
+            "thought": "I will finalize the non-operating extraction.",
+            "tool": "finalize",
+            "arguments": {
+                "cash": 20.0,
+                "short_term_investments": 10.0,
+                "debt": 100.0,
+                "preferred_equity": 5.0,
+                "minority_interest": 0.0,
+                "other_financial": -2.0,
+                "explanation": "Mocked successful extraction.",
+            },
         }
     )
 
-    mock_workspace = tmp_path / "MOCK"
-    mock_workspace.mkdir(parents=True)
-    extracted_dir = mock_workspace / "4_extracted_data"
-    extracted_dir.mkdir(parents=True)
-
-    # Write mock *_extracted.md and *_balance_sheet.md
-    extracted_file = extracted_dir / "20260617_MOCK_10Q_extracted.md"
-    extracted_file.write_text(
-        "#### Non-Operating Assets\n- Cash: 20\n- ST Investments: 10\n"
-        "#### Non-Operating Liabilities\n- Debt: 100\n",
-        encoding="utf-8",
+    company_metadata = CompanyMetadata(ticker="MOCK", company_name="MOCK Corp")
+    workspace_state = WorkspaceContext(
+        metadata=company_metadata,
+        reports={
+            "2023_Q4": TemporalBlackboard(
+                fiscal_year=2023,
+                fiscal_period="Q4",
+                is_quarterly=True,
+                financial_data=ExtractedFinancialData(
+                    line_items=[
+                        LineItem(
+                            line_name="Cash and cash equivalents",
+                            value=20.0,
+                            operating=False,
+                            category="current_assets",
+                        ),
+                        LineItem(
+                            line_name="Short-term investments",
+                            value=10.0,
+                            operating=False,
+                            category="current_assets",
+                        ),
+                        LineItem(
+                            line_name="Long-term debt",
+                            value=100.0,
+                            operating=False,
+                            category="noncurrent_liabilities",
+                        ),
+                    ]
+                ),
+            )
+        },
     )
 
-    bs_file = extracted_dir / "20260617_MOCK_10Q_balance_sheet.md"
-    bs_file.write_text("Balance sheet details", encoding="utf-8")
-
     res = run_non_operating_agent(
-        ticker="MOCK",
-        workspace=mock_workspace,
-        llm=mock_llm,
+        client=mock_llm,
+        company_metadata=company_metadata,
+        workspace_state=workspace_state,
+        period_key="2023_Q4",
     )
 
     assert res["cash"] == 20.0
@@ -497,19 +625,44 @@ def test_calculate_wacc_formula_capping():
 def test_run_wacc_agent_llm_failure(mock_curator, tmp_path):
     from src.agents.modeler_agents.wacc_agent import run_wacc_agent
     from src.core.exceptions import LLMError
+    from src.core.blackboard import (
+        WorkspaceContext,
+        CompanyMetadata,
+        TemporalBlackboard,
+        ExtractedFinancialData,
+    )
 
     mock_llm = MagicMock()
-    mock_llm.generate.side_effect = Exception("API error")
+    mock_llm.settings = MagicMock()
+    mock_llm.settings.base_workspace_dir = str(tmp_path)
+    mock_chat = MagicMock()
+    mock_llm.create_chat.return_value = mock_chat
+    mock_chat.get_history.return_value = []
+    mock_chat.send_message.side_effect = Exception("API error")
+
+    company_metadata = CompanyMetadata(ticker="MOCK", company_name="MOCK Corp")
+    workspace_state = WorkspaceContext(
+        metadata=company_metadata,
+        reports={
+            "2023_Q4": TemporalBlackboard(
+                fiscal_year=2023,
+                fiscal_period="Q4",
+                is_quarterly=True,
+                balance_sheet_status="completed",
+                income_statement_status="completed",
+                financial_data=ExtractedFinancialData(
+                    adjusted_tax_rate=0.20,
+                ),
+            )
+        },
+    )
 
     with pytest.raises(LLMError) as exc_info:
         run_wacc_agent(
-            ticker="MOCK",
-            workspace=tmp_path,
-            share_price=150.0,
-            market_cap=1500000000,
-            beta=1.1,
-            tax_rate=0.20,
-            llm=mock_llm,
+            client=mock_llm,
+            company_metadata=company_metadata,
+            workspace_state=workspace_state,
+            period_key="2023_Q4",
         )
     assert "WACC Agent failed during LLM generation" in str(exc_info.value)
 
@@ -518,26 +671,51 @@ def test_run_wacc_agent_llm_failure(mock_curator, tmp_path):
 def test_run_wacc_agent_finalize_failure(mock_curator, tmp_path):
     from src.agents.modeler_agents.wacc_agent import run_wacc_agent
     from src.core.exceptions import LLMError
+    from src.core.blackboard import (
+        WorkspaceContext,
+        CompanyMetadata,
+        TemporalBlackboard,
+        ExtractedFinancialData,
+    )
 
     mock_llm = MagicMock()
-    # Provide 4 responses that never call the 'finalize' tool
-    mock_llm.generate.return_value = json.dumps(
+    mock_llm.settings = MagicMock()
+    mock_llm.settings.base_workspace_dir = str(tmp_path)
+    mock_chat = MagicMock()
+    mock_llm.create_chat.return_value = mock_chat
+    mock_chat.get_history.return_value = []
+    # Provide responses that never call the 'finalize' tool
+    mock_chat.send_message.return_value = json.dumps(
         {
             "thought": "Let's read a file",
-            "tool": "pull_markdown_file",
-            "arguments": {"file_name": "none.md"},
+            "tool": "query_blackboard",
+            "arguments": {"section": "financial_data"},
         }
+    )
+
+    company_metadata = CompanyMetadata(ticker="MOCK", company_name="MOCK Corp")
+    workspace_state = WorkspaceContext(
+        metadata=company_metadata,
+        reports={
+            "2023_Q4": TemporalBlackboard(
+                fiscal_year=2023,
+                fiscal_period="Q4",
+                is_quarterly=True,
+                balance_sheet_status="completed",
+                income_statement_status="completed",
+                financial_data=ExtractedFinancialData(
+                    adjusted_tax_rate=0.20,
+                ),
+            )
+        },
     )
 
     with pytest.raises(LLMError) as exc_info:
         run_wacc_agent(
-            ticker="MOCK",
-            workspace=tmp_path,
-            share_price=150.0,
-            market_cap=1500000000,
-            beta=1.1,
-            tax_rate=0.20,
-            llm=mock_llm,
+            client=mock_llm,
+            company_metadata=company_metadata,
+            workspace_state=workspace_state,
+            period_key="2023_Q4",
         )
     assert "failed to finalize WACC calculations within the maximum turn limit" in str(
         exc_info.value
@@ -548,18 +726,38 @@ def test_run_wacc_agent_finalize_failure(mock_curator, tmp_path):
 def test_run_growth_agent_llm_failure(mock_curator, tmp_path):
     from src.agents.modeler_agents.growth_agent import run_growth_agent
     from src.core.exceptions import LLMError
+    from src.core.blackboard import (
+        WorkspaceContext,
+        CompanyMetadata,
+        TemporalBlackboard,
+    )
 
     mock_llm = MagicMock()
-    mock_llm.generate.side_effect = Exception("API error")
+    mock_llm.settings = MagicMock()
+    mock_llm.settings.base_workspace_dir = str(tmp_path)
+    mock_chat = MagicMock()
+    mock_llm.create_chat.return_value = mock_chat
+    mock_chat.get_history.return_value = []
+    mock_chat.send_message.side_effect = Exception("API error")
+
+    company_metadata = CompanyMetadata(ticker="MOCK", company_name="MOCK Corp")
+    workspace_state = WorkspaceContext(
+        metadata=company_metadata,
+        reports={
+            "2023_Q4": TemporalBlackboard(
+                fiscal_year=2023,
+                fiscal_period="Q4",
+                is_quarterly=True,
+            )
+        },
+    )
 
     with pytest.raises(LLMError):
         run_growth_agent(
-            ticker="MOCK",
-            workspace=tmp_path,
-            base_growth_rate=0.05,
-            target_growth_yr5=0.08,
-            terminal_growth_rate=0.03,
-            llm=mock_llm,
+            client=mock_llm,
+            company_metadata=company_metadata,
+            workspace_state=workspace_state,
+            period_key="2023_Q4",
         )
 
 
@@ -567,24 +765,44 @@ def test_run_growth_agent_llm_failure(mock_curator, tmp_path):
 def test_run_growth_agent_finalize_failure(mock_curator, tmp_path):
     from src.agents.modeler_agents.growth_agent import run_growth_agent
     from src.core.exceptions import LLMError
+    from src.core.blackboard import (
+        WorkspaceContext,
+        CompanyMetadata,
+        TemporalBlackboard,
+    )
 
     mock_llm = MagicMock()
-    mock_llm.generate.return_value = json.dumps(
+    mock_llm.settings = MagicMock()
+    mock_llm.settings.base_workspace_dir = str(tmp_path)
+    mock_chat = MagicMock()
+    mock_llm.create_chat.return_value = mock_chat
+    mock_chat.get_history.return_value = []
+    mock_chat.send_message.return_value = json.dumps(
         {
             "thought": "Let's read a file",
-            "tool": "pull_markdown_file",
-            "arguments": {"file_name": "none.md"},
+            "tool": "query_blackboard",
+            "arguments": {"section": "company_data"},
         }
+    )
+
+    company_metadata = CompanyMetadata(ticker="MOCK", company_name="MOCK Corp")
+    workspace_state = WorkspaceContext(
+        metadata=company_metadata,
+        reports={
+            "2023_Q4": TemporalBlackboard(
+                fiscal_year=2023,
+                fiscal_period="Q4",
+                is_quarterly=True,
+            )
+        },
     )
 
     with pytest.raises(LLMError) as exc_info:
         run_growth_agent(
-            ticker="MOCK",
-            workspace=tmp_path,
-            base_growth_rate=0.05,
-            target_growth_yr5=0.08,
-            terminal_growth_rate=0.03,
-            llm=mock_llm,
+            client=mock_llm,
+            company_metadata=company_metadata,
+            workspace_state=workspace_state,
+            period_key="2023_Q4",
         )
     assert "failed to finalize growth rate assumptions" in str(exc_info.value)
 
@@ -593,18 +811,38 @@ def test_run_growth_agent_finalize_failure(mock_curator, tmp_path):
 def test_run_margin_agent_llm_failure(mock_curator, tmp_path):
     from src.agents.modeler_agents.margin_agent import run_margin_agent
     from src.core.exceptions import LLMError
+    from src.core.blackboard import (
+        WorkspaceContext,
+        CompanyMetadata,
+        TemporalBlackboard,
+    )
 
     mock_llm = MagicMock()
-    mock_llm.generate.side_effect = Exception("API error")
+    mock_llm.settings = MagicMock()
+    mock_llm.settings.base_workspace_dir = str(tmp_path)
+    mock_chat = MagicMock()
+    mock_llm.create_chat.return_value = mock_chat
+    mock_chat.get_history.return_value = []
+    mock_chat.send_message.side_effect = Exception("API error")
+
+    company_metadata = CompanyMetadata(ticker="MOCK", company_name="MOCK Corp")
+    workspace_state = WorkspaceContext(
+        metadata=company_metadata,
+        reports={
+            "2023_Q4": TemporalBlackboard(
+                fiscal_year=2023,
+                fiscal_period="Q4",
+                is_quarterly=True,
+            )
+        },
+    )
 
     with pytest.raises(LLMError):
         run_margin_agent(
-            ticker="MOCK",
-            workspace=tmp_path,
-            base_margin=0.20,
-            margin_yr5=0.23,
-            terminal_margin=0.23,
-            llm=mock_llm,
+            client=mock_llm,
+            company_metadata=company_metadata,
+            workspace_state=workspace_state,
+            period_key="2023_Q4",
         )
 
 
@@ -612,24 +850,44 @@ def test_run_margin_agent_llm_failure(mock_curator, tmp_path):
 def test_run_margin_agent_finalize_failure(mock_curator, tmp_path):
     from src.agents.modeler_agents.margin_agent import run_margin_agent
     from src.core.exceptions import LLMError
+    from src.core.blackboard import (
+        WorkspaceContext,
+        CompanyMetadata,
+        TemporalBlackboard,
+    )
 
     mock_llm = MagicMock()
-    mock_llm.generate.return_value = json.dumps(
+    mock_llm.settings = MagicMock()
+    mock_llm.settings.base_workspace_dir = str(tmp_path)
+    mock_chat = MagicMock()
+    mock_llm.create_chat.return_value = mock_chat
+    mock_chat.get_history.return_value = []
+    mock_chat.send_message.return_value = json.dumps(
         {
             "thought": "Let's read a file",
-            "tool": "pull_markdown_file",
-            "arguments": {"file_name": "none.md"},
+            "tool": "query_blackboard",
+            "arguments": {"section": "company_data"},
         }
+    )
+
+    company_metadata = CompanyMetadata(ticker="MOCK", company_name="MOCK Corp")
+    workspace_state = WorkspaceContext(
+        metadata=company_metadata,
+        reports={
+            "2023_Q4": TemporalBlackboard(
+                fiscal_year=2023,
+                fiscal_period="Q4",
+                is_quarterly=True,
+            )
+        },
     )
 
     with pytest.raises(LLMError) as exc_info:
         run_margin_agent(
-            ticker="MOCK",
-            workspace=tmp_path,
-            base_margin=0.20,
-            margin_yr5=0.23,
-            terminal_margin=0.23,
-            llm=mock_llm,
+            client=mock_llm,
+            company_metadata=company_metadata,
+            workspace_state=workspace_state,
+            period_key="2023_Q4",
         )
     assert "failed to finalize EBITA margin assumptions" in str(exc_info.value)
 
@@ -637,43 +895,61 @@ def test_run_margin_agent_finalize_failure(mock_curator, tmp_path):
 @patch("src.agents.curator_agent.CuratorAgent")
 def test_run_non_operating_agent_missing_files(mock_curator, tmp_path):
     from src.agents.modeler_agents.non_operating_agent import run_non_operating_agent
-    from src.core.exceptions import WorkspaceError
+    from src.core.blackboard import WorkspaceContext, CompanyMetadata
 
     mock_llm = MagicMock()
-
-    # Empty workspace, no extracted financial files
-    with pytest.raises(WorkspaceError) as exc_info:
-        run_non_operating_agent(
-            ticker="MOCK",
-            workspace=tmp_path,
-            llm=mock_llm,
-        )
-    assert (
-        "No extracted financial files found containing non-operating sections"
-        in str(exc_info.value)
+    company_metadata = CompanyMetadata(ticker="MOCK", company_name="MOCK Corp")
+    workspace_state = WorkspaceContext(
+        metadata=company_metadata,
+        reports={},  # Missing target period to trigger pre-flight check failure
     )
+
+    res = run_non_operating_agent(
+        client=mock_llm,
+        company_metadata=company_metadata,
+        workspace_state=workspace_state,
+        period_key="2023_Q4",
+    )
+    assert res["status"] == "failed"
+    assert "Missing dependency" in res["error"]
 
 
 @patch("src.agents.curator_agent.CuratorAgent")
 def test_run_non_operating_agent_llm_failure(mock_curator, tmp_path):
     from src.agents.modeler_agents.non_operating_agent import run_non_operating_agent
     from src.core.exceptions import LLMError
+    from src.core.blackboard import (
+        WorkspaceContext,
+        CompanyMetadata,
+        TemporalBlackboard,
+    )
 
     mock_llm = MagicMock()
-    mock_llm.generate.side_effect = Exception("API error")
+    mock_llm.settings = MagicMock()
+    mock_llm.settings.base_workspace_dir = str(tmp_path)
+    mock_chat = MagicMock()
+    mock_llm.create_chat.return_value = mock_chat
+    mock_chat.get_history.return_value = []
+    mock_chat.send_message.side_effect = Exception("API error")
 
-    # Create dummy files so file-finding check passes
-    extracted_dir = tmp_path / "4_extracted_data"
-    extracted_dir.mkdir(parents=True)
-    (extracted_dir / "20260617_MOCK_10Q_extracted.md").write_text(
-        "#### Non-Operating Assets\n- Cash: 20\n", encoding="utf-8"
+    company_metadata = CompanyMetadata(ticker="MOCK", company_name="MOCK Corp")
+    workspace_state = WorkspaceContext(
+        metadata=company_metadata,
+        reports={
+            "2023_Q4": TemporalBlackboard(
+                fiscal_year=2023,
+                fiscal_period="Q4",
+                is_quarterly=True,
+            )
+        },
     )
 
     with pytest.raises(LLMError):
         run_non_operating_agent(
-            ticker="MOCK",
-            workspace=tmp_path,
-            llm=mock_llm,
+            client=mock_llm,
+            company_metadata=company_metadata,
+            workspace_state=workspace_state,
+            period_key="2023_Q4",
         )
 
 
@@ -681,24 +957,40 @@ def test_run_non_operating_agent_llm_failure(mock_curator, tmp_path):
 def test_run_non_operating_agent_invalid_json(mock_curator, tmp_path):
     from src.agents.modeler_agents.non_operating_agent import run_non_operating_agent
     from src.core.exceptions import LLMError
+    from src.core.blackboard import (
+        WorkspaceContext,
+        CompanyMetadata,
+        TemporalBlackboard,
+    )
 
     mock_llm = MagicMock()
-    mock_llm.generate.return_value = "invalid response, no json here"
+    mock_llm.settings = MagicMock()
+    mock_llm.settings.base_workspace_dir = str(tmp_path)
+    mock_chat = MagicMock()
+    mock_llm.create_chat.return_value = mock_chat
+    mock_chat.get_history.return_value = []
+    mock_chat.send_message.return_value = "invalid response, no json here"
 
-    # Create dummy files so file-finding check passes
-    extracted_dir = tmp_path / "4_extracted_data"
-    extracted_dir.mkdir(parents=True)
-    (extracted_dir / "20260617_MOCK_10Q_extracted.md").write_text(
-        "#### Non-Operating Assets\n- Cash: 20\n", encoding="utf-8"
+    company_metadata = CompanyMetadata(ticker="MOCK", company_name="MOCK Corp")
+    workspace_state = WorkspaceContext(
+        metadata=company_metadata,
+        reports={
+            "2023_Q4": TemporalBlackboard(
+                fiscal_year=2023,
+                fiscal_period="Q4",
+                is_quarterly=True,
+            )
+        },
     )
 
     with pytest.raises(LLMError) as exc_info:
         run_non_operating_agent(
-            ticker="MOCK",
-            workspace=tmp_path,
-            llm=mock_llm,
+            client=mock_llm,
+            company_metadata=company_metadata,
+            workspace_state=workspace_state,
+            period_key="2023_Q4",
         )
-    assert "LLM response did not contain a valid JSON object" in str(exc_info.value)
+    assert "failed to finalize non-operating extraction" in str(exc_info.value)
 
 
 @patch("src.agents.modeler_agents.margin_agent.run_margin_agent")
@@ -876,9 +1168,20 @@ def test_generate_financial_model_mid_year_and_markdown(mock_load_config, tmp_pa
 @patch("src.services.llm_client.LLMClient")
 def test_run_wacc_agent_with_folder_index(mock_llm_class, mock_curator_class, tmp_path):
     from src.agents.modeler_agents.wacc_agent import run_wacc_agent
+    from src.core.blackboard import (
+        WorkspaceContext,
+        CompanyMetadata,
+        TemporalBlackboard,
+        ExtractedFinancialData,
+    )
 
     mock_llm = MagicMock()
-    mock_llm.generate.return_value = json.dumps(
+    mock_llm.settings = MagicMock()
+    mock_llm.settings.base_workspace_dir = str(tmp_path)
+    mock_chat = MagicMock()
+    mock_llm.create_chat.return_value = mock_chat
+    mock_chat.get_history.return_value = []
+    mock_chat.send_message.return_value = json.dumps(
         {
             "thought": "Using index file, finalizing.",
             "tool": "finalize",
@@ -894,32 +1197,33 @@ def test_run_wacc_agent_with_folder_index(mock_llm_class, mock_curator_class, tm
         }
     )
 
-    # Setup index file in the workspace root
-    index_file = tmp_path / "MOCK_folder_index.md"
-    index_content = (
-        "# Test Folder Index WACC\n- File: 4_extracted_data/latest_balance_sheet.md"
+    company_metadata = CompanyMetadata(ticker="MOCK", company_name="MOCK Corp")
+    workspace_state = WorkspaceContext(
+        metadata=company_metadata,
+        reports={
+            "2023_Q4": TemporalBlackboard(
+                fiscal_year=2023,
+                fiscal_period="Q4",
+                is_quarterly=True,
+                balance_sheet_status="completed",
+                income_statement_status="completed",
+                financial_data=ExtractedFinancialData(
+                    adjusted_tax_rate=0.20,
+                ),
+            )
+        },
     )
-    index_file.write_text(index_content, encoding="utf-8")
 
     res = run_wacc_agent(
-        ticker="MOCK",
-        workspace=tmp_path,
-        share_price=100.0,
-        market_cap=1000000.0,
-        beta=1.0,
-        tax_rate=0.20,
-        llm=mock_llm,
+        client=mock_llm,
+        company_metadata=company_metadata,
+        workspace_state=workspace_state,
+        period_key="2023_Q4",
     )
 
     assert res["wacc"] == 0.08
     assert res["net_debt"] == 80.0
     assert res["unlevered_beta"] == 0.8
-
-    # Verify LLM was prompted with index content
-    args, kwargs = mock_llm.generate.call_args
-    prompt_arg = args[0]
-    assert "Test Folder Index WACC" in prompt_arg
-    assert "latest_balance_sheet.md" in prompt_arg
 
 
 @patch("src.agents.curator_agent.CuratorAgent")
@@ -928,9 +1232,19 @@ def test_run_growth_agent_with_folder_index(
     mock_llm_class, mock_curator_class, tmp_path
 ):
     from src.agents.modeler_agents.growth_agent import run_growth_agent
+    from src.core.blackboard import (
+        WorkspaceContext,
+        CompanyMetadata,
+        TemporalBlackboard,
+    )
 
     mock_llm = MagicMock()
-    mock_llm.generate.return_value = json.dumps(
+    mock_llm.settings = MagicMock()
+    mock_llm.settings.base_workspace_dir = str(tmp_path)
+    mock_chat = MagicMock()
+    mock_llm.create_chat.return_value = mock_chat
+    mock_chat.get_history.return_value = []
+    mock_chat.send_message.return_value = json.dumps(
         {
             "thought": "Using index file, finalizing.",
             "tool": "finalize",
@@ -943,31 +1257,28 @@ def test_run_growth_agent_with_folder_index(
         }
     )
 
-    # Setup index file in the workspace root
-    index_file = tmp_path / "MOCK_folder_index.md"
-    index_content = (
-        "# Test Folder Index Growth\n- File: 5_historical_analysis/analyst_views.md"
+    company_metadata = CompanyMetadata(ticker="MOCK", company_name="MOCK Corp")
+    workspace_state = WorkspaceContext(
+        metadata=company_metadata,
+        reports={
+            "2023_Q4": TemporalBlackboard(
+                fiscal_year=2023,
+                fiscal_period="Q4",
+                is_quarterly=True,
+            )
+        },
     )
-    index_file.write_text(index_content, encoding="utf-8")
 
     res = run_growth_agent(
-        ticker="MOCK",
-        workspace=tmp_path,
-        base_growth_rate=0.05,
-        target_growth_yr5=0.08,
-        terminal_growth_rate=0.03,
-        llm=mock_llm,
+        client=mock_llm,
+        company_metadata=company_metadata,
+        workspace_state=workspace_state,
+        period_key="2023_Q4",
     )
 
     assert res["base_growth_rate"] == 0.05
     assert res["revenue_growth_rate"] == 0.06
     assert res["terminal_growth_rate"] == 0.03
-
-    # Verify LLM was prompted with index content
-    args, kwargs = mock_llm.generate.call_args
-    prompt_arg = args[0]
-    assert "Test Folder Index Growth" in prompt_arg
-    assert "analyst_views.md" in prompt_arg
 
 
 @patch("src.agents.curator_agent.CuratorAgent")
@@ -976,9 +1287,19 @@ def test_run_margin_agent_with_folder_index(
     mock_llm_class, mock_curator_class, tmp_path
 ):
     from src.agents.modeler_agents.margin_agent import run_margin_agent
+    from src.core.blackboard import (
+        WorkspaceContext,
+        CompanyMetadata,
+        TemporalBlackboard,
+    )
 
     mock_llm = MagicMock()
-    mock_llm.generate.return_value = json.dumps(
+    mock_llm.settings = MagicMock()
+    mock_llm.settings.base_workspace_dir = str(tmp_path)
+    mock_chat = MagicMock()
+    mock_llm.create_chat.return_value = mock_chat
+    mock_chat.get_history.return_value = []
+    mock_chat.send_message.return_value = json.dumps(
         {
             "thought": "Using index file, finalizing.",
             "tool": "finalize",
@@ -991,53 +1312,81 @@ def test_run_margin_agent_with_folder_index(
         }
     )
 
-    # Setup index file in the workspace root
-    index_file = tmp_path / "MOCK_folder_index.md"
-    index_content = "# Test Folder Index Margin\n- File: 5_historical_analysis/financials_quarter.md"
-    index_file.write_text(index_content, encoding="utf-8")
+    company_metadata = CompanyMetadata(ticker="MOCK", company_name="MOCK Corp")
+    workspace_state = WorkspaceContext(
+        metadata=company_metadata,
+        reports={
+            "2023_Q4": TemporalBlackboard(
+                fiscal_year=2023,
+                fiscal_period="Q4",
+                is_quarterly=True,
+            )
+        },
+    )
 
     res = run_margin_agent(
-        ticker="MOCK",
-        workspace=tmp_path,
-        base_margin=0.20,
-        margin_yr5=0.23,
-        terminal_margin=0.23,
-        llm=mock_llm,
+        client=mock_llm,
+        company_metadata=company_metadata,
+        workspace_state=workspace_state,
+        period_key="2023_Q4",
     )
 
     assert res["base_margin"] == 0.20
     assert res["margin_yr5"] == 0.22
     assert res["terminal_margin"] == 0.21
 
-    # Verify LLM was prompted with index content
-    args, kwargs = mock_llm.generate.call_args
-    prompt_arg = args[0]
-    assert "Test Folder Index Margin" in prompt_arg
-    assert "financials_quarter.md" in prompt_arg
-
 
 def test_run_dcf_modeling_agent(tmp_path):
     from src.agents.modeler_agents.dcf_modeling_agent import run_dcf_modeling_agent
+    from src.core.blackboard import (
+        WorkspaceContext,
+        CompanyMetadata,
+        TemporalBlackboard,
+    )
 
     mock_llm = MagicMock()
+    mock_llm.settings = MagicMock()
+    mock_llm.settings.base_workspace_dir = str(tmp_path)
+    mock_chat = MagicMock()
+    mock_llm.create_chat.return_value = mock_chat
+    # Needs history object return for get_history(), which is a list of dictionary representations of turns
+    mock_chat.get_history.return_value = [
+        {"role": "user", "content": "Estimate the parameters..."},
+        {
+            "role": "model",
+            "content": "I will read financials_quarter.md via query_blackboard",
+        },
+        {"role": "user", "content": "Here is the blackboard content..."},
+        {"role": "model", "content": "Let's check the metadata."},
+        {"role": "user", "content": "Here is the metadata..."},
+        {
+            "role": "model",
+            "content": "I want to run a test valuation with run_valuation.",
+        },
+        {"role": "user", "content": "Valuation results: ..."},
+        {
+            "role": "model",
+            "content": "Perfect, WACC is 9%, Growth is 8%. Valuation makes sense. Finalizing.",
+        },
+    ]
     # Mock LLM turn sequences:
-    # Turn 0: Call pull_historical_analysis_file
-    # Turn 1: Call get_market_data
+    # Turn 0: Call query_blackboard
+    # Turn 1: Call query_blackboard (metadata)
     # Turn 2: Call run_valuation with overridden parameters
     # Turn 3: Call finalize
-    mock_llm.generate.side_effect = [
+    mock_chat.send_message.side_effect = [
         json.dumps(
             {
-                "thought": "I will read financials_quarter.md",
-                "tool": "pull_historical_analysis_file",
-                "arguments": {"file_name": "financials_quarter.md"},
+                "thought": "I will read financials_quarter.md via query_blackboard",
+                "tool": "query_blackboard",
+                "arguments": {"section": "financial_data"},
             }
         ),
         json.dumps(
             {
-                "thought": "Let's check the current market price and currency.",
-                "tool": "get_market_data",
-                "arguments": {},
+                "thought": "Let's check the metadata.",
+                "tool": "query_blackboard",
+                "arguments": {"section": "metadata"},
             }
         ),
         json.dumps(
@@ -1068,13 +1417,13 @@ def test_run_dcf_modeling_agent(tmp_path):
                         "base_growth_rate": 0.05,
                         "capital_turnover": 2.0,
                     },
-                    "comments": "The valuation result aligns well with historical trends. A WACC of 9.0% represents a reasonable cost of capital.",
+                    "comments_arg": "The valuation result aligns well with historical trends. A WACC of 9.0% represents a reasonable cost of capital.",
                 },
             }
         ),
     ]
 
-    analysis_dir = tmp_path / "5_historical_analysis"
+    analysis_dir = tmp_path / "MOCK" / "5_historical_analysis"
     analysis_dir.mkdir(parents=True, exist_ok=True)
     (analysis_dir / "financials_quarter.md").write_text(
         "historical metrics", encoding="utf-8"
@@ -1094,19 +1443,31 @@ def test_run_dcf_modeling_agent(tmp_path):
         "capital_turnover": 2.0,
     }
 
+    company_metadata = CompanyMetadata(ticker="MOCK", company_name="MOCK Corp")
+    workspace_state = WorkspaceContext(
+        metadata=company_metadata,
+        reports={
+            "2023_Q4": TemporalBlackboard(
+                fiscal_year=2023,
+                fiscal_period="Q4",
+                is_quarterly=True,
+            )
+        },
+    )
+
     final_assumptions, comments, history_text = run_dcf_modeling_agent(
-        ticker="MOCK",
-        workspace=tmp_path,
+        client=mock_llm,
+        company_metadata=company_metadata,
+        workspace_state=workspace_state,
+        period_key="2023_Q4",
         base_assumptions=base_assumptions,
-        llm=mock_llm,
-        learning_context="Use correct currency",
+        learnings="Use correct currency",
     )
 
     assert final_assumptions["wacc"] == 0.09
     assert final_assumptions["revenue_growth_rate"] == 0.08
     assert "valuation result aligns well" in comments.lower()
-    assert "pull_historical_analysis_file" in history_text
-    assert "get_market_data" in history_text
+    assert "query_blackboard" in history_text
     assert "run_valuation" in history_text
 
 
