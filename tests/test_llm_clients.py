@@ -5,12 +5,11 @@ from pydantic import BaseModel
 from src.core.config import Settings
 from src.services.llm_client import (
     get_llm_client,
-    GeminiClient,
-    DeepseekClient,
-    OpenRouterClient,
-    GeminiChatSession,
     SimulatedChatSession,
 )
+from src.services.gemini_client import GeminiLLMClient, GeminiChatSession
+from src.services.deepseek_client import DeepSeekLLMClient
+from src.services.openrouter_client import OpenRouterLLMClient
 
 
 class MockStructuredSchema(BaseModel):
@@ -40,7 +39,7 @@ def test_factory_routing_gemini(mock_load_config, base_settings):
     # Mock the google-genai import and genai.Client
     with patch("google.genai.Client") as mock_genai_client:
         client = get_llm_client()
-        assert isinstance(client, GeminiClient)
+        assert isinstance(client, GeminiLLMClient)
         assert client.provider == "gemini"
         mock_genai_client.assert_called_once_with(api_key="sk-gemini")
 
@@ -51,7 +50,7 @@ def test_factory_routing_deepseek(mock_load_config, base_settings):
     mock_load_config.return_value = base_settings
 
     client = get_llm_client()
-    assert isinstance(client, DeepseekClient)
+    assert isinstance(client, DeepSeekLLMClient)
     assert client.provider == "deepseek"
 
 
@@ -61,7 +60,7 @@ def test_factory_routing_openrouter(mock_load_config, base_settings):
     mock_load_config.return_value = base_settings
 
     client = get_llm_client()
-    assert isinstance(client, OpenRouterClient)
+    assert isinstance(client, OpenRouterLLMClient)
     assert client.provider == "openrouter"
 
 

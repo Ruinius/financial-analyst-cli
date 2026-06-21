@@ -62,7 +62,10 @@ Welcome to the `financial-analyst-cli` project.
       - dcf_modeling_agent.py: Agent specialized in reviewing and sanity-checking valuation parameters, currency, shares outstanding, and outputting comments/critiques.
   - src/services/: SEC client, LLM wrapper, web search, and AST-sandboxed math solver.
     - src/services/edgar_client.py: SEC EDGAR download API client.
-    - src/services/llm_client.py: Modular class hierarchy with provider-specific clients (Gemini, DeepSeek, OpenRouter) and factory creation.
+    - src/services/llm_client.py: Abstract base classes for LLM clients, simulated chat sessions, and the main client factory `get_llm_client`.
+    - src/services/gemini_client.py: Gemini client implementation wrapping google-genai SDK.
+    - src/services/deepseek_client.py: DeepSeek client implementation with thinking token options.
+    - src/services/openrouter_client.py: OpenRouter client implementation with standardized headers.
     - src/services/market_data.py: Yahoo Finance market data and ticker checker.
     - src/services/queue.py: Safe job queue and exponential back-off retry manager.
   - src/rust_core/lib.rs: Rust module with PyO3 bindings for DCF financial modeling.

@@ -7,40 +7,43 @@ This document details the step-by-step implementation plan for refactoring the `
 ## Phase 1: Client Provider Separation (Foundation)
 
 ### Goal
+
 Refactor `src/services/llm_client.py` to decouple the generic provider logic into dedicated, isolated provider clients. This establishes a clean foundation for structured JSON schemas and robust model configuration options.
 
 ### Checklist
 
-- [ ] **Create Gemini Client**
+- [x] **Create Gemini Client**
   - Path: [gemini_client.py](file:///f:/AIML%20projects/financial-analyst-cli/src/services/gemini_client.py)
   - Implement `GeminiLLMClient` wrapping the official `google-genai` SDK.
   - Support native structured outputs via `response_schema` parameter.
   - Implement automatic function calling / tool binding for Gemini-specific invocations.
-- [ ] **Create DeepSeek Client**
+- [x] **Create DeepSeek Client**
   - Path: [deepseek_client.py](file:///f:/AIML%20projects/financial-analyst-cli/src/services/deepseek_client.py)
   - Implement `DeepSeekLLMClient` tailored for DeepSeek API specifications.
   - Configure reasoning token parameters (`max_thinking_tokens`) and manage extraction of thoughts.
-- [ ] **Create OpenRouter Client**
+- [x] **Create OpenRouter Client**
   - Path: [openrouter_client.py](file:///f:/AIML%20projects/financial-analyst-cli/src/services/openrouter_client.py)
   - Implement `OpenRouterLLMClient` standardizing the payload structure, routing parameters, and required application headers.
-- [ ] **Refactor LLM Client Factory**
+- [x] **Refactor LLM Client Factory**
   - Path: [llm_client.py](file:///f:/AIML%20projects/financial-analyst-cli/src/services/llm_client.py)
   - Re-purpose the file to act as the primary client manager and factory.
   - Expose a clean `get_llm_client(provider: str, model: str)` function mapping configuration strings to specific client classes.
-- [ ] **Verify and Update Tests**
+- [x] **Verify and Update Tests**
   - Path: [test_llm_clients.py](file:///f:/AIML%20projects/financial-analyst-cli/tests/test_llm_clients.py)
   - Write test coverage for the modularized clients and ensure factory methods instantiate the correct clients.
 
 ### Post-Coding Audit
-1. [ ] **Provider Isolation Check**: Verify that `src/services/llm_client.py` contains zero endpoint setup logic or provider-specific parameter adjustments.
-2. [ ] **Dependency Leaks Check**: Assert that imports for the `google-genai` SDK are restricted to [gemini_client.py](file:///f:/AIML%20projects/financial-analyst-cli/src/services/gemini_client.py) and do not leak into other client modules.
-3. [ ] **Execution Validation**: Execute `uv run pytest tests/test_llm_clients.py` and confirm all factory initialization, streaming capabilities, and error handlers pass without issue.
+
+1. [x] **Provider Isolation Check**: Verify that `src/services/llm_client.py` contains zero endpoint setup logic or provider-specific parameter adjustments.
+2. [x] **Dependency Leaks Check**: Assert that imports for the `google-genai` SDK are restricted to [gemini_client.py](file:///f:/AIML%20projects/financial-analyst-cli/src/services/gemini_client.py) and do not leak into other client modules.
+3. [x] **Execution Validation**: Execute `uv run pytest tests/test_llm_clients.py` and confirm all factory initialization, streaming capabilities, and error handlers pass without issue.
 
 ---
 
 ## Phase 2: Blackboard State & Pydantic Micro-Agents
 
 ### Goal
+
 Implement the central blackboard schema (`WorkspaceContext`) and refactor the specialist sub-extractors, metric agents, and modeling agents to be purely stateless, functional Python callables that read and return Pydantic schemas mapping directly to the blackboard.
 
 ### Checklist
@@ -66,7 +69,7 @@ Implement the central blackboard schema (`WorkspaceContext`) and refactor the sp
     - `BaseFinancialModel`: Model assumptions, projections list, valuation outputs.
     - `TemporalBlackboard`: Period-specific statements, sub-agent lock-states, structured contents, and arithmetic logs.
     - `RawDocumentState`: Tracks ingest statuses and sha256 checksums per source file.
-    - `WorkspaceContext` (Root Blackboard Model)
+    - `WorkspaceContext` (Root Blackboard Model) - including `metadata_status`, `analyzer_status`, and `curator_status` process statuses.
 - [ ] **Write Atomic Storage Manager**
   - Path: [blackboard.py](file:///f:/AIML%20projects/financial-analyst-cli/src/core/blackboard.py)
   - Implement `load_workspace_state(ticker: str) -> WorkspaceContext`.
@@ -77,51 +80,74 @@ Implement the central blackboard schema (`WorkspaceContext`) and refactor the sp
   - Standardize sub-agents as stateless functions with no file I/O that return Pydantic outputs and strictly enforce turn limits and tool restrictions.
   - [ ] **`MetadataAgent`**: [metadata_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/metadata_agent.py)
     - Tools: `get_first_chunk`, `keyword_search` (10-turn limit).
+    - Mandatory Input Context: `list of parsed document filenames`.
     - Scans fanned-in documents in the parsed folder to extract company metadata (name, description, fiscal calendar dates, currencies, conversion factors) to establish the prerequisite setup before spawning other agents.
   - [ ] **`BalanceSheetAgent`**: [balance_sheet_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/extractor_financials_agents/balance_sheet_agent.py)
     - Tools: `find_chunk`, `keyword_search` (20-turn limit).
+    - Mandatory Input Context: `target document filename, company metadata, agent learnings`.
   - [ ] **`IncomeStatementAgent`**: [income_statement_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/extractor_financials_agents/income_statement_agent.py)
     - Tools: `find_chunk`, `keyword_search` (20-turn limit).
+    - Mandatory Input Context: `target document filename, company metadata, agent learnings`.
   - [ ] **`AnalystReportAgent`**: [extractor_analyst_report.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/extractor_analyst_report.py)
     - Tools: `find_chunk`, `keyword_search` (10-turn limit).
+    - Mandatory Input Context: `target document filename, company metadata, agent learnings`.
   - [ ] **`OtherDocAgent`**: [extractor_other.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/extractor_other.py)
     - Tools: `find_chunk`, `keyword_search` (10-turn limit).
+    - Mandatory Input Context: `target document filename, company metadata, agent learnings`.
 - [ ] **Refactor Metrics Sub-Agents**
   - Refactor agents to rely on `query_blackboard` for read-only state dependencies.
   - [ ] **`DilutedSharesAgent`**: [diluted_shares_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/extractor_financials_agents/diluted_shares_agent.py)
     - Tools: `keyword_search`, `query_blackboard` (10-turn limit).
+    - Mandatory Input Context: `company metadata, income_statement, 10-Q/10-K filename, earnings announcement filename`.
   - [ ] **`OrganicGrowthAgent`**: [organic_growth_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/extractor_financials_agents/organic_growth_agent.py)
     - Tools: `keyword_search`, `query_blackboard` (10-turn limit).
+    - Mandatory Input Context: `company metadata, income_statement, 10-Q/10-K filename, earnings announcement filename`.
   - [ ] **`InterpretationAgent`**: [interpretation_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/extractor_financials_agents/interpretation_agent.py)
     - Tools: `access_resources`, `query_blackboard` (10-turn limit).
+    - Mandatory Input Context: `company metadata, income_statement, balance_sheet`.
   - [ ] **`OperatingEbitaAgent`**: [ebita_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/extractor_financials_agents/ebita_agent.py)
     - Tools: `keyword_search`, `query_blackboard` (10-turn limit).
+    - Mandatory Input Context: `company metadata, income_statement, 10-Q/10-K filename, earnings announcement filename`.
   - [ ] **`AdjustedTaxesAgent`**: [tax_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/extractor_financials_agents/tax_agent.py)
     - Tools: `keyword_search`, `query_blackboard` (10-turn limit).
+    - Mandatory Input Context: `company metadata, income_statement, 10-Q/10-K filename, earnings announcement filename`.
 - [ ] **Refactor Modeling Sub-Agents**
   - Standardize modeling agents to extract assumptions, execute pre-flight dependency checks, and output to the blackboard.
   - [ ] **`WaccAgent`**: [wacc_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/modeler_agents/wacc_agent.py)
     - Tools: `market_data`, `query_blackboard` (10-turn limit).
+    - Mandatory Input Context: `company metadata, latest temporal period slice`.
     - Checks for latest balance sheet state, fetches ticker pricing, and calculates debt weights and cost of equity.
   - [ ] **`GrowthAgent`**: [growth_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/modeler_agents/growth_agent.py)
     - Tools: `web_search`, `query_blackboard` (10-turn limit).
+    - Mandatory Input Context: `latest temporal period slice, company metadata, trend tables`.
     - Checks historical summaries and compiles future revenue growth assumptions.
   - [ ] **`MarginAgent`**: [margin_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/modeler_agents/margin_agent.py)
     - Tools: `web_search`, `query_blackboard` (10-turn limit).
+    - Mandatory Input Context: `latest temporal period slice, company metadata, trend tables`.
     - Analyzes analyst reports and determines short-term and terminal margins.
   - [ ] **`NonOperatingAgent`**: [non_operating_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/modeler_agents/non_operating_agent.py)
     - Tools: `access_resources`, `query_blackboard` (10-turn limit).
-    - Reconciles the 6 non-operating bridge items from the latest balance sheet.
+    - Mandatory Input Context: `latest temporal period slice`.
+    - Queries/extracts the 6 non-operating categories from the latest fanned-in balance sheet state.
   - [ ] **`DcfModelingAgent`**: [dcf_modeling_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/modeler_agents/dcf_modeling_agent.py)
     - Tools: `query_blackboard` (10-turn limit).
+    - Mandatory Input Context: `company metadata, latest temporal period slice, model assumptions`.
     - Reviews calculations, validates assumptions, and formats critique feedback.
 - [ ] **Implement Progressive Turn Warning Mechanism**
   - Inject turn instructions containing current counts, remaining allowances, and historical runtimes (`average_turn_count`) to urge optimal, fast sub-agent exit.
+- [ ] **Implement Curator Agent**
+  - Path: [curator_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/curator_agent.py)
+  - Tools: `query_blackboard` (10-turn limit).
+  - Mandatory Input Context: `company metadata, complete WorkspaceContext`.
+  - Solely responsible for writing and updating the `[TICKER]_wiki.md` file using compiled blackboard data under write lock.
 - [ ] **Implement Learning Agent**
   - Path: [learning_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/learning_agent.py)
+  - Tools: `query_blackboard`.
+  - Mandatory Input Context: `target sub-agent name, document type, turn counts/run logs`.
   - Evaluates turn deviation against `average_turn_count` to run discretionary learnings updates. Writes keywords, target chunks, and execution histories back to `company_data.learnings`.
 
 ### Post-Coding Audit
+
 1. [ ] **State Deserialization Validation**: Confirm `WorkspaceContext.model_validate_json()` successfully parses complete workspace states without validation errors.
 2. [ ] **Stateless Code Inspection**: Check that all refactored sub-agents contain ZERO file operations (`open()`, `json.dump`, `os.path`) referencing `workspace_state.json`.
 3. [ ] **Dependency Logic Validation**: Verify that WACC, Growth, and Margin modeling agents gracefully return structured dependency errors (instead of throwing tracebacks or crashing) when queried previous metrics do not exist on the blackboard.
@@ -132,6 +158,7 @@ Implement the central blackboard schema (`WorkspaceContext`) and refactor the sp
 ## Phase 3: Blackboard Orchestrator Integration
 
 ### Goal
+
 Implement the central pipeline coordinator (`BlackboardOrchestrator`) that manages in-memory check-out/check-in, enforces execution gates, executes multi-document GAAP merge logic, validates arithmetic constraints, coordinates modeling, and modifies the CLI command suite.
 
 ### Checklist
@@ -184,6 +211,7 @@ Implement the central pipeline coordinator (`BlackboardOrchestrator`) that manag
   - Ensure all golden evaluations (`tests/test_extractor_orchestrator.py`, etc.) pass.
 
 ### Post-Coding Audit
+
 1. [ ] **Execution Loop Integration Test**: Verify that the deprecated linear files (`extractor_orchestrator.py`, `extractor_financials.py`, `analyzer.py`, `modeler_orchestrator.py`) have been removed and that `uv run pytest tests/` runs successfully using the new coordinator.
 2. [ ] **Multi-Document Merge Check**: Process an earnings release containing non-GAAP items and a subsequent 10-Q/10-K. Verify that GAAP figures overwrite EA details, but non-GAAP attributes (Organic Growth, Adjusted Taxes, Operating EBITA) are preserved.
 3. [ ] **Arithmetic Logs Check**: Verify that triggering a balance sheet or income statement math validation failure writes details into the period's `arithmetic_errors` field and correctly marks the task state as `failed`.
@@ -194,6 +222,7 @@ Implement the central pipeline coordinator (`BlackboardOrchestrator`) that manag
 ## Phase 4: Interactive Chat & Multi-Company Analytics (Deferred)
 
 ### Goal
+
 Establish cross-company indexing and enable a natural-language query interface querying flat tables indexed from workspace states.
 
 ### Checklist
@@ -210,6 +239,7 @@ Establish cross-company indexing and enable a natural-language query interface q
   - Verify chat tool routing, cross-company comparisons, and missing data backfill triggering.
 
 ### Post-Coding Audit
+
 1. [ ] **Sync Execution Audit**: Verify that running the indexer successfully extracts flat records from `workspace_state.json` and writes them into `workspaces/workspace_index.json`.
 2. [ ] **Read-Only Bounds Check**: Confirm that query tools bound to the chat loop are strictly read-only and prevent the chat model from modifying any values inside the company-specific blackboard JSON files.
 3. [ ] **Comparison Verification**: Assert that cross-company comparison prompts (e.g., identifying highest organic growth rates) correctly query the consolidated JSON index or read fanned-out JSON states, yielding accurate comparisons.
