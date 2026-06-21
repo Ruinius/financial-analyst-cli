@@ -47,22 +47,63 @@ def clean_value(val_str: Any) -> float:
 def parse_markdown_table(
     text: str, table_name: Optional[str] = None
 ) -> List[Dict[str, str]]:
-    lines = text.split("\n")
+    # ⚡ Bolt Optimization: Fast string search to isolate the relevant section
+    # This prevents splitting massive markdown files and iterating over every single line
+    start_idx = 0
+    end_idx = len(text)
+    target_name = None
+
+    if table_name:
+        target_name = table_name.lower().replace("#", "").strip()
+        text_lower = text.lower()
+
+        # 1. Fast check if the table even exists
+        if target_name not in text_lower:
+            return []
+
+        # 2. Narrow down the text block to search in
+        # We find the start index of the first header containing the target name
+        search_idx = 0
+        found = False
+        while True:
+            h_idx = text_lower.find(target_name, search_idx)
+            if h_idx == -1:
+                break
+
+            # Backtrack to find the start of this line and check if it's a header
+            line_start = text_lower.rfind("\n", 0, h_idx)
+            if line_start == -1:
+                line_start = 0
+            else:
+                line_start += 1  # move past \n
+
+            # Check if line starts with #
+            if text_lower[line_start] == "#":
+                start_idx = line_start
+                found = True
+                break
+
+            search_idx = h_idx + 1
+
+        if not found:
+            return []
+
+    # Split only the remaining portion (or full text if no table_name)
+    lines = text[start_idx:end_idx].split("\n")
+
     headers = []
     rows = []
     in_target_table = table_name is None
     in_table = False
 
     for i, line in enumerate(lines):
-        if line.startswith("## ") or line.startswith("### ") or line.startswith("# "):
-            if (
-                table_name
-                and table_name.lower().replace("#", "").strip()
-                in line.lower().replace("#", "").strip()
-            ):
-                in_target_table = True
-            elif in_target_table and table_name:
-                in_target_table = False
+        if line.startswith(("# ", "## ", "### ")):
+            if target_name:
+                cleaned_line = line.lower().replace("#", "").strip()
+                if target_name in cleaned_line:
+                    in_target_table = True
+                elif in_target_table:
+                    in_target_table = False
 
         if in_target_table and "|" in line:
             if not in_table:
@@ -76,7 +117,6 @@ def parse_markdown_table(
                     rows.append(dict(zip(headers, row_vals)))
         elif in_table and not line.strip():
             in_table = False
-            pass
 
     return rows
 
@@ -932,13 +972,13 @@ class Modeler:
 
 | Parameter | Recommended by Modeler Agents | Actually Used | Status |
 |:---|:---|:---|:---|
-| **WACC** | {base_wacc * 100:.2f}% | {wacc * 100:.2f}% | {'Updated' if abs(base_wacc - wacc) > 1e-6 else 'Unchanged'} |
-| **Year 5 Growth** | {base_growth * 100:.2f}% | {target_growth_yr5 * 100:.2f}% | {'Updated' if abs(base_growth - target_growth_yr5) > 1e-6 else 'Unchanged'} |
-| **Terminal Growth** | {base_term_growth * 100:.2f}% | {terminal_growth * 100:.2f}% | {'Updated' if abs(base_term_growth - terminal_growth) > 1e-6 else 'Unchanged'} |
-| **Year 5 Margin** | {base_margin_yr5 * 100:.2f}% | {target_margin_yr5 * 100:.2f}% | {'Updated' if abs(base_margin_yr5 - target_margin_yr5) > 1e-6 else 'Unchanged'} |
-| **Terminal Margin** | {base_term_margin * 100:.2f}% | {terminal_margin * 100:.2f}% | {'Updated' if abs(base_term_margin - terminal_margin) > 1e-6 else 'Unchanged'} |
-| **Capital Turnover** | {base_turnover:.1f}x | {mct:.1f}x | {'Updated' if abs(base_turnover - mct) > 1e-6 else 'Unchanged'} |
-| **Adjusted Tax Rate** | {base_tax * 100:.2f}% | {l4q_tax * 100:.2f}% | {'Updated' if abs(base_tax - l4q_tax) > 1e-6 else 'Unchanged'} |
+| **WACC** | {base_wacc * 100:.2f}% | {wacc * 100:.2f}% | {"Updated" if abs(base_wacc - wacc) > 1e-6 else "Unchanged"} |
+| **Year 5 Growth** | {base_growth * 100:.2f}% | {target_growth_yr5 * 100:.2f}% | {"Updated" if abs(base_growth - target_growth_yr5) > 1e-6 else "Unchanged"} |
+| **Terminal Growth** | {base_term_growth * 100:.2f}% | {terminal_growth * 100:.2f}% | {"Updated" if abs(base_term_growth - terminal_growth) > 1e-6 else "Unchanged"} |
+| **Year 5 Margin** | {base_margin_yr5 * 100:.2f}% | {target_margin_yr5 * 100:.2f}% | {"Updated" if abs(base_margin_yr5 - target_margin_yr5) > 1e-6 else "Unchanged"} |
+| **Terminal Margin** | {base_term_margin * 100:.2f}% | {terminal_margin * 100:.2f}% | {"Updated" if abs(base_term_margin - terminal_margin) > 1e-6 else "Unchanged"} |
+| **Capital Turnover** | {base_turnover:.1f}x | {mct:.1f}x | {"Updated" if abs(base_turnover - mct) > 1e-6 else "Unchanged"} |
+| **Adjusted Tax Rate** | {base_tax * 100:.2f}% | {l4q_tax * 100:.2f}% | {"Updated" if abs(base_tax - l4q_tax) > 1e-6 else "Unchanged"} |
 """
 
         valuation_commentary = assumptions.get("valuation_commentary", "")
