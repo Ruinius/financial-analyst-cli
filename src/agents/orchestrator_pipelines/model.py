@@ -255,13 +255,6 @@ class Modeler:
         except Exception as e:
             logger.error(f"Failed to run curator after DCF Modeling Agent: {e}")
 
-        try:
-            from src.agents.indexer_agent import IndexerAgent
-
-            IndexerAgent(self.settings).run_indexing(active_ticker)
-        except Exception as e:
-            logger.error(f"Failed to run indexer agent after modeling: {e}")
-
         formatting.print_success(f"Modeling finished for {active_ticker}.")
 
     def calculate_default_assumptions(

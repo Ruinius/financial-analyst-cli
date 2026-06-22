@@ -74,7 +74,6 @@ financial-analyst-cli/
 │   │   ├── orchestrator_pipelines/  # Modular pipeline execution stage files (ingest, extract, analyze, model)
 │   │   ├── curator_agent.py        # Curator agent for summarizing learnings and refining qualitative views
 │   │   ├── learning_agent.py       # Learning agent for capturing run learnings & blackboard updates
-│   │   ├── indexer_agent.py        # Indexer agent for maintaining the company folder index
 │   │   ├── extractor_agents/        # Folder containing specialized extractors and agents
 │   │   │   ├── extractor_analyst_report.py # Specialized extractor for analyst reports
 │   │   │   ├── extractor_transcript.py # Specialized extractor for transcripts

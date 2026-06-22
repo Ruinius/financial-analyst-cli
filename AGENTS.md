@@ -45,7 +45,6 @@ Welcome to the `financial-analyst-cli` project.
       - model.py: Stage execution logic for WACC, growth, margin assumptions and running the DCF calculation.
     - src/agents/curator_agent.py: Curator agent for summarizing learnings and refining qualitative bull/bear views.
     - src/agents/learning_agent.py: Learning agent for capturing run learnings and discretionary blackboard updates.
-    - src/agents/indexer_agent.py: Indexer agent for maintaining the company folder index of extracted, analysis, and modeling files.
     - src/agents/extractor_agents/: Folder containing all document sub-extractors and agents.
       - src/agents/extractor_agents/extractor_analyst_report.py: Sub-extractor specialized for analyst reports.
       - src/agents/extractor_agents/extractor_transcript.py: Sub-extractor specialized for transcripts.

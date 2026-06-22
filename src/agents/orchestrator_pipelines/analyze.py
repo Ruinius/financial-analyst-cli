@@ -9,7 +9,6 @@ from src.core.blackboard import (
     HistoricalAnalystView,
 )
 from src.agents.curator_agent import CuratorAgent
-from src.agents.indexer_agent import IndexerAgent
 
 logger = logging.getLogger(__name__)
 
@@ -432,12 +431,6 @@ async def orchestrate_analyze(orchestrator, ticker: str) -> None:
         CuratorAgent(orchestrator.settings).curate(
             ticker, "analyze", "Analyzed and synthesized trends."
         )
-
-        # Run Indexing
-        try:
-            IndexerAgent(orchestrator.settings).run_indexing(ticker)
-        except Exception as idx_err:
-            logger.error(f"IndexerAgent failed after analysis: {idx_err}")
 
     except Exception as e:
         logger.error(f"Analysis orchestration failed: {e}")

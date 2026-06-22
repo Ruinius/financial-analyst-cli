@@ -14,10 +14,7 @@ from src.agents.orchestrator_pipelines.analyze import orchestrate_analyze
 
 
 @patch("src.agents.curator_agent.CuratorAgent.curate")
-@patch("src.agents.indexer_agent.IndexerAgent.run_indexing")
-def test_pipeline_analyze_q4_deduction(
-    mock_run_indexing, mock_curate, temp_workspace_env
-):
+def test_pipeline_analyze_q4_deduction(mock_curate, temp_workspace_env):
     ticker = "AAPL"
     orchestrator = BlackboardOrchestrator()
     workspace = Path(temp_workspace_env.active_workspace_path)
@@ -133,6 +130,3 @@ def test_pipeline_analyze_q4_deduction(
     )
     assert "2024-Q4" in quarter_content
     assert "120.0" in quarter_content
-
-    # 4. Assert IndexerAgent was triggered
-    mock_run_indexing.assert_called_once_with(ticker)
