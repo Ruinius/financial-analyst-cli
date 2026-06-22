@@ -4,7 +4,35 @@ This document defines the structural schema, storage mechanics, state transition
 
 ---
 
-## 1. Architectural Decision: Single vs. Multiple Blackboards
+## 1. Background & Evolution
+
+The system evolved from a rigid linear Python pipeline into a stateful, modular **Micro-Agent Architecture** centered around the **Temporal Blackboard Pattern**.
+
+### Context & Motivation (Legacy Linear Flow)
+Previously, the system operated as a hardcoded sequential pipeline:
+- **Linear Orchestration**: `extractor_orchestrator.py` relied on static conditional blocks to coordinate extractions.
+- **Boilerplate Execution Loops**: Specialist sub-agents ran manual `for` loops inside Python, parsing raw text responses for JSON commands, appending to lists, and managing state transitions.
+- **Context Pollution**: Large source files forced agents to query multiple contexts without isolation of state.
+
+### Target Vision: Focus on Blackboard Orchestrator & LLMWiki Generation
+The stateful refactoring centered the workflow around the blackboard state (`workspace_state.json`). Rather than running a hardcoded sequential pipeline, the Orchestrator inspects the current blackboard state and spawns template-based specialist sub-agents dynamically to complete missing or failed sections.
+
+All intermediate markdown files inside `4_extracted_data/`, `5_historical_analysis/`, and `6_financial_model/` are entirely replaced by the structured Blackboard state (`workspace_state.json`). Furthermore, `[TICKER]_extract_learning.md`, `[TICKER]_analyze_learning.md`, `[TICKER]_model_learning.md`, and `[TICKER]_folder_index.md` are consolidated into the Blackboard.
+
+Only a single qualitative markdown file is retained in the company root:
+- `[TICKER]_wiki.md`: Curated, clean qualitative views (Bull & Bear perspectives).
+
+The simplified local workspace directory structure consists of:
+- `[TICKER]_wiki.md`: Curated, robustly written qualitative views.
+- `workspace_state.json`: The single source of truth blackboard.
+- `1_ingest_data/`: Raw downloaded filings and source documents.
+- `2_parsed_data/`: Cleaned parsed markdown files.
+- `3_archived_data/`: Archived exact raw documents.
+- `9_scenario_model_json/`: Structured JSON representations of model projections and scenario models.
+
+---
+
+## 2. Architectural Decision: Single vs. Multiple Blackboards
 
 ### The Industry Standard: Context Isolation
 
@@ -28,7 +56,7 @@ To support multi-company queries in the future **Interactive Chat Mode** (e.g., 
 
 ---
 
-## 2. Complete Pydantic Domain Schema
+## 3. Complete Pydantic Domain Schema
 
 The Blackboard acts as a structured model matching the exact mathematical steps in [financial_math.py](file:///f:/AIML%20projects/financial-analyst-cli/src/utils/financial_math.py) and [modeler_orchestrator.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/modeler_orchestrator.py).
 
@@ -343,7 +371,7 @@ class WorkspaceContext(BaseModel):
 
 ---
 
-## 3. Scenario Models: Kept Outside the Blackboard
+## 4. Scenario Models: Kept Outside the Blackboard
 
 ### Architecture Separation
 
@@ -355,7 +383,7 @@ While the **Base Financial Model** (representing the standard estimates derived 
 
 ---
 
-## 4. Quality Audit & Reconciliation Logic
+## 5. Quality Audit & Reconciliation Logic
 
 ### Storing in Raw Absolute Units
 
@@ -372,7 +400,7 @@ These validation tools are invoked inside the sub-agents before calling `finaliz
 
 ---
 
-## 5. Storage & State Lifecycle
+## 6. Storage & State Lifecycle
 
 ```mermaid
 stateDiagram-v2

@@ -11,14 +11,11 @@ Welcome to the `financial-analyst-cli` project.
   - .jules/bolt.md: Learning from file I/O bottleneck in financial line item extraction.
   - .jules/sentinel.md: Learnings and preventions from path traversal vulnerabilities in local viewer server.
 - Cargo.toml: Cargo configuration for the Rust Core calculation engine.
-- docs/architecture.md: System architecture, folder structure, and software design decisions.
-- docs/blackboard_refactor.md: Backlog and plan specifications for blackboard code refactoring ideas.
-- docs/refactor_plan.md: Phase-by-phase implementation checklists for the blackboard refactor effort.
-- docs/blackboard_design.md: Detailed schema, lifecycle, and storage specifications for the blackboard state.
-- docs/llm_client_refactor.md: Design and implementation plans for refactoring the unified LLM services.
+- docs/architecture.md: System architecture, folder structure, micro-agent definitions, tool permissions registry, and design decisions.
+- docs/blackboard_design.md: Detailed schema, evolution history, lifecycle, and storage specifications for the blackboard state.
 - docs/cli_spec.md: CLI command hierarchy, options, parameters, and user experience specification.
 - docs/requirements.md: Scope of capabilities and product requirements translated from financial-analyst-skills.
-- docs/roadmap.md: Six-phase development plan for implementing the Financial Analyst CLI.
+- docs/roadmap.md: Seven-phase development and refactoring roadmap for the Financial Analyst CLI.
 - LICENSE: MIT License.
 - main.py: Application entry point.
 - pyproject.toml: Project metadata and dependencies (managed via `uv`), including Maturin build-backend configuration.

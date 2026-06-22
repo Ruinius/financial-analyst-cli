@@ -10,9 +10,9 @@ This document outlines the phased development roadmap for the Financial Analyst 
 ## Roadmap Overview
 
 ```
-Phase 1 ──> Phase 2 ──> Phase 3 ──> Phase 4 ──> Phase 5 ──> Phase 6
-Config      Ingestion   Extraction  History     Modeling    Interactive
-& Setup     & SEC API   & Metrics   & Trends    & DCF       HTML Viewer
+Phase 1 ──> Phase 2 ──> Phase 3 ──> Phase 4 ──> Phase 5 ──> Phase 6 ──> Phase 7
+Config      Ingestion   Extraction  History     Modeling    Interactive  Blackboard
+& Setup     & SEC API   & Metrics   & Trends    & DCF       HTML Viewer  Refactor
 ```
 
 ---
@@ -184,6 +184,31 @@ Config      Ingestion   Extraction  History     Modeling    Interactive
   - [x] **Local Currency & Unit Support in Extraction**: Enhanced CuratorAgent and extraction agents (balance sheet, income statement, derived metrics agents) to dynamically detect, track, and maintain the preferred reporting currency and numeric scale units (e.g. Millions, Billions, 10K) across quarterly/annual filings and earnings announcements.
   - [x] **Indexer Agent & Wiki Ingested Sources Cleanup**: Removed the "Ingested Sources" list from the Ticker's Wiki file. Implemented a separate `IndexerAgent` that automatically catalog-indexes all files inside `4_extracted_data/`, `5_historical_analysis/`, and `6_financial_model/` (listing relative links, size, modified date, and content summary), running after every `extract`, `analyze`, and `model` run.
 
-Next steps:
+## Phase 7: Blackboard & Micro-Agent Refactoring (Completed June 2026)
 
-- [ ] Test the extensibility of the new blackboard architecture by adding the high trading volume, increase in price, low trading volume, increase in price, low trading volume decrease in price, high trading volume decrease in price.
+**Goal**: Refactor the rigid linear pipeline into a stateful, modular Blackboard Orchestrator with stateless specialist agents and provider-separated client wrappers.
+
+- **7.1 LLM Client Provider Isolation**:
+  - [x] Refactor `llm_client.py` and decouple client logic into dedicated classes (`GeminiLLMClient`, `DeepSeekLLMClient`, `OpenRouterLLMClient`).
+  - [x] Support provider-specific configuration options, native structured JSON outputs, and thinking tokens extraction.
+- **7.2 Structured Domain Schema & Stateless Specialist Agents**:
+  - [x] Implement the `WorkspaceContext` Pydantic models in `blackboard.py` to act as the single source of truth for a ticker (`workspace_state.json`), consolidating all extracted financials, longitudinal trends, DCF assumptions, and run-to-run learnings.
+  - [x] Write atomic storage manager (`load_workspace_state` / `save_workspace_state` using single-writer pattern and `os.replace` on `workspace_state.json.tmp`).
+  - [x] Refactor all sub-extractors and metric agents (Balance Sheet, Income Statement, Analyst Report, Other Doc, Diluted Shares, Organic Growth, Operating EBITA, Adjusted Taxes, and Interpretation agents) to be stateless functions returning Pydantic schemas.
+  - [x] Implement read-only `query_blackboard` tool for dependency verification between agents.
+- **7.3 Centralized Blackboard Orchestrator Integration**:
+  - [x] Implement `BlackboardOrchestrator` to coordinate stateful execution of pipeline stages.
+  - [x] Implement checkout/check-in status transitions (`pending` -> `running` -> `completed`/`failed`) to manage in-memory state checkout and atomic write checkpoints.
+  - [x] Enforce execution gates (Sequential metadata setup -> Parallel extraction -> Parallel metrics level 1 -> Parallel metrics level 2 -> Parallel modeling level 1 -> Sequential DCF modeling check) using `asyncio` parallel execution with semaphore concurrency limits.
+  - [x] Implement GAAP override policies (10-Q/10-K replaces Earnings Announcement numbers) and Non-GAAP preservation policies (Organic growth, operating EBITA, adjusted taxes from Earnings Announcement are preserved).
+  - [x] Integrate robust LLM-based quality audits (`check_balance_sheet_quality`, `check_income_statement_quality`) inside the sub-agents.
+- **7.4 Headless & Interactive Error Recovery**:
+  - [x] Implement Prompt Failure Queue.
+  - [x] Implement headless mode (`--non-interactive`) supporting automatic retries for LLM/API errors, bypassing retries on validation errors, and failing-fast (exit code 1).
+  - [x] Implement interactive developer mode querying stdin for recovery strategy (Retry, Don't Retry, Stop All).
+- **7.5 Cleanups and Optimization**:
+  - [x] Decouple pipeline stage controllers into modular files under `src/agents/orchestrator_pipelines/` (`ingest.py`, `extract.py`, `analyze.py`, `model.py`).
+  - [x] Deprecate and remove legacy linear files: `extractor_orchestrator.py`, `extractor_financials.py`, `analyzer.py`, `modeler.py`, `modeler_orchestrator.py`, `extractor_transcript.py`, and `pull_markdown.py`.
+  - [x] Reorganize the test suite into modular folders mirroring the package structure, splitting monolithic files and validating that all tests pass successfully.
+  - [x] Refactor `parse_markdown_to_line_items` to accept markdown strings directly, eliminating temporary markdown disk writes and unlinking.
+  - [x] Prune active workspaces initialization to create only 4 directories (`1_ingest_data/`, `2_parsed_data/`, `3_archived_data/`, `9_scenario_model_json/`), deprecating directories 4, 5, 6.

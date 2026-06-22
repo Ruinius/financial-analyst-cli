@@ -37,33 +37,28 @@ While this doesn't require the open-ended reasoning level of a software engineer
 
 ## Self-Learning & Self-Healing Architecture
 
-To prevent memory loss, avoid repeating errors, and accommodate the highly company-specific formatting of financial filings without complex remote databases, `fa` implements an in-workspace **Self-Learning & Self-Healing** architecture:
+To prevent memory loss, avoid repeating errors, and accommodate the highly company-specific formatting of financial filings without complex remote databases, `fa` implements an in-workspace **Self-Learning & Self-Healing** architecture centered around the temporal blackboard:
 
 ```mermaid
 graph TD
-    UserFeedback[User edits ## User Feedback in Learning MD] --> Curator[CuratorAgent Stage Finish]
-    RunLogs[Recent Pipeline Run Logs / Artifacts] --> Curator
+    UserFeedback[User edits ## User Feedback in TICKER_wiki.md] --> Curator[CuratorAgent run curate_wiki]
+    RunLogs[Recent Pipeline Run Logs / State in Blackboard] --> Curator
     Curator -->|Extracts & Filters| LLMCompaction[LLM Compaction Prompt]
-    LLMCompaction -->|Incorporates New Lessons & Mappings| Rewrite[Succinct Learning MD Rewrite]
-    Rewrite -->|Resets Feedback Template| CleanMD[Clean register files ready for next run]
+    LLMCompaction -->|Incorporates New Lessons & Mappings| Rewrite[Succinct Wiki Rewrite]
+    Rewrite -->|Resets Feedback Template| CleanMD[Clean wiki file ready for next curation]
 ```
 
-### 1. Workspace-Local Learning Registers
-Instead of external configuration stores, each company's learning is persisted as readable markdown files directly in the root of its ticker directory:
-- `[TICKER]_wiki.md`: Stores qualitative perspectives (Bull & Bear views).
-- `[TICKER]_folder_index.md`: Stores automatically generated and maintained indexing catalog of files inside extracted, analysis, and modeling folders.
-- `[TICKER]_extract_learning.md`: Stores custom fiscal quarter end-dates, row mappings, and extraction lessons.
-- `[TICKER]_analyze_learning.md`: Stores synthesis rules and trend analysis lessons.
-- `[TICKER]_model_learning.md`: Stores valuation assumptions (WACC inputs, growth overrides, and tax preferences).
+### 1. Workspace-Local Learning & State
+Instead of separate local learning markdown files, all run-to-run learnings and settings are consolidated into the structured Pydantic blackboard state:
+- `workspace_state.json`: The single source of truth blackboard containing fanned-in extracted financials, longitudinal trends, DCF assumptions, and run-to-run agent learnings (`company_data.learnings`).
+- `[TICKER]_wiki.md`: Curated, robustly written qualitative perspectives (Bull & Bear views). It also contains a `## User Feedback` header where users can write custom feedback to override assumptions, provide adjustments, or feed new qualitative guides to the system.
 
-### 2. The Curator Agent Compaction Loop
-At the end of every pipeline stage (`ingest`, `extract`, `analyze`, `model`), a dedicated `CuratorAgent` (in [curator_agent.py](file:///f:/AIML projects/financial-analyst-cli/src/agents/curator_agent.py)) runs automatically:
-- **Read & Filter**: It scans the active learning markdown file, extracts user feedback written under `## User Feedback`, and gathers execution logs.
-- **Compaction**: It prompts the LLM to compact the compiled logs and user corrections, discarding conversational filler and extracting actionable, concrete guidelines.
-- **Self-Healing Rewrite**: The LLM rewrites the learning document, integrating the new lessons into the main guidelines sections, and resets the `## User Feedback` header back to its empty template state.
+### 2. The Learning & Curation Loops
+- **Learning Agent**: Automatically runs during execution to compile success/avoid logs and execution turn metrics (total runs, average turns, last turns) directly into the blackboard (`company_data.learnings`).
+- **Curator Agent**: Runs on user request (`fa run curate_wiki`) to digest fanned-in blackboard data and user feedback from `[TICKER]_wiki.md`. It extracts feedback, refines Bull/Bear views via LLM synthesis, rewrites the wiki, and resets the feedback section.
 
 ### 3. Self-Healing in Action
-When sub-agents execute subsequent runs, they read these localized learning registers first. If a previous run encountered a parsing collision, a mismatched operating/non-operating row, or custom share adjustments, the agent automatically adapts using the saved lessons, "healing" its extraction and modeling pipeline without code changes.
+When sub-agents execute subsequent runs, they read these localized learnings from the blackboard first. If a previous run encountered a parsing collision, a mismatched operating/non-operating row, or custom share adjustments, the agent automatically adapts using the saved lessons, "healing" its extraction and modeling pipeline without code changes.
 
 ---
 
@@ -178,15 +173,11 @@ Setting up a workspace for a company ticker (e.g., `AAPL` or `MSFT`) initializes
 - **`1_ingest_data/`**: Raw documents (10-Ks, 10-Qs, earnings transcripts, analyst reports, press releases, etc.).
 - **`2_parsed_data/`**: Markdown conversions of raw files (`YYYYMMDD_filetype.md`) and a `parsed_data.csv` index.
 - **`3_archived_data/`**: Archived original files.
-- **`4_extracted_data/`**: Parsed metrics, statement summaries, and audit trail metadata.
-- **`5_historical_analysis/`**: Generated reports summarizing qualitative moats (`analyst_views.md`), transcripts (`transcript_trend.md`), and quantitative trends (`financials_quarter.md`, `financials_annual.md`).
-- **`6_financial_model/`**: Markdown representations of DCF models.
-- **`7_historical_model_json/`**: JSON model states for import/export in the interactive viewer.
-- **`[TICKER]_wiki.md`**: Centralized wiki containing qualitative bull/bear views.
-- **`[TICKER]_folder_index.md`**: Automatically maintained index of files in 4_extracted_data, 5_historical_analysis, and 6_financial_model directories.
-- **`[TICKER]_extract_learning.md`**: Custom fiscal schedule mappings, ingest/extract lessons, and user feedback.
-- **`[TICKER]_analyze_learning.md`**: Analysis-specific lessons and user feedback.
-- **`[TICKER]_model_learning.md`**: Modeler-specific lessons and user feedback.
+- **`9_scenario_model_json/`**: Structured JSON scenario models populated by overrides in the HTML DCF viewer.
+- **`workspace_state.json`**: The single source of truth blackboard containing extracted statements, metrics, longitudinal summaries, DCF calculations, and run-to-run learnings.
+- **`[TICKER]_wiki.md`**: Centralized wiki containing qualitative bull/bear views and user feedback overrides.
+
+_Note: The subdirectories `4_extracted_data/`, `5_historical_analysis/`, `6_financial_model/`, and `7_historical_model_json/` are deprecated and removed, as their contents are now consolidated directly into the blackboard state (`workspace_state.json`)._
 
 ---
 

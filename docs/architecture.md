@@ -39,9 +39,7 @@ financial-analyst-cli/
 ├── docs/                           # Project documentation
 │   ├── architecture.md
 │   ├── blackboard_design.md        # Specs for blackboard state schema
-│   ├── blackboard_refactor.md      # Refactoring plan for blackboard state
 │   ├── cli_spec.md
-│   ├── llm_client_refactor.md      # Refactoring plan for LLM client/factory
 │   ├── requirements.md
 │   └── roadmap.md
 ├── tmp/                            # Temporary logs, scratchpads, and scripts
@@ -254,3 +252,102 @@ The extraction and modeling sub-agents execute inside a unified turn-based loop 
    - Guarantees backward compatibility for OpenAI-compatible models (DeepSeek, OpenRouter).
    - Automatically generates tool text definitions using python introspection (inspecting tool docstrings and standard type hints) and appends them to the system prompt instructions.
    - Instructs the LLM to output a standard JSON action block, parses the action with `extract_json_from_text`, and maps it back to tool namespace executions, providing a transparent interface to `run_agent_loop`.
+
+---
+
+## 8. Micro-Agent & Blackboard Architecture
+
+The system coordinates parallel and sequential task execution centered around the structured Blackboard state (`workspace_state.json`), executing template-based specialist agents dynamically.
+
+### Orchestration Flow
+```mermaid
+graph TD
+    %% Trigger & Activation
+    UserTrigger([User Activation / CLI Trigger]) --> Orchestrator[Blackboard Orchestrator]
+    TimeTrigger([Cron / Time Trigger]) --> Orchestrator
+
+    %% The Blackboard State
+    subgraph Blackboard (Shared Workspace Context)
+        WorkspaceDB[(Workspace JSON Database: workspace_state.json)]
+        StatusFlags[Task Completion & Validation State]
+        ExtractedValues[Extracted Financials & Metrics]
+        Learnings[Run Learnings & Lessons]
+    end
+
+    %% Orchestrator Loop
+    Orchestrator <-->|1. Read Status / 3. Update Flags| StatusFlags
+
+    %% Parallel Sub-Agent Templates
+    subgraph Specialist Sub-Agent Templates
+        IS[Income Statement Agent]
+        BS[Balance Sheet Agent]
+        OG[Organic Growth Agent]
+        Tax[Tax Agent]
+        Wacc[WACC Modeler Agent]
+    end
+
+    %% Blackboard Handoffs
+    Orchestrator -->|Spawn Sub-Agent Template| IS
+    Orchestrator -->|Spawn Sub-Agent Template| BS
+    Orchestrator -->|Spawn Sub-Agent Template| OG
+    Orchestrator -->|Spawn Sub-Agent Template| Tax
+    Orchestrator -->|Spawn Sub-Agent Template| Wacc
+
+    IS -->|Write Raw Items| ExtractedValues
+    BS -->|Write Raw Items| ExtractedValues
+    OG -->|Write Rates| ExtractedValues
+    Tax -->|Write Tax Details| ExtractedValues
+    Wacc -->|Write Cost of Capital| ExtractedValues
+
+    %% Curation & Learning Sub-Agents
+    Orchestrator -->|Spawn Curation Sub-Agent| CuratorAgent[Curator Agent]
+    Orchestrator -->|Spawn Learning Sub-Agent| LearningAgent[Learning Agent]
+
+    CuratorAgent -->|4. Update Robust Qualitative Views| TickerWiki[[[TICKER]_wiki.md]]
+    LearningAgent -->|5. Maintain Lessons & Logs| Learnings
+```
+
+### Components
+
+#### 1. The Blackboard Schema (`WorkspaceContext`)
+The Blackboard acts as a structured domain model for a single target company workspace (saved as `workspace_state.json` at the root of the company's workspace folder). It stores all fanned-in extracted financials, longitudinal trends, DCF assumptions, and consolidated historical run learnings / audit logs.
+
+#### 2. Blackboard Orchestrator (`src/agents/blackboard_orchestrator.py` & `src/agents/orchestrator_pipelines/`)
+- Audits the blackboard as a whole and coordinates sub-agent scheduling.
+- Mutates status flags and commits state checkpoints to the disk atomically via `os.replace` to prevent data corruption.
+- Evaluates which components are `pending` or `failed` for the targeted stage, spawning specialist sub-agent templates dynamically.
+- Manages execution gating, failure queuing, and recovery modes.
+
+#### 3. Specialist Sub-Agent Templates (`src/agents/extractor_agents/` & `src/agents/modeler_agents/`)
+- Standardized, reusable agent templates that are spawned on-demand by the Orchestrator.
+- Purely functional and stateless—they consume isolated input contexts and return structured Pydantic schemas without direct disk write operations.
+- Decoupled and pipeline-agnostic, validating prerequisite dependencies by querying the blackboard in a read-only manner using the `query_blackboard` tool.
+
+#### 4. Curation & Learning Sub-Agents
+- **`CuratorAgent`**: Responsible for digesting fanned-in data and user feedback to write qualitative views (Bull & Bear perspectives) in `[TICKER]_wiki.md` under write lock.
+- **`LearningAgent`**: Evaluates turn deviation against execution benchmarks to run discretionary updates, writing successful keywords, target chunks, and execution histories back to `company_data.learnings`.
+
+### Specialist Sub-Agent Templates & Tool Permissions Registry
+
+To support decoupled execution, the system enforces a strict tool permission registry. Sub-agents are only granted access to the minimal set of tools needed for their operational boundaries.
+
+| Specialist Sub-Agent Template | Category   | Permitted Tools / Services             | Mandatory Input Context                                                                | Rationale                                                                                                                |
+| :---------------------------- | :--------- | :------------------------------------- | :------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------- |
+| **`Ingester`**                | Ingestion  | None                                   | Active Ticker                                                                          | Parses, hashes, and chunks raw documents (deterministic, LLM-free renaming).                                             |
+| **`MetadataAgent`**           | Setup      | `get_first_chunk`, `keyword_search`    | list of parsed document filenames                                                      | Runs once across all parsed documents to extract company-wide metadata and document-level metadata (dates, period, etc.). |
+| **`BalanceSheetAgent`**       | Extraction | `find_chunk`, `keyword_search`, `check_balance_sheet_quality`         | target document filename, company metadata, agent learnings                            | Scans raw filings to extract assets, liabilities, and equity tables to return to the Orchestrator.                       |
+| **`IncomeStatementAgent`**    | Extraction | `find_chunk`, `keyword_search`, `check_income_statement_quality`         | target document filename, company metadata, agent learnings                            | Scans raw filings to extract revenue, expenses, and income tables to return to the Orchestrator.                         |
+| **`AnalystReportAgent`**      | Extraction | `find_chunk`, `keyword_search`         | target document filename, company metadata, agent learnings                            | Scans broker reports to extract moats, margins, and growth views.                                                        |
+| **`OtherDocAgent`**           | Extraction | `find_chunk`, `keyword_search`         | target document filename, company metadata, agent learnings                            | Scans transcripts, press releases, and other general filings to generate qualitative summaries.                          |
+| **`DilutedSharesAgent`**      | Metrics    | `keyword_search`, `query_blackboard`   | company metadata, income_statement, 10-Q/10-K filename, earnings announcement filename | Searches share counts tables, footnotes, and conversions in filings; extracts basic and diluted shares.                  |
+| **`OrganicGrowthAgent`**      | Metrics    | `keyword_search`, `query_blackboard`   | company metadata, income_statement, 10-Q/10-K filename, earnings announcement filename | Searches constant currency and M&A impact disclosures; extracts organic revenue growth.                                  |
+| **`InterpretationAgent`**     | Metrics    | `access_resources`, `query_blackboard` | company metadata, income_statement, balance_sheet                                      | Resolves ambiguous/generic lines against dictionaries; performs cross-statement validation checks.                       |
+| **`OperatingEbitaAgent`**     | Metrics    | `keyword_search`, `query_blackboard`   | company metadata, income_statement, 10-Q/10-K filename, earnings announcement filename | Extracts operating income and audits non-recurring adjustments to calculate clean Operating EBITA.                       |
+| **`AdjustedTaxesAgent`**      | Metrics    | `keyword_search`, `query_blackboard`   | company metadata, income_statement, 10-Q/10-K filename, earnings announcement filename | Scans tax rate reconciliation tables and footnotes; calculates adjusted taxes and tax rate.                              |
+| **`WaccAgent`**               | Modeling   | `market_data`, `query_blackboard`      | company metadata, latest temporal period slice                                         | Fetches stock details and computes WACC parameters; queries latest reports for debt/cash details.                        |
+| **`GrowthAgent`**             | Modeling   | `web_search`, `query_blackboard`       | latest temporal period slice, company metadata, trend tables                           | Formulates growth projections; retrieves historical revenues and margins.                                                |
+| **`MarginAgent`**             | Modeling   | `web_search`, `query_blackboard`       | latest temporal period slice, company metadata, trend tables                           | Formulates margin targets; retrieves historical margins and analyst views.                                               |
+| **`NonOperatingAgent`**       | Modeling   | `access_resources`, `query_blackboard` | latest temporal period slice                                                           | Queries/extracts the 6 non-operating categories from the latest fanned-in balance sheet state.                           |
+| **`DcfModelingAgent`**        | Modeling   | `query_blackboard`                     | company metadata, latest temporal period slice, model assumptions                      | Sanity-checks and critiques the completed valuation parameters and assumptions.                                          |
+| **`CuratorAgent`**            | Curation   | `query_blackboard`                     | company metadata, complete WorkspaceContext                                            | Solely responsible for writing and updating the `[TICKER]_wiki.md` file.                                                 |
+| **`LearningAgent`**           | Learning   | `query_blackboard`                     | target sub-agent name, document type, turn counts/run logs                             | Responsible for writing and maintaining the run learnings and feedback logs into the blackboard.                         |
