@@ -198,12 +198,12 @@ Implement the central pipeline coordinator (`BlackboardOrchestrator`) that manag
 
 ### Phase 3.3: Merge Policies & Arithmetic Checks
 
-- [ ] **Implement Multi-Document Period Processing & Merge Policies**
+- [x] **Implement Multi-Document Period Processing & Merge Policies**
   - Accumulate source documents into `source_files: List[str]`.
   - **GAAP Override**: Structured balance sheet and income statement models from formal filings (10-Q/10-K) overwrite earnings announcement extractions.
   - **Non-GAAP Preservation**: Non-GAAP metrics (constant currency organic growth, operating EBITA, adjusted taxes) extracted from earnings announcements are preserved and not cleared/overwritten when the 10-Q/10-K runs.
   - **Simultaneous Search**: Grant permission to search tools to read both filings concurrently when resolving metric values.
-- [ ] **Implement Quality Audit & Validation Checks**
+- [x] **Implement Quality Audit & Validation Checks**
   - Integrate robust LLM-based quality audit tools `check_balance_sheet_quality` and `check_income_statement_quality` inside the sub-agents before finalizing.
   - Ensure any quality check warnings or failures are logged and handled.
   - If a sub-agent fails its quality audit checks and runs out of execution turns, the Orchestrator marks the task state as `failed`.

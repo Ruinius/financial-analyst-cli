@@ -82,6 +82,10 @@ def run_balance_sheet_agent(
         "6. Currency & Unit detection: Identify the reporting currency and unit of the financial statements in the document. Prefer the local currency (e.g. CNY, JPY, EUR, GBP) and consistent units (ideally millions, but check if preferred_unit is specified in the company metadata)."
     )
 
+    from src.core.exceptions import LLMError
+
+    quality_errors = []
+
     # Define tools as inner functions closed over document content
     def find_chunk(chunk_id: int) -> str:
         """Fetch the exact text content of a specific chunk by its ID."""
@@ -96,9 +100,13 @@ def run_balance_sheet_agent(
 
     def check_balance_sheet_quality(markdown_content: str) -> str:
         """Perform a robust quality check on the current balance sheet markdown table using the LLM auditor."""
-        return check_balance_sheet_quality_helper(
+        res = check_balance_sheet_quality_helper(
             markdown_content, client, is_quarterly=is_quarterly
         )
+        if res != "PASSED":
+            logger.warning(f"Balance Sheet quality check warning/failure: {res}")
+            quality_errors.append(res)
+        return res
 
     def finalize(raw_balance_sheet_markdown: str, currency: str, unit: str) -> str:
         """Finalize the balance sheet extraction, providing the raw markdown table, detected currency (e.g. 'USD', 'CNY') and unit (e.g. 'Millions')."""
@@ -106,13 +114,20 @@ def run_balance_sheet_agent(
 
     tools = [find_chunk, keyword_search, check_balance_sheet_quality, finalize]
 
-    finalized_args, history = run_agent_loop(
-        client=client,
-        system_prompt=system_prompt,
-        initial_prompt=initial_prompt,
-        tools=tools,
-        max_turns=max_turns,
-    )
+    try:
+        finalized_args, history = run_agent_loop(
+            client=client,
+            system_prompt=system_prompt,
+            initial_prompt=initial_prompt,
+            tools=tools,
+            max_turns=max_turns,
+        )
+    except LLMError as e:
+        if quality_errors:
+            raise LLMError(
+                f"Agent failed to finalize execution. Quality audit failures: {quality_errors}"
+            ) from e
+        raise e
 
     if not finalized_args:
         finalized_args = {}

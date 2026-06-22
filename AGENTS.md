@@ -99,6 +99,7 @@ Welcome to the `financial-analyst-cli` project.
   - tests/conftest.py: Global pytest fixtures and fail-safe network connection gates.
   - tests/test_analyzer.py: Unit tests for qualitative views compiling, longitudinal financial trends, and Q4 deduction logic.
   - tests/agents/test_blackboard_orchestrator.py: Unit tests for BlackboardOrchestrator state transitions and recovery.
+  - tests/agents/test_merge_policies.py: Integration tests for GAAP override and non-GAAP preservation merge policies in the Temporal Blackboard.
   - tests/test_chat.py: Unit tests for interactive chat and assistant behavior.
   - tests/test_config.py: Unit and integration tests for CLI commands, key masking, settings logic, and folder initialization.
   - tests/test_edgar.py: Unit tests for the SEC EDGAR client and submissions retrieval.

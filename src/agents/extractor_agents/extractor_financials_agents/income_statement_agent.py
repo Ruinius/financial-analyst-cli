@@ -83,6 +83,10 @@ def run_income_statement_agent(
         "7. Sign standardization: Ensure the extracted statement structure and numbers are formatted so that any number that subtracts from the revenue is an expense (expressed as negative), and any number that increases profit (such as interest income) is expressed as positive. Note that ambiguous items like net interest income may be positive or negative depending on context."
     )
 
+    from src.core.exceptions import LLMError
+
+    quality_errors = []
+
     # Define tools as inner functions closed over document content
     def find_chunk(chunk_id: int) -> str:
         """Fetch the exact text content of a specific chunk by its ID."""
@@ -97,9 +101,13 @@ def run_income_statement_agent(
 
     def check_income_statement_quality(markdown_content: str) -> str:
         """Perform a robust quality check on the current income statement markdown table using the LLM auditor."""
-        return check_income_statement_quality_helper(
+        res = check_income_statement_quality_helper(
             markdown_content, client, is_quarterly=is_quarterly
         )
+        if res != "PASSED":
+            logger.warning(f"Income Statement quality check warning/failure: {res}")
+            quality_errors.append(res)
+        return res
 
     def finalize(raw_income_statement_markdown: str, currency: str, unit: str) -> str:
         """Finalize the income statement extraction, providing the raw markdown table, detected currency (e.g. 'USD', 'CNY') and unit (e.g. 'Millions')."""
@@ -107,13 +115,20 @@ def run_income_statement_agent(
 
     tools = [find_chunk, keyword_search, check_income_statement_quality, finalize]
 
-    finalized_args, history = run_agent_loop(
-        client=client,
-        system_prompt=system_prompt,
-        initial_prompt=initial_prompt,
-        tools=tools,
-        max_turns=max_turns,
-    )
+    try:
+        finalized_args, history = run_agent_loop(
+            client=client,
+            system_prompt=system_prompt,
+            initial_prompt=initial_prompt,
+            tools=tools,
+            max_turns=max_turns,
+        )
+    except LLMError as e:
+        if quality_errors:
+            raise LLMError(
+                f"Agent failed to finalize execution. Quality audit failures: {quality_errors}"
+            ) from e
+        raise e
 
     if not finalized_args:
         finalized_args = {}

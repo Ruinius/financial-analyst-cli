@@ -459,7 +459,9 @@ class BlackboardOrchestrator:
         # Define inner tasks for concurrent execution
 
         # 1. Extraction Phase (Parallel) Tasks
-        async def run_balance_sheet(period_key: str, fn: str, content: str, is_q: bool):
+        async def run_balance_sheet(
+            period_key: str, fn: str, content: str, is_q: bool, doc_type: str
+        ):
             async with self.doc_sem:
                 self.checkout_status(ticker, "balance_sheet", period=period_key)
                 try:
@@ -472,36 +474,79 @@ class BlackboardOrchestrator:
                         learnings=learnings,
                         is_quarterly=is_q,
                     )
+
+                    # GAAP Override check
+                    is_formal = doc_type in ("quarterly_filing", "annual_filing")
+                    cur_state = load_workspace_state(ticker)
+                    report = cur_state.reports[period_key]
+
+                    has_formal_in_source = False
+                    for sf in report.source_files:
+                        for reg_row in registry.values():
+                            if reg_row["new_filename"] == sf:
+                                if reg_row.get("document_type") in (
+                                    "quarterly_filing",
+                                    "annual_filing",
+                                ):
+                                    has_formal_in_source = True
+                                    break
+
+                    should_overwrite = is_formal or not has_formal_in_source
+
                     self.checkin_status(
                         ticker,
                         "balance_sheet",
                         "completed",
                         period=period_key,
-                        payload=res,
+                        payload=res if should_overwrite else None,
                     )
 
-                    # Parse table to line items
-                    tmp_file = Path("tmp") / f"bs_{period_key}.md"
-                    tmp_file.write_text(
-                        res.raw_balance_sheet_markdown, encoding="utf-8"
-                    )
-                    bs_items = parse_markdown_to_line_items(
-                        workspace / "2_parsed_data" / fn,
-                        tmp_file,
-                        extractor_dummy,
-                        "current_assets",
-                    )
-                    if tmp_file.exists():
-                        tmp_file.unlink()
+                    if should_overwrite:
+                        # Parse table to line items
+                        tmp_file = Path("tmp") / f"bs_{period_key}.md"
+                        tmp_file.write_text(
+                            res.raw_balance_sheet_markdown, encoding="utf-8"
+                        )
+                        bs_items = parse_markdown_to_line_items(
+                            workspace / "2_parsed_data" / fn,
+                            tmp_file,
+                            extractor_dummy,
+                            "current_assets",
+                        )
+                        if tmp_file.exists():
+                            tmp_file.unlink()
 
-                    # Append to blackboard line items
-                    cur_state = load_workspace_state(ticker)
-                    cur_state.reports[period_key].financial_data.line_items.extend(
-                        [convert_to_blackboard_line_item(x) for x in bs_items]
-                    )
-                    if fn not in cur_state.reports[period_key].source_files:
-                        cur_state.reports[period_key].source_files.append(fn)
-                    save_workspace_state(ticker, cur_state)
+                        # Append to blackboard line items (replacing previous Balance Sheet items)
+                        cur_state = load_workspace_state(ticker)
+                        report = cur_state.reports[period_key]
+                        report.financial_data.line_items = [
+                            item
+                            for item in report.financial_data.line_items
+                            if item.category
+                            not in (
+                                "current_assets",
+                                "noncurrent_assets",
+                                "current_liabilities",
+                                "noncurrent_liabilities",
+                                "equity",
+                            )
+                        ]
+                        report.financial_data.line_items.extend(
+                            [convert_to_blackboard_line_item(x) for x in bs_items]
+                        )
+                        if fn not in report.source_files:
+                            report.source_files.append(fn)
+                        save_workspace_state(ticker, cur_state)
+                    else:
+                        cur_state = load_workspace_state(ticker)
+                        report = cur_state.reports[period_key]
+                        if fn not in report.source_files:
+                            report.source_files.append(fn)
+                        save_workspace_state(ticker, cur_state)
+                        logger.info(
+                            f"Skipping GAAP override for {fn} as formal filing data is already present."
+                        )
+
                     updated_periods.add(period_key)
 
                 except Exception as e:
@@ -509,9 +554,17 @@ class BlackboardOrchestrator:
                     self.checkin_status(
                         ticker, "balance_sheet", "failed", period=period_key
                     )
+                    cur_state = load_workspace_state(ticker)
+                    err_msg = str(e)
+                    cur_state.reports[period_key].arithmetic_errors.append(
+                        f"Balance Sheet Agent failure for {fn}: {err_msg}"
+                    )
+                    if fn not in cur_state.reports[period_key].source_files:
+                        cur_state.reports[period_key].source_files.append(fn)
+                    save_workspace_state(ticker, cur_state)
 
         async def run_income_statement(
-            period_key: str, fn: str, content: str, is_q: bool
+            period_key: str, fn: str, content: str, is_q: bool, doc_type: str
         ):
             async with self.doc_sem:
                 self.checkout_status(ticker, "income_statement", period=period_key)
@@ -525,36 +578,72 @@ class BlackboardOrchestrator:
                         learnings=learnings,
                         is_quarterly=is_q,
                     )
+
+                    # GAAP Override check
+                    is_formal = doc_type in ("quarterly_filing", "annual_filing")
+                    cur_state = load_workspace_state(ticker)
+                    report = cur_state.reports[period_key]
+
+                    has_formal_in_source = False
+                    for sf in report.source_files:
+                        for reg_row in registry.values():
+                            if reg_row["new_filename"] == sf:
+                                if reg_row.get("document_type") in (
+                                    "quarterly_filing",
+                                    "annual_filing",
+                                ):
+                                    has_formal_in_source = True
+                                    break
+
+                    should_overwrite = is_formal or not has_formal_in_source
+
                     self.checkin_status(
                         ticker,
                         "income_statement",
                         "completed",
                         period=period_key,
-                        payload=res,
+                        payload=res if should_overwrite else None,
                     )
 
-                    # Parse table to line items
-                    tmp_file = Path("tmp") / f"is_{period_key}.md"
-                    tmp_file.write_text(
-                        res.raw_income_statement_markdown, encoding="utf-8"
-                    )
-                    is_items = parse_markdown_to_line_items(
-                        workspace / "2_parsed_data" / fn,
-                        tmp_file,
-                        extractor_dummy,
-                        "income_statement",
-                    )
-                    if tmp_file.exists():
-                        tmp_file.unlink()
+                    if should_overwrite:
+                        # Parse table to line items
+                        tmp_file = Path("tmp") / f"is_{period_key}.md"
+                        tmp_file.write_text(
+                            res.raw_income_statement_markdown, encoding="utf-8"
+                        )
+                        is_items = parse_markdown_to_line_items(
+                            workspace / "2_parsed_data" / fn,
+                            tmp_file,
+                            extractor_dummy,
+                            "income_statement",
+                        )
+                        if tmp_file.exists():
+                            tmp_file.unlink()
 
-                    # Append to blackboard line items
-                    cur_state = load_workspace_state(ticker)
-                    cur_state.reports[period_key].financial_data.line_items.extend(
-                        [convert_to_blackboard_line_item(x) for x in is_items]
-                    )
-                    if fn not in cur_state.reports[period_key].source_files:
-                        cur_state.reports[period_key].source_files.append(fn)
-                    save_workspace_state(ticker, cur_state)
+                        # Append to blackboard line items (replacing previous Income Statement items)
+                        cur_state = load_workspace_state(ticker)
+                        report = cur_state.reports[period_key]
+                        report.financial_data.line_items = [
+                            item
+                            for item in report.financial_data.line_items
+                            if item.category != "income_statement"
+                        ]
+                        report.financial_data.line_items.extend(
+                            [convert_to_blackboard_line_item(x) for x in is_items]
+                        )
+                        if fn not in report.source_files:
+                            report.source_files.append(fn)
+                        save_workspace_state(ticker, cur_state)
+                    else:
+                        cur_state = load_workspace_state(ticker)
+                        report = cur_state.reports[period_key]
+                        if fn not in report.source_files:
+                            report.source_files.append(fn)
+                        save_workspace_state(ticker, cur_state)
+                        logger.info(
+                            f"Skipping GAAP override for {fn} as formal filing data is already present."
+                        )
+
                     updated_periods.add(period_key)
 
                 except Exception as e:
@@ -562,6 +651,14 @@ class BlackboardOrchestrator:
                     self.checkin_status(
                         ticker, "income_statement", "failed", period=period_key
                     )
+                    cur_state = load_workspace_state(ticker)
+                    err_msg = str(e)
+                    cur_state.reports[period_key].arithmetic_errors.append(
+                        f"Income Statement Agent failure for {fn}: {err_msg}"
+                    )
+                    if fn not in cur_state.reports[period_key].source_files:
+                        cur_state.reports[period_key].source_files.append(fn)
+                    save_workspace_state(ticker, cur_state)
 
         async def run_analyst_report(period_key: str, fn: str, content: str):
             async with self.doc_sem:
@@ -672,12 +769,22 @@ class BlackboardOrchestrator:
                         is_quarterly=is_q,
                         learnings=learnings,
                     )
+
+                    # Non-GAAP Preservation
+                    old_report = cur_state.reports[period_key]
+                    old_org_growth = old_report.financial_data.organic_growth
+                    resolved_organic_growth = organic_growth
+                    if (
+                        organic_growth == 0.0 or organic_growth == simple_growth
+                    ) and old_org_growth != 0.0:
+                        resolved_organic_growth = old_org_growth
+
                     self.checkin_status(
                         ticker,
                         "organic_growth",
                         "completed",
                         period=period_key,
-                        payload=(simple_growth, organic_growth, revenue),
+                        payload=(simple_growth, resolved_organic_growth, revenue),
                     )
                     updated_periods.add(period_key)
                 except Exception as e:
@@ -748,19 +855,42 @@ class BlackboardOrchestrator:
                         is_quarterly=is_q,
                         learnings=learnings,
                     )
+
+                    # Non-GAAP Preservation
+                    old_report = cur_state.reports[period_key]
+                    old_ebita = old_report.financial_data.ebita
+                    old_op_inc = old_report.financial_data.operating_income
+                    has_old_adjustments = (old_ebita != 0.0) and (
+                        old_ebita != old_op_inc
+                    )
+                    has_new_adjustments = (ebita != 0.0) and (ebita != op_inc)
+
+                    resolved_ebita = ebita
+                    resolved_adjustments = ebita_adjustments
+                    if not has_new_adjustments and has_old_adjustments:
+                        resolved_ebita = old_ebita
+                        try:
+                            resolved_adjustments = json.loads(
+                                old_report.financial_data.raw_notes_markdown
+                            )
+                        except Exception:
+                            pass
+
                     self.checkin_status(
                         ticker,
                         "ebita",
                         "completed",
                         period=period_key,
-                        payload=(op_inc, ebita),
+                        payload=(op_inc, resolved_ebita),
                     )
 
                     # Store adjustments in notes/metadata for next agent
                     cur_state = load_workspace_state(ticker)
                     cur_state.reports[
                         period_key
-                    ].financial_data.raw_notes_markdown = json.dumps(ebita_adjustments)
+                    ].financial_data.raw_notes_markdown = json.dumps(
+                        resolved_adjustments
+                    )
                     save_workspace_state(ticker, cur_state)
                     updated_periods.add(period_key)
                 except Exception as e:
@@ -816,12 +946,26 @@ class BlackboardOrchestrator:
                         is_quarterly=is_q,
                         learnings=learnings,
                     )
+
+                    # Non-GAAP Preservation
+                    old_report = cur_state.reports[period_key]
+                    old_rep_tax = old_report.financial_data.reported_tax_provision
+                    old_adj_tax = old_report.financial_data.adjusted_taxes
+                    has_old_tax_adj = (old_adj_tax != 0.0) and (
+                        old_adj_tax != old_rep_tax
+                    )
+                    has_new_tax_adj = (adj_taxes != 0.0) and (adj_taxes != rep_tax)
+
+                    resolved_adj_taxes = adj_taxes
+                    if not has_new_tax_adj and has_old_tax_adj:
+                        resolved_adj_taxes = old_adj_tax
+
                     self.checkin_status(
                         ticker,
                         "tax",
                         "completed",
                         period=period_key,
-                        payload=(inc_bt, rep_tax, adj_taxes),
+                        payload=(inc_bt, rep_tax, resolved_adj_taxes),
                     )
                     updated_periods.add(period_key)
                 except Exception as e:
@@ -867,7 +1011,9 @@ class BlackboardOrchestrator:
                             or normalized_agent == "income_statement"
                         ):
                             extract_tasks.append(
-                                run_income_statement(period_key, fn, content, is_q)
+                                run_income_statement(
+                                    period_key, fn, content, is_q, doc_type
+                                )
                             )
 
                     # Balance Sheet
@@ -878,7 +1024,9 @@ class BlackboardOrchestrator:
                             or normalized_agent == "balance_sheet"
                         ):
                             extract_tasks.append(
-                                run_balance_sheet(period_key, fn, content, is_q)
+                                run_balance_sheet(
+                                    period_key, fn, content, is_q, doc_type
+                                )
                             )
                 else:
                     # Qualitative extractions
