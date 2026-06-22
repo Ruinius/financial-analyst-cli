@@ -172,10 +172,10 @@ Implement the central pipeline coordinator (`BlackboardOrchestrator`) that manag
 
 ### Phase 3.1: Orchestration Core & Lifecycle Transitions
 
-- [ ] **Create Blackboard Orchestrator**
+- [x] **Create Blackboard Orchestrator**
   - Path: [blackboard_orchestrator.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/blackboard_orchestrator.py)
   - Implement orchestration supporting full and stage-level execution (`ingest`, `extract`, `analyze`, `model`).
-- [ ] **Implement Check-out / Check-in In-Memory Transitions**
+- [x] **Implement Check-out / Check-in In-Memory Transitions**
   - Prior to agent launch, reservation transitions status flag on blackboard to `running` (committing atomic checkpoint to disk).
   - On sub-agent resolution, releases lock, writes structured payloads, updates status flag to `completed` or `failed`, and atomic commits to disk.
   - On orchestrator restart, scans for dangling `running` items and marks them `failed`/`pending` for safe recovery.

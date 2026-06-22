@@ -1,7 +1,7 @@
 import logging
 import os
 from pathlib import Path
-from typing import List, Dict, Optional, Literal
+from typing import List, Dict, Optional, Literal, Any
 from pydantic import BaseModel, Field, field_validator
 
 from src.core.config import load_config
@@ -383,6 +383,237 @@ class WorkspaceContext(BaseModel):
     metadata_status: Literal["pending", "running", "completed", "failed"] = "pending"
     analyzer_status: Literal["pending", "running", "completed", "failed"] = "pending"
     curator_status: Literal["pending", "running", "completed", "failed"] = "pending"
+
+    def recover_dangling_states(self) -> bool:
+        """Scan the blackboard for tasks stuck in 'running' state and reset them to 'failed'."""
+        updated = False
+
+        # 1. Company level statuses
+        if self.metadata_status == "running":
+            self.metadata_status = "failed"
+            updated = True
+        if self.analyzer_status == "running":
+            self.analyzer_status = "failed"
+            updated = True
+        if self.curator_status == "running":
+            self.curator_status = "failed"
+            updated = True
+
+        # 2. Raw document states
+        for doc in self.raw_documents:
+            if doc.ingestion_status == "running":
+                doc.ingestion_status = "failed"
+                updated = True
+
+        # 3. Report specific statuses
+        for period, report in self.reports.items():
+            for field in [
+                "balance_sheet_status",
+                "income_statement_status",
+                "shares_status",
+                "organic_growth_status",
+                "ebita_status",
+                "tax_status",
+                "wacc_agent_status",
+                "growth_agent_status",
+                "margin_agent_status",
+                "non_operating_agent_status",
+                "dcf_modeling_status",
+            ]:
+                if getattr(report, field) == "running":
+                    setattr(report, field, "failed")
+                    updated = True
+
+        return updated
+
+    def checkout_status(
+        self,
+        task_type: str,
+        period: Optional[str] = None,
+        file_name: Optional[str] = None,
+    ) -> None:
+        """Transition a task flag to 'running'."""
+        if task_type == "metadata":
+            self.metadata_status = "running"
+        elif task_type == "analyzer":
+            self.analyzer_status = "running"
+        elif task_type == "curator":
+            self.curator_status = "running"
+        elif task_type == "ingestion" and file_name:
+            for doc in self.raw_documents:
+                if doc.file_name == file_name:
+                    doc.ingestion_status = "running"
+                    break
+            else:
+                self.raw_documents.append(
+                    RawDocumentState(
+                        file_name=file_name,
+                        sha256="",
+                        ingestion_status="running",
+                    )
+                )
+        elif period and period in self.reports:
+            report = self.reports[period]
+            status_field = f"{task_type}_status"
+            if hasattr(report, status_field):
+                setattr(report, status_field, "running")
+
+    def checkin_status(
+        self,
+        task_type: str,
+        status: Literal["completed", "failed"],
+        period: Optional[str] = None,
+        file_name: Optional[str] = None,
+        payload: Optional[Any] = None,
+    ) -> None:
+        """Transition a task flag to completed/failed and write payload to appropriate block."""
+        if task_type == "metadata":
+            self.metadata_status = status
+            if status == "completed" and isinstance(payload, CompanyMetadata):
+                self.metadata = payload
+        elif task_type == "analyzer":
+            self.analyzer_status = status
+        elif task_type == "curator":
+            self.curator_status = status
+        elif task_type == "ingestion" and file_name:
+            for doc in self.raw_documents:
+                if doc.file_name == file_name:
+                    doc.ingestion_status = status
+                    if payload and "sha256" in payload:
+                        doc.sha256 = payload["sha256"]
+                    break
+        elif period and period in self.reports:
+            report = self.reports[period]
+            status_field = f"{task_type}_status"
+            if hasattr(report, status_field):
+                setattr(report, status_field, status)
+
+            # Apply payloads
+            if status == "completed" and payload is not None:
+                if task_type == "balance_sheet":
+                    report.financial_data.raw_balance_sheet_markdown = (
+                        payload.raw_balance_sheet_markdown
+                    )
+                elif task_type == "income_statement":
+                    report.financial_data.raw_income_statement_markdown = (
+                        payload.raw_income_statement_markdown
+                    )
+                elif task_type == "shares":
+                    report.financial_data.basic_shares = payload[0]
+                    report.financial_data.diluted_shares = payload[1]
+                elif task_type == "organic_growth":
+                    report.financial_data.simple_growth = payload[0]
+                    report.financial_data.organic_growth = payload[1]
+                    report.financial_data.revenue = payload[2]
+                elif task_type == "ebita":
+                    report.financial_data.operating_income = payload[0]
+                    report.financial_data.ebita = payload[1]
+                elif task_type == "tax":
+                    report.financial_data.reported_tax_provision = payload[1]
+                    report.financial_data.adjusted_taxes = payload[2]
+                    report.financial_data.adjusted_tax_rate = (
+                        payload[2] / report.financial_data.ebita
+                        if report.financial_data.ebita
+                        else 0.21
+                    )
+                elif task_type in (
+                    "wacc_agent",
+                    "growth_agent",
+                    "margin_agent",
+                    "non_operating_agent",
+                    "dcf_modeling",
+                ):
+                    # Modeling updates base_model
+                    if not report.base_model:
+                        # Construct a default BaseFinancialModel
+                        report.base_model = BaseFinancialModel(
+                            assumptions=ModelAssumptions(
+                                wacc=0.08,
+                                company_beta_levered=1.0,
+                                company_beta_unlevered=1.0,
+                                industry_beta_unlevered=1.0,
+                                risk_free_rate=0.042,
+                                equity_risk_premium=0.05,
+                                pretax_cost_of_debt=0.062,
+                                cost_of_equity=0.092,
+                                weight_equity=1.0,
+                                weight_debt=0.0,
+                                target_debt_to_equity=0.0,
+                                interest_expense=0.0,
+                                capital_turnover=1.0,
+                                base_revenue=0.0,
+                                base_invested_capital=0.0,
+                                revenue_growth_base=0.0,
+                                revenue_growth_yr5=0.0,
+                                ebita_margin_base=0.0,
+                                ebita_margin_yr5=0.0,
+                                terminal_margin=0.0,
+                                terminal_growth_rate=0.03,
+                                adjusted_tax_rate=0.21,
+                                excess_cash=0.0,
+                                short_term_investments=0.0,
+                                debt=0.0,
+                                preferred_equity=0.0,
+                                minority_interest=0.0,
+                                other_financial_assets_net=0.0,
+                                net_debt=0.0,
+                                shares_outstanding=1.0,
+                                share_price=0.0,
+                                market_cap=0.0,
+                            ),
+                            dcf_run_date="",
+                        )
+
+                    assumptions = report.base_model.assumptions
+                    if task_type == "wacc_agent":
+                        assumptions.wacc = payload.get("wacc", 0.08)
+                        assumptions.cost_of_equity = payload.get("cost_equity", 0.092)
+                        assumptions.pretax_cost_of_debt = payload.get(
+                            "cost_debt_pretax", 0.062
+                        )
+                        assumptions.weight_equity = payload.get("weight_equity", 1.0)
+                        assumptions.weight_debt = payload.get("weight_debt", 0.0)
+                        assumptions.company_beta_levered = payload.get(
+                            "levered_beta", 1.0
+                        )
+                        assumptions.company_beta_unlevered = payload.get(
+                            "unlevered_beta", 1.0
+                        )
+                        assumptions.net_debt = payload.get("net_debt", 0.0)
+                    elif task_type == "growth_agent":
+                        assumptions.revenue_growth_base = payload.get(
+                            "base_growth_rate", 0.0
+                        )
+                        assumptions.revenue_growth_yr5 = payload.get(
+                            "revenue_growth_rate", 0.0
+                        )
+                        assumptions.terminal_growth_rate = payload.get(
+                            "terminal_growth_rate", 0.03
+                        )
+                    elif task_type == "margin_agent":
+                        assumptions.ebita_margin_base = payload.get("base_margin", 0.0)
+                        assumptions.ebita_margin_yr5 = payload.get("margin_yr5", 0.0)
+                        assumptions.terminal_margin = payload.get(
+                            "terminal_margin", 0.0
+                        )
+                    elif task_type == "non_operating_agent":
+                        assumptions.excess_cash = payload.get("cash", 0.0)
+                        assumptions.short_term_investments = payload.get(
+                            "short_term_investments", 0.0
+                        )
+                        assumptions.debt = payload.get("debt", 0.0)
+                        assumptions.preferred_equity = payload.get(
+                            "preferred_equity", 0.0
+                        )
+                        assumptions.minority_interest = payload.get(
+                            "minority_interest", 0.0
+                        )
+                        assumptions.other_financial_assets_net = payload.get(
+                            "other_financial", 0.0
+                        )
+                    elif task_type == "dcf_modeling":
+                        # Save projections and calculations
+                        report.base_model = payload
 
 
 # =====================================================================

@@ -36,6 +36,7 @@ Welcome to the `financial-analyst-cli` project.
   - src/agents/: Execution runner stages (ingest, extract, analyze, model).
     - src/agents/ingester.py: File parsing, deduplication, chunking, and LLM metadata identification.
     - src/agents/agent_executor.py: Unified agent execution loop coordinator for native and simulated tool calling.
+    - src/agents/blackboard_orchestrator.py: Coordinates stateful execution of pipeline stages and task status transitions.
     - src/agents/curator_agent.py: Curator agent for summarizing learnings and refining qualitative bull/bear views.
     - src/agents/learning_agent.py: Learning agent for capturing run learnings and discretionary blackboard updates.
     - src/agents/indexer_agent.py: Indexer agent for maintaining the company folder index of extracted, analysis, and modeling files.
@@ -96,6 +97,7 @@ Welcome to the `financial-analyst-cli` project.
 
 - tests/: Test suite folder.
   - tests/test_analyzer.py: Unit tests for qualitative views compiling, longitudinal financial trends, and Q4 deduction logic.
+  - tests/agents/test_blackboard_orchestrator.py: Unit tests for BlackboardOrchestrator state transitions and recovery.
   - tests/test_chat.py: Unit tests for interactive chat and assistant behavior.
   - tests/test_config.py: Unit and integration tests for CLI commands, key masking, settings logic, and folder initialization.
   - tests/test_edgar.py: Unit tests for the SEC EDGAR client and submissions retrieval.
