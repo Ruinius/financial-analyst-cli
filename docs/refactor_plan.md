@@ -295,7 +295,19 @@ Implement the central pipeline coordinator (`BlackboardOrchestrator`) that manag
 
 ### Phase 3.8:
 
-1. [ ] **Clean up Legacy Code**: Double check everywhere that reads or writes markdown. Double check all imports. Do not keep fallbacks, which just add to bloat. Double check all fallbacks. I hate them.
+- [ ] **Remove Python DCF Fallback**:
+  - Delete the legacy Python-based DCF fallback calculation script at [fallback.py](file:///f:/AIML%20projects/financial-analyst-cli/src/rust_core/fallback.py) entirely.
+  - Simplify the entry point loader in [__init__.py](file:///f:/AIML%20projects/financial-analyst-cli/src/rust_core/__init__.py) to import the compiled Rust extension `_rust` directly, removing the `try...except ImportError` fallback structure.
+- [ ] **Eliminate Redundant Temporary Markdown File Disk I/O**:
+  - Refactor `parse_markdown_to_line_items` in [extract.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/orchestrator_pipelines/extract.py) to accept raw markdown content (as a string) directly, instead of expecting a file path to a temporary markdown file.
+  - Clean up the first parameter (`file_path: Path`), which was completely unused.
+  - Remove all disk writes and unlinking of `tmp_file = Path("tmp") / f"bs_{period_key}.md"` and `tmp_file = Path("tmp") / f"is_{period_key}.md"` in the `run_balance_sheet` and `run_income_statement` async pipeline stages of [extract.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/orchestrator_pipelines/extract.py).
+- [ ] **Consolidate Modeler/Extractor Resource Helpers**:
+  - Replace the local `access_resources` inner helper definition inside `run_non_operating_agent` in [non_operating_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/modeler_agents/non_operating_agent.py) with the standardized [access_resources.py](file:///f:/AIML%20projects/financial-analyst-cli/src/tools/access_resources.py) tool import (consistent with `interpretation_agent.py`).
+- [ ] **Prune Unused Tools and Clean Imports**:
+  - Delete the unused [pull_markdown.py](file:///f:/AIML%20projects/financial-analyst-cli/src/tools/pull_markdown.py) script.
+  - Remove its export entry in [__init__.py](file:///f:/AIML%20projects/financial-analyst-cli/src/tools/__init__.py).
+  - Perform an imports audit across pipeline stages (`ingest.py`, `extract.py`, `analyze.py`, `model.py`) and sub-agents to remove any unused imports.
 
 ### Phase 3.9: Post-Coding Audit (Phase 3)
 
