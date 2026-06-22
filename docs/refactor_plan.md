@@ -142,14 +142,14 @@ Implement the central blackboard schema (`WorkspaceContext`) and refactor the sp
 
 ### Phase 2.5: Curator, Learning, and Turn Warning Mechanisms
 
-- [ ] **Implement Progressive Turn Warning Mechanism**
+- [x] **Implement Progressive Turn Warning Mechanism**
   - Inject turn instructions containing current counts, remaining allowances, and historical runtimes (`average_turn_count`) to urge optimal, fast sub-agent exit.
-- [ ] **Implement Curator Agent**
+- [x] **Implement Curator Agent**
   - Path: [curator_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/curator_agent.py)
   - Tools: `query_blackboard` (10-turn limit).
   - Mandatory Input Context: `company metadata, complete WorkspaceContext`.
   - Solely responsible for writing and updating the `[TICKER]_wiki.md` file using compiled blackboard data under write lock.
-- [ ] **Implement Learning Agent**
+- [x] **Implement Learning Agent**
   - Path: [learning_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/learning_agent.py)
   - Tools: `query_blackboard`.
   - Mandatory Input Context: `target sub-agent name, document type, turn counts/run logs`.

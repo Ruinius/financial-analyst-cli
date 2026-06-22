@@ -16,6 +16,7 @@ def run_agent_loop(
     max_turns: int = 10,
     model: str = None,
     temperature: float = 0.1,
+    average_turn_count: float = None,
 ) -> tuple[Dict[str, Any], list]:
     """
     Executes a structured turn-based agent execution loop.
@@ -35,7 +36,24 @@ def run_agent_loop(
     # Dictionary to map function name to callable function
     tool_map = {t.__name__: t for t in tools}
 
-    response = chat.send_message(initial_prompt)
+    def get_turn_warning(turn_num: int) -> str:
+        remaining = max_turns - turn_num + 1
+        parts = [
+            f"Turn {turn_num} of {max_turns}",
+            f"Remaining turn allowance: {remaining}",
+        ]
+        if average_turn_count is not None:
+            parts.append(
+                f"Historical average runs for this task: {average_turn_count:.1f} turns"
+            )
+        return f"\n\n[Turn Progress: {' | '.join(parts)}]"
+
+    # Start Turn 1
+    initial_prompt_with_warning = initial_prompt
+    if max_turns > 0:
+        initial_prompt_with_warning += get_turn_warning(1)
+
+    response = chat.send_message(initial_prompt_with_warning)
 
     finalized_args = None
     finalized = False
@@ -47,6 +65,10 @@ def run_agent_loop(
                 f"\n\nCRITICAL: This is your final turn (turn {max_turns} of {max_turns}). "
                 "You must call the 'finalize' tool immediately with your current best estimates."
             )
+            if average_turn_count is not None:
+                warning += (
+                    f" Historical average runtime: {average_turn_count:.1f} turn(s)."
+                )
             response = chat.send_message(warning)
 
         # 1. Process Tool Invocations
@@ -94,6 +116,13 @@ def run_agent_loop(
                 break
 
             # Send tool execution results back to the chat session
+            next_turn_num = turn + 2
+            if next_turn_num < max_turns:
+                # Add warning to the last tool response so it is visible to the agent
+                tool_responses[-1]["content"] = str(
+                    tool_responses[-1]["content"]
+                ) + get_turn_warning(next_turn_num)
+
             response = chat.send_message("", tool_responses=tool_responses)
 
         # 2. Process Plain Text Responses (non-tool calls)
@@ -129,6 +158,10 @@ def run_agent_loop(
                 "Your response did not execute a tool or call 'finalize'. "
                 "Please call one of the available tools or call 'finalize' if you are ready."
             )
+            next_turn_num = turn + 2
+            if next_turn_num < max_turns:
+                prompt_instruction += get_turn_warning(next_turn_num)
+
             response = chat.send_message(prompt_instruction)
 
     if not finalized:
