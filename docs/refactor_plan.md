@@ -236,7 +236,7 @@ Implement the central pipeline coordinator (`BlackboardOrchestrator`) that manag
 
 ### Phase 3.6: Test Suite Refactoring
 
-- [ ] **Establish Modular Test Layout**:
+- [x] **Establish Modular Test Layout**:
   - Reorganize directory structure to mirror the `src/` modular layout, performing the following moves and deletions:
     - [NEW] `tests/conftest.py`: Establish central, reusable mock fixtures (`mock_workspace`, `mock_llm_client`, base settings fixtures).
     - [NEW] `tests/agents/`: Group unit and LLM-interaction tests for individual specialist sub-agents.
@@ -276,10 +276,10 @@ Implement the central pipeline coordinator (`BlackboardOrchestrator`) that manag
       - `tests/test_modeler.py`
       - `tests/test_extractor_orchestrator.py`
       - `tests/agents/test_blackboard_orchestrator.py` (split and moved to core lifecycle and pipeline tests)
-- [ ] **Decouple Integration & Unit Testing**:
+- [x] **Decouple Integration & Unit Testing**:
   - Restructure tests so that pure logic / formula functions (e.g., WACC calculation capping, Pydantic schemas validation) do not require heavy disk or LLM mocks.
   - Simplify coordinator/integration testing inside `tests/agents/test_extractor_orchestrator.py` and `tests/agents/test_modeler_orchestrator.py`.
-- [ ] **Verify Execution**:
+- [x] **Verify Execution**:
   - Assert that all 124 tests continue to pass under the new structure and execution latency is optimized.
 
 ### Phase 3.7: Legacy Agent Code Cleanup

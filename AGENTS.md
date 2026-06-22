@@ -102,26 +102,49 @@ Welcome to the `financial-analyst-cli` project.
     - src/utils/pig_animation.py: Sir Pennyworth pig snout and ear console animation helper.
 
 - tests/: Test suite folder.
-  - tests/conftest.py: Global pytest fixtures and fail-safe network connection gates.
-  - tests/test_analyzer.py: Unit tests for qualitative views compiling, longitudinal financial trends, and Q4 deduction logic.
-  - tests/agents/test_blackboard_orchestrator.py: Unit tests for BlackboardOrchestrator state transitions and recovery.
-  - tests/agents/test_merge_policies.py: Integration tests for GAAP override and non-GAAP preservation merge policies in the Temporal Blackboard.
-  - tests/agents/test_recovery_queue.py: Unit and integration tests for BlackboardOrchestrator recovery queue and error differentiators.
-  - tests/test_chat.py: Unit tests for interactive chat and assistant behavior.
-  - tests/test_config.py: Unit and integration tests for CLI commands, key masking, settings logic, and folder initialization.
-  - tests/test_edgar.py: Unit tests for the SEC EDGAR client and submissions retrieval.
-  - tests/test_extractor_orchestrator.py: Unit tests for Pydantic validation schemas, classification, arithmetic schedules, and audit trail lineage.
-  - tests/test_formatting.py: Unit tests for terminal formatting, rich output rendering, and animations.
-  - tests/test_ingester.py: Unit tests for layout-preserving parsing, file hashing, chunking, and metadata identification.
-  - tests/test_indexer.py: Unit tests for the workspace file indexer agent and catalog formatting.
-  - tests/test_learning_and_curator.py: Unit tests for turn warnings, learning agent, and curator agent.
-  - tests/test_markdown_table_validator.py: Unit tests for markdown table syntax validation.
-  - tests/test_safe_math_solver.py: Unit tests for the AST-sandboxed mathematical equation solver.
-  - tests/test_modeler.py: Unit tests for DCF modeling, WACC calculation, and intrinsic valuation.
-  - tests/test_llm_clients.py: Unit tests for modular LLM client factory, provider-specific implementations, and streaming.
-  - tests/test_query.py: Unit tests for database query parsing and execution.
-  - tests/test_viewer.py: Unit tests for local scenario server and viewer page routing.
-  - tests/data/golden_aapl_2024.json: Golden evaluation baseline dataset for AAPL.
+  - tests/conftest.py: Central reusable mock fixtures (`mock_workspace`, `temp_workspace_env`, `block_network_calls`).
+  - tests/data/: Test data directory.
+    - tests/data/golden_aapl_2024.json: Golden evaluation baseline dataset for AAPL.
+  - tests/agents/: Specialist sub-agent and orchestrator pipeline tests.
+    - tests/agents/test_analyzer.py: Unit tests for qualitative views, trend tables, and Q4 deduction logic.
+    - tests/agents/test_indexer.py: Unit tests for workspace catalog formatting and indexing.
+    - tests/agents/test_ingester.py: Unit tests for layout-preserving parsing, hash checking, and chunking.
+    - tests/agents/test_learning_and_curator.py: Unit tests for CuratorAgent wiki updates and LearningAgent state captures.
+    - tests/agents/test_merge_policies.py: Integration tests for GAAP override and non-GAAP preservation merge policies in Temporal Blackboard.
+    - tests/agents/test_recovery_queue.py: Unit and integration tests for BlackboardOrchestrator recovery queue.
+    - tests/agents/test_metadata_agent.py: Specialist unit tests for CompanyMetadata extraction.
+    - tests/agents/test_balance_sheet_agent.py: Specialist unit tests for BalanceSheet extraction.
+    - tests/agents/test_income_statement_agent.py: Specialist unit tests for IncomeStatement extraction.
+    - tests/agents/test_analyst_report_agent.py: Specialist unit tests for Analyst Report views extraction.
+    - tests/agents/test_other_doc_agent.py: Specialist unit tests for General summaries extraction.
+    - tests/agents/test_wacc_agent.py: Specialist unit tests for WACC calculation and agent turns.
+    - tests/agents/test_growth_agent.py: Specialist unit tests for growth assumptions estimation.
+    - tests/agents/test_margin_agent.py: Specialist unit tests for margin assumptions estimation.
+    - tests/agents/test_non_operating_agent.py: Specialist unit tests for non-operating items extraction.
+    - tests/agents/test_dcf_modeling_agent.py: Specialist unit tests for DCF parameters sanity check.
+    - tests/agents/orchestrator_pipelines/: Stage-specific controllers gating and integration tests.
+      - tests/agents/orchestrator_pipelines/test_pipeline_ingest.py: Specialized tests for document ingestion controller.
+      - tests/agents/orchestrator_pipelines/test_pipeline_extract.py: Specialized tests for extraction stage gating and orchestration.
+      - tests/agents/orchestrator_pipelines/test_pipeline_analyze.py: Specialized tests for analysis trends controller.
+      - tests/agents/orchestrator_pipelines/test_pipeline_model.py: Specialized tests for modeling assumptions and model run controller.
+  - tests/core/: Blackboard schema and settings configuration tests.
+    - tests/core/test_blackboard.py: Unit tests for workspace context loading/saving and atomic serialization.
+    - tests/core/test_blackboard_lifecycle.py: Unit tests for dangling state recoveries and checkout/checkin transitions.
+    - tests/core/test_config.py: Unit and integration tests for Typer config CLI commands and masking.
+  - tests/services/: Client wrappers and external services integration tests.
+    - tests/services/test_llm_clients.py: Unit tests for Gemini, DeepSeek, and OpenRouter unified client providers.
+    - tests/services/test_edgar.py: Unit tests for httpx-mocked EDGAR submissions download API.
+    - tests/services/test_edgar_pt.py: Path traversal vulnerability prevention test for EDGAR client.
+    - tests/services/test_safe_math_solver.py: AST sandbox safety evaluation tests.
+  - tests/utils/: Formatting and math calculations helper tests.
+    - tests/utils/test_formatting.py: Unit tests for Sir Pennyworth bubble formatting.
+    - tests/utils/test_markdown_table_validator.py: Unit tests for markdown table syntax validation.
+    - tests/utils/test_financial_math.py: Unit tests for EBITA, Invested Capital, and Tax Rate math schedules.
+    - tests/utils/test_tools.py: Unit tests for chunk index and finding tools.
+  - tests/cli/: Interactive chat and query routing command tests.
+    - tests/cli/test_chat.py: Interactive developer loop mock testing.
+    - tests/cli/test_query.py: DB mock testing for summary, valuation, and trace sub-commands.
+    - tests/cli/test_viewer.py: Local scenario server routes and HTML template checks.
 
 ## Architectural Patterns & Guidelines
 
