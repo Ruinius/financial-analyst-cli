@@ -54,6 +54,23 @@ from src.agents.modeler_agents.non_operating_agent import run_non_operating_agen
 logger = logging.getLogger(__name__)
 
 
+class FailedTask:
+    def __init__(
+        self,
+        task_type: str,
+        coro_factory,
+        period: Optional[str] = None,
+        file_name: Optional[str] = None,
+        exception: Optional[Exception] = None,
+    ):
+        self.task_type = task_type
+        self.coro_factory = coro_factory
+        self.period = period
+        self.file_name = file_name
+        self.exception = exception
+        self.retry_count = 0
+
+
 class BlackboardOrchestrator:
     def __init__(self, settings=None, client=None):
         self.settings = settings or load_config()
@@ -68,6 +85,220 @@ class BlackboardOrchestrator:
         self.doc_sem = asyncio.Semaphore(doc_limit)
         self.phase_sem = asyncio.Semaphore(phase_limit)
         self.sem = self.phase_sem  # Alias for backward compatibility
+
+        self._failure_queue = []
+        self._active_tasks = set()
+
+    def _is_network_failure(self, exc: Exception) -> bool:
+        """Differentiate network/API failures from validation/quality issues."""
+        from pydantic import ValidationError
+        from src.core.exceptions import LLMError
+        import httpx
+
+        if isinstance(exc, ValidationError):
+            return False
+
+        msg = str(exc).lower()
+
+        # Validation/quality/turn-limit check failures are NOT network failures
+        if any(
+            term in msg
+            for term in ["validation", "quality", "finalize", "turn limit", "max turns"]
+        ):
+            return False
+
+        # Network/connection/rate-limit indicators
+        network_indicators = [
+            "timeout",
+            "connection",
+            "rate limit",
+            "overloaded",
+            "network",
+            "http",
+            "api error",
+            "status code 429",
+            "status code 5",
+            "unavailable",
+        ]
+        if any(ind in msg for ind in network_indicators):
+            return True
+
+        if isinstance(
+            exc, (httpx.ConnectError, httpx.TimeoutException, httpx.HTTPStatusError)
+        ):
+            return True
+
+        # Treat generic LLMError as network failure unless turn/quality/validation
+        if isinstance(exc, LLMError):
+            return True
+
+        return False
+
+    async def _process_failure_queue(self, ticker: str, non_interactive: bool) -> None:
+        """Process failed tasks sequentially."""
+        import sys
+        import typer
+        from src.utils import formatting
+
+        while self._failure_queue:
+            failed_task = self._failure_queue.pop(0)
+            task_desc = f"{failed_task.task_type}"
+            if failed_task.period:
+                task_desc += f" for period {failed_task.period}"
+            if failed_task.file_name:
+                task_desc += f" (file: {failed_task.file_name})"
+
+            formatting.print_error(f"Task failure detected: {task_desc}")
+            formatting.print_error(f"Error detail: {failed_task.exception}")
+
+            if non_interactive:
+                # Non-Interactive Mode
+                if self._is_network_failure(failed_task.exception):
+                    if failed_task.retry_count < 3:
+                        failed_task.retry_count += 1
+                        formatting.print_info(
+                            f"Retrying network failure (attempt {failed_task.retry_count}/3)..."
+                        )
+                        try:
+                            # Re-submit the task
+                            self.checkout_status(
+                                ticker,
+                                failed_task.task_type,
+                                period=failed_task.period,
+                                file_name=failed_task.file_name,
+                            )
+                            await failed_task.coro_factory()
+                            formatting.print_success(
+                                f"Retried task {task_desc} successfully."
+                            )
+                            continue
+                        except Exception as e:
+                            failed_task.exception = e
+                            # Push back to queue to retry again or fail
+                            self._failure_queue.insert(0, failed_task)
+                            continue
+                    else:
+                        formatting.print_error(
+                            f"Network failure retries exhausted for task {task_desc}."
+                        )
+
+                # Halts execution with exit code 1
+                self.checkin_status(
+                    ticker,
+                    failed_task.task_type,
+                    "failed",
+                    period=failed_task.period,
+                    file_name=failed_task.file_name,
+                )
+                formatting.print_error(
+                    "Halting pipeline execution due to failure in non-interactive mode."
+                )
+                sys.exit(1)
+
+            else:
+                # Interactive Developer Mode
+                formatting.print_info(
+                    f"Please select a recovery strategy for failed task: {task_desc}"
+                )
+                choice = (
+                    typer.prompt(
+                        "Select recovery strategy (retry / dont-retry / stop-all)",
+                        type=str,
+                        default="retry",
+                    )
+                    .strip()
+                    .lower()
+                )
+
+                if choice in ("retry", "r"):
+                    try:
+                        self.checkout_status(
+                            ticker,
+                            failed_task.task_type,
+                            period=failed_task.period,
+                            file_name=failed_task.file_name,
+                        )
+                        await failed_task.coro_factory()
+                        formatting.print_success(
+                            f"Task {task_desc} successfully recovered via Retry."
+                        )
+                        continue
+                    except Exception as e:
+                        failed_task.exception = e
+                        # Put back to prompt again
+                        self._failure_queue.insert(0, failed_task)
+                        continue
+
+                elif choice in ("dont-retry", "dont_retry", "d", "n"):
+                    # Marks status 'failed' on the blackboard
+                    self.checkin_status(
+                        ticker,
+                        failed_task.task_type,
+                        "failed",
+                        period=failed_task.period,
+                        file_name=failed_task.file_name,
+                    )
+                    if failed_task.period:
+                        state = load_workspace_state(ticker)
+                        if failed_task.period in state.reports:
+                            state.reports[failed_task.period].arithmetic_errors.append(
+                                f"Task {failed_task.task_type} failed (user skipped retry): {failed_task.exception}"
+                            )
+                            save_workspace_state(ticker, state)
+                    formatting.print_warning(
+                        f"Skipping task {task_desc} and continuing pipeline."
+                    )
+                    continue
+
+                elif choice in ("stop-all", "stop_all", "s"):
+                    # Stop All: Marks status failed, cancels active futures, raises error
+                    self.checkin_status(
+                        ticker,
+                        failed_task.task_type,
+                        "failed",
+                        period=failed_task.period,
+                        file_name=failed_task.file_name,
+                    )
+                    formatting.print_error(
+                        "Terminating all active futures and cancelling execution."
+                    )
+                    for t in list(self._active_tasks):
+                        t.cancel()
+                    if self._active_tasks:
+                        await asyncio.gather(
+                            *self._active_tasks, return_exceptions=True
+                        )
+                    raise WorkspaceError("Execution stopped by user.")
+                else:
+                    formatting.print_warning("Invalid choice. Re-prompting.")
+                    self._failure_queue.insert(0, failed_task)
+
+    async def wrap_task(
+        self,
+        task_type: str,
+        period: Optional[str],
+        file_name: Optional[str],
+        coro_factory,
+    ):
+        try:
+            active_task = asyncio.current_task()
+            if active_task:
+                self._active_tasks.add(active_task)
+            await coro_factory()
+        except Exception as e:
+            failed_task = FailedTask(
+                task_type=task_type,
+                coro_factory=coro_factory,
+                period=period,
+                file_name=file_name,
+                exception=e,
+            )
+            self._failure_queue.append(failed_task)
+            raise e
+        finally:
+            active_task = asyncio.current_task()
+            if active_task:
+                self._active_tasks.discard(active_task)
 
     def recover_dangling_states(self, ticker: str) -> None:
         """Scan the blackboard for tasks stuck in 'running' state and reset them to 'failed'."""
@@ -114,6 +345,8 @@ class BlackboardOrchestrator:
         non_interactive: bool = False,
     ) -> None:
         """Executes full or stage-level execution of the blackboard coordinator."""
+        self._failure_queue.clear()
+        self._active_tasks.clear()
         async with self.company_sem:
             self.recover_dangling_states(ticker)
 
@@ -562,6 +795,7 @@ class BlackboardOrchestrator:
                     if fn not in cur_state.reports[period_key].source_files:
                         cur_state.reports[period_key].source_files.append(fn)
                     save_workspace_state(ticker, cur_state)
+                    raise
 
         async def run_income_statement(
             period_key: str, fn: str, content: str, is_q: bool, doc_type: str
@@ -659,6 +893,7 @@ class BlackboardOrchestrator:
                     if fn not in cur_state.reports[period_key].source_files:
                         cur_state.reports[period_key].source_files.append(fn)
                     save_workspace_state(ticker, cur_state)
+                    raise
 
         async def run_analyst_report(period_key: str, fn: str, content: str):
             async with self.doc_sem:
@@ -680,6 +915,7 @@ class BlackboardOrchestrator:
                     updated_periods.add(period_key)
                 except Exception as e:
                     logger.error(f"AnalystReportAgent failed for {fn}: {e}")
+                    raise
 
         async def run_other_doc(period_key: str, fn: str, content: str):
             async with self.doc_sem:
@@ -701,6 +937,7 @@ class BlackboardOrchestrator:
                     updated_periods.add(period_key)
                 except Exception as e:
                     logger.error(f"OtherDocAgent failed for {fn}: {e}")
+                    raise
 
         # 2. Metrics Level 1 (Parallel) Tasks
         async def run_shares_task(period_key: str):
@@ -739,6 +976,7 @@ class BlackboardOrchestrator:
                 except Exception as e:
                     logger.error(f"SharesAgent failed for {period_key}: {e}")
                     self.checkin_status(ticker, "shares", "failed", period=period_key)
+                    raise
 
         async def run_organic_growth_task(period_key: str):
             async with self.phase_sem:
@@ -792,6 +1030,7 @@ class BlackboardOrchestrator:
                     self.checkin_status(
                         ticker, "organic_growth", "failed", period=period_key
                     )
+                    raise
 
         async def run_interpretation_task(period_key: str):
             async with self.phase_sem:
@@ -828,6 +1067,7 @@ class BlackboardOrchestrator:
                         logger.error(
                             f"InterpretationAgent failed for {period_key}: {e}"
                         )
+                        raise
 
         # 3. Metrics Level 2 (Parallel) Tasks
         async def run_ebita_task(period_key: str):
@@ -896,6 +1136,7 @@ class BlackboardOrchestrator:
                 except Exception as e:
                     logger.error(f"EbitaAgent failed for {period_key}: {e}")
                     self.checkin_status(ticker, "ebita", "failed", period=period_key)
+                    raise
 
         async def run_tax_task(period_key: str):
             async with self.phase_sem:
@@ -971,6 +1212,7 @@ class BlackboardOrchestrator:
                 except Exception as e:
                     logger.error(f"TaxAgent failed for {period_key}: {e}")
                     self.checkin_status(ticker, "tax", "failed", period=period_key)
+                    raise
 
         # ----------------------------------------------------
         # Execution Gating & Concurrency
@@ -1011,8 +1253,15 @@ class BlackboardOrchestrator:
                             or normalized_agent == "income_statement"
                         ):
                             extract_tasks.append(
-                                run_income_statement(
-                                    period_key, fn, content, is_q, doc_type
+                                self.wrap_task(
+                                    "income_statement",
+                                    period_key,
+                                    fn,
+                                    lambda pk=period_key,
+                                    f=fn,
+                                    c=content,
+                                    iq=is_q,
+                                    dt=doc_type: run_income_statement(pk, f, c, iq, dt),
                                 )
                             )
 
@@ -1024,8 +1273,15 @@ class BlackboardOrchestrator:
                             or normalized_agent == "balance_sheet"
                         ):
                             extract_tasks.append(
-                                run_balance_sheet(
-                                    period_key, fn, content, is_q, doc_type
+                                self.wrap_task(
+                                    "balance_sheet",
+                                    period_key,
+                                    fn,
+                                    lambda pk=period_key,
+                                    f=fn,
+                                    c=content,
+                                    iq=is_q,
+                                    dt=doc_type: run_balance_sheet(pk, f, c, iq, dt),
                                 )
                             )
                 else:
@@ -1037,7 +1293,14 @@ class BlackboardOrchestrator:
                         ):
                             if fn not in report.source_files:
                                 extract_tasks.append(
-                                    run_analyst_report(period_key, fn, content)
+                                    self.wrap_task(
+                                        "analyst_report",
+                                        period_key,
+                                        fn,
+                                        lambda pk=period_key,
+                                        f=fn,
+                                        c=content: run_analyst_report(pk, f, c),
+                                    )
                                 )
                     elif doc_type in (
                         "press_release",
@@ -1048,11 +1311,19 @@ class BlackboardOrchestrator:
                         if normalized_agent is None or normalized_agent == "other":
                             if fn not in report.source_files:
                                 extract_tasks.append(
-                                    run_other_doc(period_key, fn, content)
+                                    self.wrap_task(
+                                        "other",
+                                        period_key,
+                                        fn,
+                                        lambda pk=period_key,
+                                        f=fn,
+                                        c=content: run_other_doc(pk, f, c),
+                                    )
                                 )
 
         if extract_tasks:
-            await asyncio.gather(*extract_tasks)
+            await asyncio.gather(*extract_tasks, return_exceptions=True)
+            await self._process_failure_queue(ticker, non_interactive)
 
         # Reload state to have all latest extractions available for metrics
         state = load_workspace_state(ticker)
@@ -1069,7 +1340,14 @@ class BlackboardOrchestrator:
                     or normalized_agent == "shares"
                 ):
                     if report.income_statement_status == "completed":
-                        metrics_l1_tasks.append(run_shares_task(period_key))
+                        metrics_l1_tasks.append(
+                            self.wrap_task(
+                                "shares",
+                                period_key,
+                                None,
+                                lambda pk=period_key: run_shares_task(pk),
+                            )
+                        )
 
             # B. Organic Growth Agent
             if normalized_agent is None or normalized_agent == "organic_growth":
@@ -1078,7 +1356,14 @@ class BlackboardOrchestrator:
                     or normalized_agent == "organic_growth"
                 ):
                     if report.income_statement_status == "completed":
-                        metrics_l1_tasks.append(run_organic_growth_task(period_key))
+                        metrics_l1_tasks.append(
+                            self.wrap_task(
+                                "organic_growth",
+                                period_key,
+                                None,
+                                lambda pk=period_key: run_organic_growth_task(pk),
+                            )
+                        )
 
             # C. Interpretation Agent
             if normalized_agent is None or normalized_agent == "interpretation":
@@ -1086,10 +1371,18 @@ class BlackboardOrchestrator:
                     report.balance_sheet_status == "completed"
                     and report.income_statement_status == "completed"
                 ):
-                    metrics_l1_tasks.append(run_interpretation_task(period_key))
+                    metrics_l1_tasks.append(
+                        self.wrap_task(
+                            "interpretation",
+                            period_key,
+                            None,
+                            lambda pk=period_key: run_interpretation_task(pk),
+                        )
+                    )
 
         if metrics_l1_tasks:
-            await asyncio.gather(*metrics_l1_tasks)
+            await asyncio.gather(*metrics_l1_tasks, return_exceptions=True)
+            await self._process_failure_queue(ticker, non_interactive)
 
         # Reload state to have interpretation outputs available for Metrics Level 2
         state = load_workspace_state(ticker)
@@ -1106,7 +1399,14 @@ class BlackboardOrchestrator:
                     or normalized_agent == "ebita"
                 ):
                     if report.income_statement_status == "completed":
-                        metrics_l2_tasks.append(run_ebita_task(period_key))
+                        metrics_l2_tasks.append(
+                            self.wrap_task(
+                                "ebita",
+                                period_key,
+                                None,
+                                lambda pk=period_key: run_ebita_task(pk),
+                            )
+                        )
 
             # Run adjusted_taxes
             if normalized_agent is None or normalized_agent == "tax":
@@ -1115,10 +1415,18 @@ class BlackboardOrchestrator:
                     or normalized_agent == "tax"
                 ):
                     if report.income_statement_status == "completed":
-                        metrics_l2_tasks.append(run_tax_task(period_key))
+                        metrics_l2_tasks.append(
+                            self.wrap_task(
+                                "tax",
+                                period_key,
+                                None,
+                                lambda pk=period_key: run_tax_task(pk),
+                            )
+                        )
 
         if metrics_l2_tasks:
-            await asyncio.gather(*metrics_l2_tasks)
+            await asyncio.gather(*metrics_l2_tasks, return_exceptions=True)
+            await self._process_failure_queue(ticker, non_interactive)
 
         # 5. Deterministic Calculations for capital and ROIC
         import src.utils.financial_math as pipeline_math
@@ -1445,8 +1753,11 @@ class BlackboardOrchestrator:
                                 self.checkin_status(
                                     ticker, "wacc_agent", "failed", period=latest_period
                                 )
+                                raise
 
-                    tasks.append(run_wacc())
+                    tasks.append(
+                        self.wrap_task("wacc_agent", latest_period, None, run_wacc)
+                    )
 
             # B. Growth Agent
             if normalized_agent is None or normalized_agent == "growth_agent":
@@ -1484,8 +1795,11 @@ class BlackboardOrchestrator:
                                     "failed",
                                     period=latest_period,
                                 )
+                                raise
 
-                    tasks.append(run_growth())
+                    tasks.append(
+                        self.wrap_task("growth_agent", latest_period, None, run_growth)
+                    )
 
             # C. Margin Agent
             if normalized_agent is None or normalized_agent == "margin_agent":
@@ -1523,8 +1837,11 @@ class BlackboardOrchestrator:
                                     "failed",
                                     period=latest_period,
                                 )
+                                raise
 
-                    tasks.append(run_margin())
+                    tasks.append(
+                        self.wrap_task("margin_agent", latest_period, None, run_margin)
+                    )
 
             # D. Non-Operating Agent
             if normalized_agent is None or normalized_agent == "non_operating_agent":
@@ -1562,11 +1879,20 @@ class BlackboardOrchestrator:
                                     "failed",
                                     period=latest_period,
                                 )
+                                raise
 
-                    tasks.append(run_non_operating())
+                    tasks.append(
+                        self.wrap_task(
+                            "non_operating_agent",
+                            latest_period,
+                            None,
+                            run_non_operating,
+                        )
+                    )
 
             if tasks:
-                await asyncio.gather(*tasks)
+                await asyncio.gather(*tasks, return_exceptions=True)
+                await self._process_failure_queue(ticker, non_interactive)
 
         await process_modeling_l1()
 
@@ -1622,117 +1948,128 @@ class BlackboardOrchestrator:
                 except Exception:
                     pass
 
-            # Level 2 (Sequential): Run dcf_modeling_agent
-            self.checkout_status(ticker, "dcf_modeling", period=latest_period)
-            try:
-                final_assumptions = modeler.estimate_llm_assumptions(
-                    ticker, workspace, base_assumptions, curated_learning_context
-                )
+            # Level 2 (Sequential): Run dcf_modeling_agent in a wrapped task
+            async def run_dcf_modeling():
+                self.checkout_status(ticker, "dcf_modeling", period=latest_period)
+                try:
+                    final_assumptions = modeler.estimate_llm_assumptions(
+                        ticker, workspace, base_assumptions, curated_learning_context
+                    )
 
-                # Recalculate projections and output
-                dcf_result, projections, valuation_table_str = (
-                    modeler.run_valuation_calculation(
+                    # Recalculate projections and output
+                    dcf_result, projections, valuation_table_str = (
+                        modeler.run_valuation_calculation(
+                            ticker, workspace, final_assumptions
+                        )
+                    )
+
+                    # Create BaseFinancialModel Pydantic model
+                    model_assumptions = ModelAssumptions(
+                        wacc=final_assumptions["wacc"],
+                        company_beta_levered=final_assumptions.get("levered_beta", 1.0),
+                        company_beta_unlevered=final_assumptions.get(
+                            "unlevered_beta", 1.0
+                        ),
+                        industry_beta_unlevered=final_assumptions.get(
+                            "unlevered_beta", 1.0
+                        ),
+                        risk_free_rate=final_assumptions.get("risk_free_rate", 0.042),
+                        equity_risk_premium=final_assumptions.get(
+                            "equity_risk_premium", 0.05
+                        ),
+                        pretax_cost_of_debt=final_assumptions.get(
+                            "cost_debt_pretax", 0.062
+                        ),
+                        cost_of_equity=final_assumptions.get("cost_equity", 0.092),
+                        weight_equity=final_assumptions.get("weight_equity", 1.0),
+                        weight_debt=final_assumptions.get("weight_debt", 0.0),
+                        target_debt_to_equity=final_assumptions.get(
+                            "target_debt_to_equity", 0.0
+                        ),
+                        interest_expense=final_assumptions.get("interest_expense", 0.0),
+                        capital_turnover=final_assumptions["capital_turnover"],
+                        base_revenue=final_assumptions["base_revenue"],
+                        base_invested_capital=final_assumptions["base_ic"],
+                        revenue_growth_base=final_assumptions["base_growth_rate"],
+                        revenue_growth_yr5=final_assumptions["revenue_growth_rate"],
+                        ebita_margin_base=final_assumptions["base_margin"],
+                        ebita_margin_yr5=final_assumptions["margin_yr5"],
+                        terminal_margin=final_assumptions["terminal_margin"],
+                        terminal_growth_rate=final_assumptions["terminal_growth_rate"],
+                        adjusted_tax_rate=final_assumptions["adjusted_tax_rate"],
+                        excess_cash=final_assumptions.get("cash", 0.0),
+                        short_term_investments=final_assumptions.get(
+                            "short_term_investments", 0.0
+                        ),
+                        debt=final_assumptions.get("debt", 0.0),
+                        preferred_equity=final_assumptions.get("preferred_equity", 0.0),
+                        minority_interest=final_assumptions.get(
+                            "minority_interest", 0.0
+                        ),
+                        other_financial_assets_net=final_assumptions.get(
+                            "other_financial", 0.0
+                        ),
+                        net_debt=final_assumptions.get("net_debt", 0.0),
+                        shares_outstanding=final_assumptions["shares_outstanding"],
+                        share_price=final_assumptions.get("share_price", 0.0),
+                        market_cap=final_assumptions.get("market_cap", 0.0),
+                    )
+
+                    proj_years = [
+                        DCFProjectionYear(
+                            year=p["year"],
+                            revenue=p["revenue"],
+                            growth=p["growth"],
+                            ebita=p["ebita"],
+                            margin=p["margin"],
+                            nopat=p["nopat"],
+                            reinvestment=p["reinvestment"],
+                            invested_capital=p["ic"],
+                            roic=p["roic"],
+                            fcf=p["fcf"],
+                            discount_factor=p["df"],
+                            present_value=p["pv"],
+                        )
+                        for p in projections
+                    ]
+
+                    base_model = BaseFinancialModel(
+                        assumptions=model_assumptions,
+                        projections=proj_years,
+                        calculated_intrinsic_value_per_share=dcf_result[
+                            "intrinsic_value_per_share"
+                        ],
+                        calculated_equity_value=dcf_result["equity_value"],
+                        calculated_enterprise_value=dcf_result["enterprise_value"],
+                        upside_downside_percentage=dcf_result["upside_downside"],
+                        dcf_run_date=dcf_result["calculation_date"],
+                    )
+
+                    self.checkin_status(
+                        ticker,
+                        "dcf_modeling",
+                        "completed",
+                        period=latest_period,
+                        payload=base_model,
+                    )
+
+                    # Generate financial model files on disk for backward compatibility
+                    modeler.generate_financial_model(
                         ticker, workspace, final_assumptions
                     )
-                )
 
-                # Create BaseFinancialModel Pydantic model
-                model_assumptions = ModelAssumptions(
-                    wacc=final_assumptions["wacc"],
-                    company_beta_levered=final_assumptions.get("levered_beta", 1.0),
-                    company_beta_unlevered=final_assumptions.get("unlevered_beta", 1.0),
-                    industry_beta_unlevered=final_assumptions.get(
-                        "unlevered_beta", 1.0
-                    ),
-                    risk_free_rate=final_assumptions.get("risk_free_rate", 0.042),
-                    equity_risk_premium=final_assumptions.get(
-                        "equity_risk_premium", 0.05
-                    ),
-                    pretax_cost_of_debt=final_assumptions.get(
-                        "cost_debt_pretax", 0.062
-                    ),
-                    cost_of_equity=final_assumptions.get("cost_equity", 0.092),
-                    weight_equity=final_assumptions.get("weight_equity", 1.0),
-                    weight_debt=final_assumptions.get("weight_debt", 0.0),
-                    target_debt_to_equity=final_assumptions.get(
-                        "target_debt_to_equity", 0.0
-                    ),
-                    interest_expense=final_assumptions.get("interest_expense", 0.0),
-                    capital_turnover=final_assumptions["capital_turnover"],
-                    base_revenue=final_assumptions["base_revenue"],
-                    base_invested_capital=final_assumptions["base_ic"],
-                    revenue_growth_base=final_assumptions["base_growth_rate"],
-                    revenue_growth_yr5=final_assumptions["revenue_growth_rate"],
-                    ebita_margin_base=final_assumptions["base_margin"],
-                    ebita_margin_yr5=final_assumptions["margin_yr5"],
-                    terminal_margin=final_assumptions["terminal_margin"],
-                    terminal_growth_rate=final_assumptions["terminal_growth_rate"],
-                    adjusted_tax_rate=final_assumptions["adjusted_tax_rate"],
-                    excess_cash=final_assumptions.get("cash", 0.0),
-                    short_term_investments=final_assumptions.get(
-                        "short_term_investments", 0.0
-                    ),
-                    debt=final_assumptions.get("debt", 0.0),
-                    preferred_equity=final_assumptions.get("preferred_equity", 0.0),
-                    minority_interest=final_assumptions.get("minority_interest", 0.0),
-                    other_financial_assets_net=final_assumptions.get(
-                        "other_financial", 0.0
-                    ),
-                    net_debt=final_assumptions.get("net_debt", 0.0),
-                    shares_outstanding=final_assumptions["shares_outstanding"],
-                    share_price=final_assumptions.get("share_price", 0.0),
-                    market_cap=final_assumptions.get("market_cap", 0.0),
-                )
-
-                proj_years = [
-                    DCFProjectionYear(
-                        year=p["year"],
-                        revenue=p["revenue"],
-                        growth=p["growth"],
-                        ebita=p["ebita"],
-                        margin=p["margin"],
-                        nopat=p["nopat"],
-                        reinvestment=p["reinvestment"],
-                        invested_capital=p["ic"],
-                        roic=p["roic"],
-                        fcf=p["fcf"],
-                        discount_factor=p["df"],
-                        present_value=p["pv"],
+                    # Curate wiki
+                    dcf_agent_logs = final_assumptions.get("dcf_agent_log", "")
+                    CuratorAgent(self.settings).curate(
+                        ticker, "model", dcf_agent_logs, update_wiki=True
                     )
-                    for p in projections
-                ]
 
-                base_model = BaseFinancialModel(
-                    assumptions=model_assumptions,
-                    projections=proj_years,
-                    calculated_intrinsic_value_per_share=dcf_result[
-                        "intrinsic_value_per_share"
-                    ],
-                    calculated_equity_value=dcf_result["equity_value"],
-                    calculated_enterprise_value=dcf_result["enterprise_value"],
-                    upside_downside_percentage=dcf_result["upside_downside"],
-                    dcf_run_date=dcf_result["calculation_date"],
-                )
+                except Exception as e:
+                    logger.error(f"DCF Modeling Agent failed: {e}")
+                    self.checkin_status(
+                        ticker, "dcf_modeling", "failed", period=latest_period
+                    )
+                    raise
 
-                self.checkin_status(
-                    ticker,
-                    "dcf_modeling",
-                    "completed",
-                    period=latest_period,
-                    payload=base_model,
-                )
-
-                # Generate financial model files on disk for backward compatibility
-                modeler.generate_financial_model(ticker, workspace, final_assumptions)
-
-                # Curate wiki
-                dcf_agent_logs = final_assumptions.get("dcf_agent_log", "")
-                CuratorAgent(self.settings).curate(
-                    ticker, "model", dcf_agent_logs, update_wiki=True
-                )
-
-            except Exception as e:
-                logger.error(f"DCF Modeling Agent failed: {e}")
-                self.checkin_status(
-                    ticker, "dcf_modeling", "failed", period=latest_period
-                )
+            await self.wrap_task("dcf_modeling", latest_period, None, run_dcf_modeling)
+            await self._process_failure_queue(ticker, non_interactive)

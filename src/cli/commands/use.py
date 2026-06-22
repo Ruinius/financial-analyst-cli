@@ -10,15 +10,12 @@ FOLDER_DEFINITIONS = {
     "1_ingest_data": "Raw downloaded filings (PDFs, HTML filings, earnings announcements, transcripts, press releases).",
     "2_parsed_data": "Cleaned, alignment-preserved markdown files parsed from raw sources, divided into 5k char chunks with chunk_id=0 index table prepended.",
     "3_archived_data": "Archived exact raw documents after conversion to preserve history.",
-    "4_extracted_data": "Chunk-by-chunk extraction summaries, balance sheets, income statements, and audit linkage records.",
-    "5_historical_analysis": "Longitudinal quarterly and annual metrics, synthesized analyst views, and qualitative trend reports.",
-    "6_financial_model": "Readable markdown outputs detailing DCF projections and intrinsic value calculations.",
-    "7_historical_model_json": "Structured JSON representations of model projections used by the interactive web viewer.",
+    "9_scenario_model_json": "Structured JSON representations of model projections used by the interactive web viewer.",
 }
 
 
 def initialize_workspace(workspace_dir: Path, ticker: str) -> None:
-    """Initialize the 7 subdirectories with descriptive README.md files and default wiki/learning files."""
+    """Initialize the 4 subdirectories with descriptive README.md files and default wiki/learning files."""
     try:
         workspace_dir.mkdir(parents=True, exist_ok=True)
         for folder, desc in FOLDER_DEFINITIONS.items():
@@ -152,8 +149,25 @@ def main_use(
                 f"Workspace for {ticker} not found. Creating it now..."
             )
             initialize_workspace(target_path, ticker)
-            msg = f"Indubitably! I have created and switched our workspace to {ticker}.\nAll 7 folders are initialized at: {target_path}"
+            msg = f"Indubitably! I have created and switched our workspace to {ticker}.\nAll 4 folders are initialized at: {target_path}"
         else:
+            # Check and delete deprecated directories if they exist
+            import shutil
+
+            deprecated_folders = [
+                "4_extracted_data",
+                "5_historical_analysis",
+                "6_financial_model",
+                "7_historical_model_json",
+            ]
+            for folder in deprecated_folders:
+                folder_path = target_path / folder
+                if folder_path.exists():
+                    formatting.print_info(
+                        f"Removing deprecated directory: {folder_path}"
+                    )
+                    shutil.rmtree(folder_path, ignore_errors=True)
+
             msg = f"Indubitably! I have switched our workspace to {ticker}.\nActive workspace path: {target_path}"
 
         # Update settings

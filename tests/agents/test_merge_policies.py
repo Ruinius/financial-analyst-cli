@@ -303,9 +303,12 @@ def test_quality_audit_failures_written_to_blackboard(mock_run_bs, temp_workspac
     with patch(
         "src.agents.ingester.Ingester.load_parsed_registry", return_value=mock_registry
     ):
-        asyncio.run(
-            orchestrator.run_pipeline(ticker, stage="extract", agent="balance_sheet")
-        )
+        with pytest.raises(SystemExit):
+            asyncio.run(
+                orchestrator.run_pipeline(
+                    ticker, stage="extract", agent="balance_sheet", non_interactive=True
+                )
+            )
 
     # Assert that task status is failed, and error details were written to arithmetic_errors
     updated_state = load_workspace_state(ticker)

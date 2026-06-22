@@ -4,7 +4,6 @@ if sys.platform.startswith("win"):
     sys.stdout.reconfigure(encoding="utf-8")
     sys.stderr.reconfigure(encoding="utf-8")
 
-import csv
 import typer
 
 from pathlib import Path
@@ -17,8 +16,6 @@ from src.cli.commands import viewer as viewer_cmd
 from src.utils import formatting
 from src.services.edgar_client import EdgarClient
 from src.agents.ingester import Ingester
-from src.agents.extractor_orchestrator import Extractor
-from src.agents.modeler import Modeler
 
 
 def patch_typer_help() -> None:
@@ -204,6 +201,8 @@ app.add_typer(run_app, name="run")
 def run_edgar(
     ticker: str = typer.Argument(None, help="Company ticker symbol (e.g. AAPL)"),
     years: int = typer.Option(5, "--years", "-y", help="Years to download"),
+    non_interactive: bool = typer.Option(False, "--non-interactive", "-n"),
+    agent: str = typer.Option(None, "--agent", "-a"),
 ):
     """Download filings from SEC EDGAR."""
     try:
@@ -253,6 +252,8 @@ def run_ingest(
         "--heal",
         help="Run metadata self-healing and Quality Check Agent on existing parsed files",
     ),
+    non_interactive: bool = typer.Option(False, "--non-interactive", "-n"),
+    agent: str = typer.Option(None, "--agent", "-a"),
 ):
     """Parse and ingest raw files."""
     try:
@@ -305,7 +306,13 @@ def run_ingest(
         f"Splendid! I found {len(raw_files)} raw file(s) ready for ingestion."
     )
 
-    response = typer.prompt("How many files would you like to process?", default="all")
+    if non_interactive:
+        response = "all"
+    else:
+        response = typer.prompt(
+            "How many files would you like to process?", default="all"
+        )
+
     limit = None
     if response.strip().lower() != "all":
         try:
@@ -327,7 +334,11 @@ def run_ingest(
 
 
 @run_app.command("extract")
-def run_extract(ticker: str = typer.Option(None, "--ticker", "-t")):
+def run_extract(
+    ticker: str = typer.Option(None, "--ticker", "-t"),
+    non_interactive: bool = typer.Option(False, "--non-interactive", "-n"),
+    agent: str = typer.Option(None, "--agent", "-a"),
+):
     """Extract statements and metrics from parsed data."""
     try:
         settings = load_config()
@@ -339,131 +350,40 @@ def run_extract(ticker: str = typer.Option(None, "--ticker", "-t")):
         use_cmd.main_use(ticker)
         settings = load_config()
 
-    if not settings.active_workspace_path:
+    active_ticker = settings.active_ticker
+    if not active_ticker:
         formatting.print_error(
-            "No active workspace is selected. Use 'fa use <ticker>' first."
+            "No active ticker selected. Please specify a ticker or run 'fa use <ticker>' first."
         )
         raise typer.Exit(1)
 
-    parsed_dir = Path(settings.active_workspace_path) / "2_parsed_data"
-    parsed_files = (
-        [
-            p
-            for p in parsed_dir.iterdir()
-            if p.is_file()
-            and p.suffix.lower() == ".md"
-            and p.name.lower() != "readme.md"
-            and not p.name.startswith(".")
-            and p.name != "parsed_data.csv"
-        ]
-        if parsed_dir.exists()
-        else []
-    )
-
-    if not parsed_files:
-        formatting.speak(
-            "No parsed files found to extract in our workspace directory, my good sir!"
-        )
-        return
-
+    formatting.print_info(f"Starting extraction stage for {active_ticker}...")
     try:
-        extractor = Extractor()
-        extracted_registry = extractor.load_extracted_registry()
+        from src.agents.blackboard_orchestrator import BlackboardOrchestrator
+        import asyncio
+
+        orchestrator = BlackboardOrchestrator(settings=settings)
+        asyncio.run(
+            orchestrator.run_pipeline(
+                active_ticker,
+                stage="extract",
+                agent=agent,
+                non_interactive=non_interactive,
+            )
+        )
+        formatting.print_success(
+            "Successfully extracted financial data and calculated metrics."
+        )
     except Exception as e:
-        formatting.print_error(f"Failed to load registry: {str(e)}")
+        formatting.print_error(f"Extraction failed: {str(e)}")
         raise typer.Exit(1)
-
-    new_files = [p for p in parsed_files if p.name not in extracted_registry]
-    extracted_files = [p for p in parsed_files if p.name in extracted_registry]
-
-    new_files.sort(key=lambda p: p.name, reverse=True)
-    extracted_files.sort(key=lambda p: p.name, reverse=True)
-
-    ordered_files = []
-    for p in new_files:
-        ordered_files.append((p, False))
-    for p in extracted_files:
-        ordered_files.append((p, True))
-
-    num_total = len(parsed_files)
-    num_new = len(new_files)
-    formatting.speak(
-        f"Splendid! I found {num_total} parsed file(s) ready for extraction, of which {num_new} are new."
-    )
-
-    def get_letter_label(index: int) -> str:
-        label = ""
-        while index >= 0:
-            label = chr(ord("a") + (index % 26)) + label
-            index = (index // 26) - 1
-        return label
-
-    label_to_file = {}
-    for i, (p_file, is_extracted) in enumerate(ordered_files):
-        label = get_letter_label(i)
-        label_to_file[label] = p_file
-        suffix = " (already extracted)" if is_extracted else ""
-        formatting.console.print(f"  {label}) {p_file.name}{suffix}")
-    formatting.console.print()
-
-    response = typer.prompt("How many files would you like to process?", default="all")
-    response_clean = response.strip().lower()
-
-    if response_clean in label_to_file:
-        chosen_file = label_to_file[response_clean]
-        formatting.print_info(
-            f"Starting extraction stage for specifically selected file: {chosen_file.name}..."
-        )
-        try:
-            extractor.run_extraction(files_to_process=[chosen_file])
-            formatting.print_success(
-                "Successfully extracted financial data and calculated metrics."
-            )
-        except Exception as e:
-            formatting.print_error(f"Extraction failed: {str(e)}")
-            raise typer.Exit(1)
-    elif response_clean == "all":
-        formatting.print_info("Starting extraction stage...")
-        try:
-            extractor.run_extraction(limit=None)
-            formatting.print_success(
-                "Successfully extracted financial data and calculated metrics."
-            )
-        except Exception as e:
-            formatting.print_error(f"Extraction failed: {str(e)}")
-            raise typer.Exit(1)
-    elif response_clean.isdigit():
-        limit = int(response_clean)
-        formatting.print_info("Starting extraction stage...")
-        try:
-            extractor.run_extraction(limit=limit)
-            formatting.print_success(
-                "Successfully extracted financial data and calculated metrics."
-            )
-        except Exception as e:
-            formatting.print_error(f"Extraction failed: {str(e)}")
-            raise typer.Exit(1)
-    else:
-        formatting.print_warning(
-            "Invalid input entered. Defaulting to processing all new files."
-        )
-        formatting.print_info("Starting extraction stage...")
-        try:
-            extractor.run_extraction(limit=None)
-            formatting.print_success(
-                "Successfully extracted financial data and calculated metrics."
-            )
-        except Exception as e:
-            formatting.print_error(f"Extraction failed: {str(e)}")
-            raise typer.Exit(1)
 
 
 @run_app.command("analyze")
 def run_analyze(
     ticker: str = typer.Option(None, "--ticker", "-t"),
-    limit: int = typer.Option(
-        None, "--limit", "-l", help="Limit the number of files to process"
-    ),
+    non_interactive: bool = typer.Option(False, "--non-interactive", "-n"),
+    agent: str = typer.Option(None, "--agent", "-a"),
 ):
     """Synthesize longitudinal trends and analyst views."""
     try:
@@ -476,41 +396,29 @@ def run_analyze(
         use_cmd.main_use(ticker)
         settings = load_config()
 
-    if not settings.active_workspace_path:
+    active_ticker = settings.active_ticker
+    if not active_ticker:
         formatting.print_error(
-            "No active workspace is selected. Use 'fa use <ticker>' first."
+            "No active ticker selected. Please specify a ticker or run 'fa use <ticker>' first."
         )
         raise typer.Exit(1)
 
-    extracted_dir = Path(settings.active_workspace_path) / "4_extracted_data"
-    extracted_csv = extracted_dir / "extracted_data.csv"
-    extracted_files_count = 0
-    if extracted_csv.exists():
-        try:
-            with open(extracted_csv, "r", encoding="utf-8") as f:
-                reader = csv.DictReader(f)
-                extracted_files_count = sum(
-                    1 for row in reader if row.get("source_file")
-                )
-        except Exception:
-            pass
-
-    if extracted_files_count == 0:
-        formatting.speak(
-            "No extracted files found to synthesize in our workspace directory, my good sir!"
-        )
-        return
-
-    formatting.speak(
-        f"Let us synthesize the longitudinal financial trends! I found {extracted_files_count} extracted file(s) ready for analysis."
+    formatting.print_info(
+        f"Starting historical trend synthesis stage for {active_ticker}..."
     )
-
-    formatting.print_info("Starting historical trend synthesis stage...")
     try:
-        from src.agents.analyzer import Analyzer
+        from src.agents.blackboard_orchestrator import BlackboardOrchestrator
+        import asyncio
 
-        analyzer = Analyzer()
-        analyzer.run_analysis(limit=limit)
+        orchestrator = BlackboardOrchestrator(settings=settings)
+        asyncio.run(
+            orchestrator.run_pipeline(
+                active_ticker,
+                stage="analyze",
+                agent=agent,
+                non_interactive=non_interactive,
+            )
+        )
         formatting.print_success(
             "Successfully synthesized all longitudinal financial trends and views."
         )
@@ -520,7 +428,11 @@ def run_analyze(
 
 
 @run_app.command("model")
-def run_model(ticker: str = typer.Option(None, "--ticker", "-t")):
+def run_model(
+    ticker: str = typer.Option(None, "--ticker", "-t"),
+    non_interactive: bool = typer.Option(False, "--non-interactive", "-n"),
+    agent: str = typer.Option(None, "--agent", "-a"),
+):
     """Propose assumptions and construct valuation models."""
     try:
         settings = load_config()
@@ -532,16 +444,64 @@ def run_model(ticker: str = typer.Option(None, "--ticker", "-t")):
         use_cmd.main_use(ticker)
         settings = load_config()
 
-    formatting.speak(
-        "Time to construct our DCF valuation model and establish assumptions!"
-    )
-    formatting.print_info("Starting financial modeling stage...")
+    active_ticker = settings.active_ticker
+    if not active_ticker:
+        formatting.print_error(
+            "No active ticker selected. Please specify a ticker or run 'fa use <ticker>' first."
+        )
+        raise typer.Exit(1)
+
+    formatting.print_info(f"Starting financial modeling stage for {active_ticker}...")
     try:
-        modeler = Modeler()
-        modeler.run_modeling(settings.active_ticker)
+        from src.agents.blackboard_orchestrator import BlackboardOrchestrator
+        import asyncio
+
+        orchestrator = BlackboardOrchestrator(settings=settings)
+        asyncio.run(
+            orchestrator.run_pipeline(
+                active_ticker,
+                stage="model",
+                agent=agent,
+                non_interactive=non_interactive,
+            )
+        )
         formatting.print_success("Successfully generated valuation models.")
     except Exception as e:
         formatting.print_error(f"Modeling failed: {str(e)}")
+        raise typer.Exit(1)
+
+
+@run_app.command("curate_wiki")
+def run_curate_wiki(
+    ticker: str = typer.Option(None, "--ticker", "-t"),
+):
+    """Run CuratorAgent to compile or update qualitative wiki files under write lock."""
+    try:
+        settings = load_config()
+    except Exception as e:
+        formatting.print_error(f"Configuration error: {str(e)}")
+        raise typer.Exit(1)
+
+    if ticker:
+        use_cmd.main_use(ticker)
+        settings = load_config()
+
+    active_ticker = settings.active_ticker
+    if not active_ticker:
+        formatting.print_error(
+            "No active ticker selected. Please specify a ticker or run 'fa use <ticker>' first."
+        )
+        raise typer.Exit(1)
+
+    formatting.print_info(f"Curating qualitative wiki for {active_ticker}...")
+    try:
+        from src.agents.curator_agent import CuratorAgent
+
+        curator = CuratorAgent(settings=settings)
+        curator.curate_wiki(active_ticker)
+        formatting.print_success("Successfully compiled and updated qualitative wiki.")
+    except Exception as e:
+        formatting.print_error(f"Wiki curation failed: {str(e)}")
         raise typer.Exit(1)
 
 

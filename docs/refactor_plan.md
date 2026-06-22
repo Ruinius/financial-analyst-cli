@@ -210,22 +210,22 @@ Implement the central pipeline coordinator (`BlackboardOrchestrator`) that manag
 
 ### Phase 3.4: Recovery Queue & CLI Restructuring
 
-- [ ] **Implement Failure Queue & Recovery Modes**
+- [x] **Implement Failure Queue & Recovery Modes**
   - Pushes failures into a sequential queue.
-  - [ ] **Non-Interactive Mode (`--non-interactive` flag)**: No stdin query. Auto retries network failures (up to 3 times). Bypasses retries on validation or quality issues, marks status `failed`, and halts with exit code `1`.
-  - [ ] **Interactive Developer Mode (Default CLI)**: Blocks and requests stdin recovery strategy from user:
+  - [x] **Non-Interactive Mode (`--non-interactive` flag)**: No stdin query. Auto retries network failures (up to 3 times). Bypasses retries on validation or quality issues, marks status `failed`, and halts with exit code `1`.
+  - [x] **Interactive Developer Mode (Default CLI)**: Blocks and requests stdin recovery strategy from user:
     - _Retry_: Re-submits task.
     - _Don't Retry_: Continues pipeline, skipping downstream dependents.
     - _Stop All_: Terminates all active futures and cancels execution.
-- [ ] **Refactor CLI Commands & Sub-commands**
+- [x] **Refactor CLI Commands & Sub-commands**
   - Modifies CLI entrypoint `src/cli/main.py` and command routing files:
-    - [ ] **`fa run extract`**: Spawns orchestrator to resolve pending extraction/metric agents and run quality validation.
-    - [ ] **`fa run analyze`**: Triggers orchestrator to compile longitudinal financial summary tables.
-    - [ ] **`fa run model`**: Coordinates modeling agents, executes Rust (or fallback Python) DCF model, and saves outputs.
-    - [ ] **`fa run curate_wiki`**: Runs CuratorAgent to compile `[TICKER]_wiki.md` under write lock.
-    - [ ] **`fa use <ticker>` / `fa config init`**: Simplifies setup to initialize only 4 subdirectories (`1_ingest_data/`, `2_parsed_data/`, `3_archived_data/`, `9_scenario_model_json/`) and deletes deprecated directories (`4_extracted_data/`, `5_historical_analysis/`, and `6_financial_model/`).
-    - [ ] **Support options**: Integrates `--non-interactive` / `-n` and `--agent <agent_name>` / `-a <agent_name>` globally.
-    - [ ] **`fa query` commands**: Streamlines `summary`, `assessment`, and `valuation` to read directly from `workspace_state.json` for speed. Simplifies `trace` to return execution status and timestamps.
+    - [x] **`fa run extract`**: Spawns orchestrator to resolve pending extraction/metric agents and run quality validation.
+    - [x] **`fa run analyze`**: Triggers orchestrator to compile longitudinal financial summary tables.
+    - [x] **`fa run model`**: Coordinates modeling agents, executes Rust (or fallback Python) DCF model, and saves outputs.
+    - [x] **`fa run curate_wiki`**: Runs CuratorAgent to compile `[TICKER]_wiki.md` under write lock.
+    - [x] **`fa use <ticker>` / `fa config init`**: Simplifies setup to initialize only 4 subdirectories (`1_ingest_data/`, `2_parsed_data/`, `3_archived_data/`, `9_scenario_model_json/`) and deletes deprecated directories (`4_extracted_data/`, `5_historical_analysis/`, and `6_financial_model/`).
+    - [x] **Support options**: Integrates `--non-interactive` / `-n` and `--agent <agent_name>` / `-a <agent_name>` globally.
+    - [x] **`fa query` commands**: Streamlines `summary`, `assessment`, and `valuation` to read directly from `workspace_state.json` for speed. Simplifies `trace` to return execution status and timestamps.
 
 ### Phase 3.5: Post-Coding Audit (Phase 3)
 

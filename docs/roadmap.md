@@ -185,3 +185,5 @@ Config      Ingestion   Extraction  History     Modeling    Interactive
   - [x] **Indexer Agent & Wiki Ingested Sources Cleanup**: Removed the "Ingested Sources" list from the Ticker's Wiki file. Implemented a separate `IndexerAgent` that automatically catalog-indexes all files inside `4_extracted_data/`, `5_historical_analysis/`, and `6_financial_model/` (listing relative links, size, modified date, and content summary), running after every `extract`, `analyze`, and `model` run.
 
 Next steps:
+
+- [ ] Test the extensibility of the new blackboard architecture by adding the high trading volume, increase in price, low trading volume, increase in price, low trading volume decrease in price, high trading volume decrease in price.
