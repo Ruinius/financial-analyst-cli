@@ -227,21 +227,14 @@ Implement the central pipeline coordinator (`BlackboardOrchestrator`) that manag
     - [x] **Support options**: Integrates `--non-interactive` / `-n` and `--agent <agent_name>` / `-a <agent_name>` globally.
     - [x] **`fa query` commands**: Streamlines `summary`, `assessment`, and `valuation` to read directly from `workspace_state.json` for speed. Simplifies `trace` to return execution status and timestamps.
 
-### Phase 3.5: Post-Coding Audit (Phase 3)
+### Phase 3.5: Orchestrator Pipeline Modularization & Maintenance
 
-1. [ ] **Execution Loop Integration Test**: Verify that the deprecated linear files (`extractor_orchestrator.py`, `extractor_financials.py`, `analyzer.py`, `modeler_orchestrator.py`) have been removed and that `uv run pytest tests/` runs successfully using the new coordinator.
-2. [ ] **Multi-Document Merge Check**: Process an earnings release containing non-GAAP items and a subsequent 10-Q/10-K. Verify that GAAP figures overwrite EA details, but non-GAAP attributes (Organic Growth, Adjusted Taxes, Operating EBITA) are preserved.
-3. [ ] **Validation Logs Check**: Verify that a sub-agent running out of turns with quality audit check failures writes details into the period's `arithmetic_errors` field and correctly marks the task state as `failed`.
-4. [ ] **Recovery Prompt Audit**: Run in `--non-interactive` mode, inject a quality validation failure, and confirm the pipeline halts with exit code `1` immediately without blocking on user input.
-
-### Phase 3.6: Orchestrator Pipeline Modularization & Maintenance
-
-- [ ] **Create Orchestrator Pipelines Directory**
+- [x] **Create Orchestrator Pipelines Directory**
   - Path: [src/agents/orchestrator_pipelines/](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/orchestrator_pipelines)
   - Modularize the monolithic `BlackboardOrchestrator` execution stages (`ingest`, `extract`, `analyze`, `model`) and full pipelines into separate files within this package to enhance maintainability.
   - Simplify [blackboard_orchestrator.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/blackboard_orchestrator.py) to delegate to these modular files.
 
-### Phase 3.7: Test Suite Refactoring
+### Phase 3.6: Test Suite Refactoring
 
 - [ ] **Establish Modular Test Layout**:
   - Reorganize directory structure to mirror the `src/` modular layout, performing the following moves and deletions:
@@ -289,7 +282,7 @@ Implement the central pipeline coordinator (`BlackboardOrchestrator`) that manag
 - [ ] **Verify Execution**:
   - Assert that all 124 tests continue to pass under the new structure and execution latency is optimized.
 
-### Phase 3.8: Legacy Agent Code Cleanup
+### Phase 3.7: Legacy Agent Code Cleanup
 
 - [ ] **Deprecate and Remove Legacy Agent Orchestration Code**
   - Delete legacy linear pipeline controllers:
@@ -299,6 +292,13 @@ Implement the central pipeline coordinator (`BlackboardOrchestrator`) that manag
     - [DELETE] [modeler.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/modeler.py)
     - [DELETE] [modeler_orchestrator.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/modeler_orchestrator.py)
   - Ensure all CLI command definitions route through the new blackboard orchestrator pipeline.
+
+### Phase 3.8: Post-Coding Audit (Phase 3)
+
+1. [ ] **Execution Loop Integration Test**: Verify that the deprecated linear files (`extractor_orchestrator.py`, `extractor_financials.py`, `analyzer.py`, `modeler_orchestrator.py`) have been removed and that `uv run pytest tests/` runs successfully using the new coordinator.
+2. [ ] **Multi-Document Merge Check**: Process an earnings release containing non-GAAP items and a subsequent 10-Q/10-K. Verify that GAAP figures overwrite EA details, but non-GAAP attributes (Organic Growth, Adjusted Taxes, Operating EBITA) are preserved.
+3. [ ] **Validation Logs Check**: Verify that a sub-agent running out of turns with quality audit check failures writes details into the period's `arithmetic_errors` field and correctly marks the task state as `failed`.
+4. [ ] **Recovery Prompt Audit**: Run in `--non-interactive` mode, inject a quality validation failure, and confirm the pipeline halts with exit code `1` immediately without blocking on user input.
 
 ---
 
