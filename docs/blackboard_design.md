@@ -316,9 +316,15 @@ class TemporalBlackboard(BaseModel):
 
 class RawDocumentState(BaseModel):
     """Tracks ingestion status of a raw file before/during parsing."""
+
     file_name: str
     sha256: str
     ingestion_status: Literal["pending", "running", "completed", "failed"] = "pending"
+    document_date: Optional[str] = None
+    document_type: Optional[str] = None
+    fiscal_quarter: Optional[str] = None
+    fiscal_year: Optional[str] = None
+    period_end_date: Optional[str] = None
 
 class WorkspaceContext(BaseModel):
     """The root Blackboard schema stored inside workspaces/[TICKER]/workspace_state.json."""

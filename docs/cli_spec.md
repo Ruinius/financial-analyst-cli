@@ -53,9 +53,7 @@ The CLI prompts for:
    - *Alternative*: Option to select a unified multimodal model (e.g., **Gemma**) natively handling both tasks.
 4. **Workspace Path**:
    - Active directory folder path.
-   - When set, the system automatically initializes the 7 subfolders (`1_ingest_data/` through `7_historical_model_json/`) and generates default wiki and learning files in the ticker root folder.
-
----
+   - When set, the system automatically initializes the 4 folders (`1_ingest_data/`, `2_parsed_data/`, `3_archived_data/`, `9_scenario_model_json/`) in that directory if they do not exist.
 
 ## 3. Command Hierarchy
 
@@ -63,10 +61,17 @@ The CLI prompts for:
 fa [COMMAND] [ARGS] [OPTIONS]
 ```
 
-### 3.1 `fa run` Subcommands (Pipeline Orchestration)
+### 3.1 Global Options for `fa run`
 
-#### `fa run edgar`
-Downloads financial filings for a specific company from the SEC EDGAR system.
+All pipeline commands (`fa run extract`, `fa run analyze`, `fa run model`, `fa run curate_wiki`) support the following new options:
+
+- `--non-interactive` / `-n`: Disables all stdin blocking prompts. Safe for headless execution. Enables automatic retries on LLM/API errors, bypasses retries on validation or quality issues, and aborts with exit code `1` on validation failures.
+- `--agent <agent_name>` / `-a <agent_name>`: Bypasses the full stage pipeline and executes a single targeted sub-agent directly (e.g. `fa run extract --agent balance_sheet`), validating its prerequisite inputs on the blackboard first.
+
+### 3.2 `fa run` Subcommands (Pipeline Orchestration)
+
+#### `fa run edgar <ticker>`
+Downloads raw financial filings for a specific company from the SEC EDGAR system.
 - **Arguments**:
   - `ticker` (Required, e.g. `AAPL`)
 - **Options**:
@@ -77,90 +82,84 @@ Downloads financial filings for a specific company from the SEC EDGAR system.
 Ingests, hashes, parses, and structures raw filings from `1_ingest_data/`.
 - **Options**:
   - `--ticker`, `-t`: Limit ingestion to this ticker.
-  - `--heal`: Run metadata self-healing and Quality Check Agent on existing parsed files instead of performing raw ingestion.
 - **Execution**:
   - Validates file hashes against `parsed_data.csv` to prevent duplicates.
-  - Converts PDFs/HTML to alignment-preserved markdown.
-  - Moves raw files to `3_archived_data/` and saves markdown to `2_parsed_data/`.
-  - Chunks into 5,000-character blocks, prepending chunk index table as `chunk_id=0`.
-  - Prompts LLM to identify the filing date and document type, renaming files to `YYYYMMDD_document_type.md`.
-  - The Curator Agent updates the `[TICKER]_extract_learning.md` fiscal mappings.
+  - Converts PDFs/HTML to alignment-preserved markdown with simplified headers.
+  - Moves raw files to `3_archived_data/` and saves markdown to `2_parsed_data/` using deterministic naming (`raw_path.stem`).
+  - No LLM operations or metadata identification calls are executed during this stage.
 
 #### `fa run extract`
-Extracts financial statement data and qualitative metrics.
+Extracts financial statement data and qualitative metrics using the Blackboard Orchestrator.
 - **Options**:
   - `--ticker`, `-t`: Limit extraction to this ticker.
 - **Execution**:
-  - Scans `2_parsed_data/` and targets unextracted files.
-  - Commands LLM to read chunks one-by-one based on the `chunk_id=0` index.
-  - Appends chunk-by-chunk notes to `YYYYMMDD_filetype_extracted.md`.
-  - Orchestrates a multi-agent pipeline: Balance Sheet and Income Statement agents extract statements; the Financial Statement Interpretation agent handles subtotal/total checking, operating/non-operating classification, and cross-statement mathematical audits; Diluted Shares and Organic Growth agents extract shares and CC growth rates; EBITA and Adjusted Taxes agents locate restructuring/amortization adjustments and apply statutory tax rates.
-  - Passes validated outputs to the Rust core engine to calculate NOPAT, ROIC, and invested capital with full audit trails.
-  - The Curator Agent updates the `[TICKER]_extract_learning.md` extraction lessons and clears the manual user feedback section.
-  - The Indexer Agent updates the `[TICKER]_folder_index.md` file cataloging the extracted data folder.
+  - Runs once across fanned-in documents via the event loop.
+  - First executes `MetadataAgent` to extract company-wide and document-level metadata, updating `workspace_state.json` and `parsed_data.csv`.
+  - Sequentially and concurrently runs parallel sub-extractors (Balance Sheet, Income Statement, Diluted Shares, Organic Growth, Operating EBITA, Adjusted Taxes, Interpretation, Analyst Report, and Other Doc agents) to populate structured data schemas.
+  - Passes outputs to the Rust core engine to calculate NOPAT, ROIC, and invested capital.
+  - Triggers LLM-based quality validations (`check_balance_sheet_quality`, `check_income_statement_quality`) to audit extracted table formatting and positive/negative signs.
+  - Atomic checkpoints are written to `workspace_state.json` inside the company workspace.
 
 #### `fa run analyze`
 Synthesizes longitudinal quarterly and annual data trends.
 - **Options**:
   - `--ticker`, `-t`: Limit trend synthesis to this ticker.
 - **Execution**:
-  - Updates `5_historical_analysis/analyst_views.md`, `news_trend.md`, `transcript_trend.md`, `financials_quarter.md`, and `financials_annual.md`.
-  - Deduces missing Q4 data from annual figures if possible.
-  - The Curator Agent updates the `[TICKER]_wiki.md` (Bull and Bear qualitative perspectives) and `[TICKER]_analyze_learning.md` (analysis lessons) and clears the feedback section.
-  - The Indexer Agent updates the `[TICKER]_folder_index.md` file cataloging the analysis folder.
-
+  - Compiles fanned-in extracted period metrics into longitudinal trend summary tables directly inside `workspace_state.json` (under `company_data.quarterly_financials` and `company_data.yearly_financials`).
 
 #### `fa run model`
 Proposes valuation assumptions and generates DCF projections.
 - **Options**:
   - `--ticker`, `-t`: Limit modeling to this ticker.
 - **Execution**:
-  - Proposes defaults (`base_WACC`, `base_growth_rate`, etc.).
-  - Writes markdown projection report to `6_financial_model/` and JSON representation to `7_historical_model_json/` as `YYYYMMDD_ticker_0.json`.
-  - The Curator Agent updates the `[TICKER]_model_learning.md` modeling lessons and clears the feedback section.
-  - The Indexer Agent updates the `[TICKER]_folder_index.md` file cataloging the modeling folder.
+  - Spawns modeling agents (WACC, Growth, Margin, and Non-Operating agents) to formulate Cost of Capital parameters, growth projections, target margins, and non-operating categories.
+  - Runs calculations using the fallback or Rust DCF modeling engine and writes assumptions and projection years directly to `workspace_state.json`.
 
----
+#### `fa run curate_wiki`
+Invokes the `CuratorAgent` to curating qualitative views.
+- **Options**:
+  - `--ticker`, `-t`: Limit curation to this ticker.
+- **Execution**:
+  - Invokes `CuratorAgent` to compile fanned-in data, historical trends, and model outputs into the robust qualitative views (Bull & Bear perspectives) in `[TICKER]_wiki.md` under write lock.
 
-#### `fa chat`
+#### `fa chat <ticker>`
 Opens an interactive analyst shell/REPL with Sir Pennyworth for ad-hoc queries, direct statement auditing, and manual model updates.
 - **Arguments**:
   - `ticker` (Required, e.g. `AAPL`)
 - **Execution**:
   - Starts an interactive terminal chat session with Sir Pennyworth.
-  - The agent has access to a sandboxed Python execution tool to perform custom mathematical computations.
+  - The agent has access to a sandboxed Python execution tool (`safe_math_solver.py`) to perform custom mathematical computations over blackboard data variables.
   - The agent can browse parsed chunks, query tables, run calculations, and dynamically update assumptions.
 
 ---
 
-### 3.2 `fa query` Subcommand Group
-Reads and prints parsed historical data and projections.
+### 3.3 `fa query` Subcommand Group
+Reads and prints parsed historical data and projections directly from the blackboard database.
 
 - **`fa query summary <ticker>`**
-  - Displays company profile and historical metric tables (Revenue, EBITA, NOPAT, ROIC) from `5_historical_analysis/`.
+  - Displays company profile and historical metric tables (Revenue, EBITA, NOPAT, ROIC) from `workspace_state.json`.
 - **`fa query assessment <ticker>`**
   - Renders qualitative assessments (moat, margin, growth trajectories) with confidence values.
 - **`fa query valuation <ticker>`**
   - Shows cost of capital metrics (WACC inputs), projected 10-year cash flows, and calculated intrinsic value.
-- **`fa query trace <ticker> <metric> <period>`**
-  - Retrieves the full audit trail for the specified metric (e.g. `Revenue` or `EBITA`) and period (e.g. `2025` or `2025-Q2`).
-  - Displays the source filename, chunk ID, and the exact matching text snippet with high relevance metrics.
+- **`fa query trace <ticker>`**
+  - Displays execution timestamps, source files, and completion statuses of all agents in the pipeline.
 
 ---
 
-### 3.3 `fa viewer` Command
+### 3.4 `fa viewer` Command
 Launches the zero-dependency interactive local web viewer.
 
 - **Options**:
   - `--port`, `-p`: Port to run the server on (Default: `3000`).
   - `--host`, `-h`: Host to bind the server to (Default: `127.0.0.1`).
 - **Execution**:
-  - Scans and loads JSON files from `7_historical_model_json/`.
-  - Renders an interactive browser UI where users can adjust DCF levers and write updated models back to the workspace.
+  - Loads and displays active data from `workspace_state.json`.
+  - Renders an interactive browser UI where users can adjust DCF levers and write updated scenario models to `9_scenario_model_json/`.
 
 ---
 
-### 3.4 `fa config` Subcommand Group
+### 3.5 `fa config` Subcommand Group
 Views or mutates settings.
 
 - **`fa config init`**
@@ -172,14 +171,14 @@ Views or mutates settings.
 
 ---
 
-### 3.5 `fa use` Command
-Dynamically switch the current active workspace to the folder for the specified company ticker.
+### 3.6 `fa use <ticker>` Command
+Dynamically switch the active workspace to the folder for the specified company ticker.
 - **Arguments**:
   - `ticker` (Required, e.g. `AAPL`)
 - **Execution**:
   - Updates the active workspace path in configuration to point to the directory named after the company's ticker.
-  - Automatically initializes the 7 folders (`1_ingest_data/` to `7_historical_model_json/`) in that directory if they do not exist along with the default wiki and learning files.
-  - Loads the corresponding company contexts/learnings from the root files.
+  - Automatically initializes **4 folders** (`1_ingest_data/`, `2_parsed_data/`, `3_archived_data/`, `9_scenario_model_json/`) in that directory if they do not exist.
+  - Loads corresponding company contexts/learnings from the root files.
 
 ---
 

@@ -30,7 +30,7 @@ graph TD
 
 ---
 
-## 2. Directory Structure
+### 2. Directory Structure
 
 The repository is structured as a hybrid Python-Rust application using `maturin` to build PyO3-based Rust extensions.
 
@@ -51,30 +51,35 @@ financial-analyst-cli/
 │   │   ├── __init__.py
 │   │   ├── commands/               # Sub-commands (run, query, config, viewer, chat)
 │   │   └── main.py
-│   ├── core/                       # Shared configuration & custom exceptions
+│   ├── core/                       # Shared configuration, exceptions & blackboard schemas
 │   │   ├── __init__.py
 │   │   ├── config.py               # Credentials & active workspace configurations
-│   │   └── exceptions.py           # Custom exception classes
+│   │   ├── exceptions.py           # Custom exception classes
+│   │   └── blackboard.py           # Blackboard domain schemas & atomic load/save state managers
 │   ├── services/                   # External API clients & sandbox tools
 │   │   ├── __init__.py
 │   │   ├── edgar_client.py         # SEC EDGAR download API client
-│   │   ├── llm_client.py           # Unified model client with Gemini / Simulated chat sessions
+│   │   ├── llm_client.py           # Unified model client & client factory get_llm_client
+│   │   ├── gemini_client.py        # Gemini client implementation wrapping google-genai SDK
+│   │   ├── deepseek_client.py      # DeepSeek client implementation with thinking token options
+│   │   ├── openrouter_client.py    # OpenRouter client implementation with standardized headers
 │   │   ├── market_data.py          # Yahoo Finance market data and ticker checker
-│   │   └── safe_math_solver.py     # Sandboxed Python execution for custom calculations
+│   │   ├── ddg_search.py           # DuckDuckGo search service
+│   │   ├── safe_math_solver.py     # AST-sandboxed mathematical equation solver
+│   │   └── queue.py                # Safe job queue & retry manager
 │   ├── agents/                     # Execution runner stages (ingest, extract, analyze, model)
 │   │   ├── __init__.py
-│   │   ├── queue.py                # Safe job queue & retry manager
-│   │   ├── ingester.py             # File ingestion, hashing & chunking
 │   │   ├── agent_executor.py       # Unified agent turn-based execution loop coordinator
-│   │   ├── curator_agent.py        # Curator agent for learning/wiki compaction
-│   │   ├── indexer_agent.py        # Workspace file catalog indexer agent
-│   │   ├── document_types.json     # Mapping definitions for supported report types
-│   │   ├── extractor_orchestrator.py # Routing extraction jobs to sub-extractors
+│   │   ├── blackboard_orchestrator.py # Coordinates pipeline stage execution & status transitions
+│   │   ├── orchestrator_pipelines/  # Modular pipeline execution stage files (ingest, extract, analyze, model)
+│   │   ├── curator_agent.py        # Curator agent for summarizing learnings and refining qualitative views
+│   │   ├── learning_agent.py       # Learning agent for capturing run learnings & blackboard updates
+│   │   ├── indexer_agent.py        # Indexer agent for maintaining the company folder index
 │   │   ├── extractor_agents/        # Folder containing specialized extractors and agents
-│   │   │   ├── extractor_financials.py # Specialized coordinator for 10K, 10Q, 20F, etc.
 │   │   │   ├── extractor_analyst_report.py # Specialized extractor for analyst reports
 │   │   │   ├── extractor_transcript.py # Specialized extractor for transcripts
 │   │   │   ├── extractor_other.py   # Specialized extractor for other types
+│   │   │   ├── metadata_agent.py    # Extracts company-wide and document-level metadata
 │   │   │   └── extractor_financials_agents/ # Nested financial sub-agents
 │   │   │       ├── income_statement_agent.py # Income Statement extraction agent
 │   │   │       ├── balance_sheet_agent.py # Balance Sheet extraction agent
@@ -83,9 +88,6 @@ financial-analyst-cli/
 │   │   │       ├── organic_growth_agent.py # Organic revenue growth agent
 │   │   │       ├── ebita_agent.py          # Operating EBITA adjustments agent
 │   │   │       └── tax_agent.py            # Adjusted taxes agent
-│   │   ├── analyzer.py             # Historical synthesis & trend tracking
-│   │   ├── modeler.py              # Redirect wrapper module
-│   │   ├── modeler_orchestrator.py # Orchestrates DCF financial modeling
 │   │   └── modeler_agents/         # Directory containing specialized modeling agents
 │   │       ├── wacc_agent.py       # WACC calculation and beta de-levering/re-levering
 │   │       ├── growth_agent.py     # Estimating future revenue growth rates
@@ -96,15 +98,16 @@ financial-analyst-cli/
 │   │   ├── __init__.py
 │   │   ├── find_chunk.py           # Tool to extract chunk content by ID
 │   │   ├── keyword_search.py       # Tool to find occurrences of keywords
-│   │   ├── web_search.py           # Tool to search Investopedia
-│   │   └── pull_markdown.py        # Tool to safe lookup of markdown files
+│   │   ├── investopedia_search.py  # Investopedia search tool
+│   │   ├── access_resources.py     # Tool to safely look up static markdown dictionary templates
+│   │   └── query_blackboard.py     # Core helper to query the in-memory blackboard state
 │   ├── rust_core/                  # Rust performance critical calculation engine
 │   │   └── lib.rs                  # PyO3 bindings for financial math (WACC, DCF, ROIC)
 │   ├── viewer/                     # HTML viewer code
 │   │   └── index.html              # Zero-dependency interactive web viewer
 │   ├── resources/                  # Static assets and reference documentation
+│   │   ├── document_types.json     # Mapping definitions for supported report types
 │   │   └── dictionary/             # Central accounting classification guidelines
-│   │       ├── index.md            # Registry index of all tracked financial line items
 │   │       ├── income_statement.md # Income statement definitions
 │   │       └── balance_sheet.md    # Balance sheet definitions
 │   └── utils/                      # Formatting and filesystem utilities
@@ -127,48 +130,49 @@ sequenceDiagram
     autonumber
     actor User
     participant CLI as Typer CLI
-    participant Queue as Queue Manager
-    participant Ingest as Ingester
-    participant Extract as Extractor
-    participant Hist as Historical Analyzer
-    participant Model as Modeler
-    participant ModelAgents as Modeler Agents
+    participant Orchestrator as Blackboard Orchestrator
+    participant Ingest as Ingest Pipeline
+    participant Extract as Extract Pipeline
+    participant Analyze as Analyze Pipeline
+    participant Model as Model Pipeline
     participant Rust as Rust Core
 
     User->>CLI: fa run edgar
-    CLI->>User: Downloads SEC PDF/HTML files to 1_ingest_data
+    CLI->>User: Downloads SEC PDF/HTML files to 1_ingest_data/
 
     User->>CLI: fa run ingest
-    CLI->>Queue: Feed files
-    Queue->>Ingest: Process sequentially
-    Ingest->>Ingest: Check duplicates (hash check)
-    Ingest->>Ingest: Parse HTML (BeautifulSoup) or PDF (PyMuPDF layout mode) to Markdown
-    Ingest->>Ingest: Save to 2_parsed_data, raw to 3_archived_data
-    Ingest->>Ingest: Chunk (5000 chars) & prepend table
-    Ingest->>User: LLM identifies date/type, renames files & updates CSV
+    CLI->>Orchestrator: Trigger Ingestion
+    Orchestrator->>Ingest: Parse, hash & chunk raw documents
+    Ingest->>Ingest: Check duplicates & hash files
+    Ingest->>Ingest: Parse PDF/HTML to Markdown (deterministic renaming, LLM-free)
+    Ingest->>Orchestrator: Save parsed files to 2_parsed_data/ & archive to 3_archived_data/
 
     User->>CLI: fa run extract
-    CLI->>Queue: Feed parsed files
-    Queue->>Extract: Process sequentially
-    Extract->>Extract: 1. Extract balance sheet/income statement using frequency-ranked chunks
-    Extract->>Extract: 2. Verify and interpret statements using Interpretation Agent (classification, subtotals, checks)
-    Extract->>Extract: 3. Extract shares and organic growth using Diluted Shares & Organic Growth Agents
-    Extract->>Extract: 4. Compute EBITA & tax adjustments using EBITA & Tax Agents and run deterministic computations (Invested Capital, NOPAT, ROIC)
-    Extract->>User: Save outputs to 4_extracted_data
-    Extract->>User: Curator Agent curates extract learnings and wiki in ticker root
+    CLI->>Orchestrator: Trigger Extraction
+    Orchestrator->>Extract: Run Setup (MetadataAgent)
+    Extract->>Extract: MetadataAgent extracts company & document metadata
+    Orchestrator->>Orchestrator: Update workspace_state.json & sync parsed_data.csv
+    Orchestrator->>Extract: Run parallel specialist agents
+    Extract->>Extract: BalanceSheetAgent & IncomeStatementAgent extract statements (20 turns max)
+    Extract->>Extract: DilutedSharesAgent, OrganicGrowthAgent, EBITA, Tax, Interpretation Agents extract metrics
+    Orchestrator->>Orchestrator: Save fanned-in structures to workspace_state.json
+
     User->>CLI: fa run analyze
-    CLI->>Queue: Feed extracted data
-    Queue->>Hist: Synthesize trends
-    Hist->>Hist: Build analyst views, news trends, financials_annual/quarter
-    Hist->>User: Save to 5_historical_analysis
+    CLI->>Orchestrator: Trigger Analysis
+    Orchestrator->>Analyze: Compile longitudinal trend summaries
+    Analyze->>Orchestrator: Save summaries inside workspace_state.json
 
     User->>CLI: fa run model
-    CLI->>Model: Calculate default assumptions
-    Model->>ModelAgents: Delegate assumptions (WACC, Growth, Margin, Non-Operating) to agents
-    ModelAgents->>Model: Return optimized assumptions with rationales
-    Model->>Rust: Compute DCF base indicators
-    Model->>User: Present assumptions table for feedback
-    Model->>User: Output 6_financial_model markdown & 7_historical_model_json
+    CLI->>Orchestrator: Trigger Modeling
+    Orchestrator->>Model: Compute cost of capital & assumptions
+    Model->>Model: Spawn WACC, Growth, Margin, Non-Operating Agents
+    Model->>Rust: Compute DCF base projections and intrinsic value
+    Model->>Orchestrator: Save assumptions & DCF projections to workspace_state.json
+
+    User->>CLI: fa run curate_wiki
+    CLI->>Orchestrator: Trigger Curator
+    Orchestrator->>Orchestrator: Invoke CuratorAgent to Curate qualitative perspectives
+    Orchestrator->>User: Update [TICKER]_wiki.md under write lock
 ```
 
 ---
@@ -176,22 +180,21 @@ sequenceDiagram
 ## 4. Key Architectural Decisions
 
 1. **Deterministic Job Queue**:
-   To avoid race conditions and resource leaks during file processing and LLM calls, all pipeline commands (`ingest`, `extract`, `analyze`) feed into a centralized queue runner. Jobs are completed sequentially with exponential back-off retries.
+   To avoid race conditions and resource leaks during file processing and LLM calls, all pipeline commands (`ingest`, `extract`, `analyze`, `model`) feed into a centralized queue runner. Jobs are completed sequentially with exponential back-off retries.
 2. **Hybrid Python-Rust Framework**:
    Core financial valuation and sensitivity modeling (discounting cash flows, compounding, WACC calculations) are written in Rust (`src/rust_core/lib.rs`) for performance, safety, and correctness, compiled as a Python C-extension. Standard pipeline calculations (EBITA, Invested Capital, Tax Rates, and ROIC schedules) are written in pure Python to simplify development, testing, and out-of-the-box execution.
 3. **Chunked LLM Processing**:
    To avoid context bloat and high API costs, files are split into 5,000-character chunks. The LLM only receives `chunk_id=0` (the character inventory index) and pulls subsequent chunks one-by-one as needed.
-4. **Self-Refining LLMWiki & Learning Files**:
-    Instead of an isolated context directory, company-specific context is maintained directly in each ticker's root workspace directory via 4 markdown files: `[TICKER]_wiki.md`, `[TICKER]_extract_learning.md`, `[TICKER]_analyze_learning.md`, and `[TICKER]_model_learning.md`. A dedicated `LLMWiki_curator_agent` runs after each pipeline stage, absorbing any manual user feedback and new run logs to continuously rewrite, refine, and compact the learnings, preventing memory loss and reinforcing correct behavior.
+4. **Self-Learning Blackboard & Markdown Wiki**:
+    Rather than maintaining multiple local learning markdown files, company-specific context is maintained in a single structured Pydantic Blackboard (`workspace_state.json`). Successful queries, turn metrics, and custom mappings are written back to `company_data.learnings` by the `LearningAgent`. A dedicated `CuratorAgent` compiles qualitative perspectives (Bull & Bear views) into `[TICKER]_wiki.md`.
 5. **Interactive Zero-Dependency HTML Viewer**:
-   The viewer command (`fa viewer`) launches a local server hosting a self-contained HTML page. This app reads JSON data from `7_historical_model_json/`, runs DCF projections client-side, lets the user play with assumptions dynamically, and saves updated projections directly back to the workspace.
-6. **Auditable Traceability**:
-   All metrics in the data lake (down to individual cells) must contain strict metadata properties tracking their provenance (`source_file`, `chunk_id`, `exact_snippet`). This ensures all calculated valuations can be verified in a single query, preventing model hallucination.
+    The viewer command (`fa viewer`) launches a local server hosting a self-contained HTML page. This app reads JSON data from `workspace_state.json`, runs DCF projections client-side, lets the user play with assumptions dynamically, and saves updated scenario models directly to `9_scenario_model_json/`.
+6. **State Lifecycle and Persistence**:
+    Updates to the blackboard are managed under a **Single-Writer Pattern** where only the orchestrator mutates status flags and commits state checkpoints to the disk atomically via `os.replace` to prevent data corruption.
 7. **Interactive Shell with Sandboxed Execution**:
    To move beyond static pipelines, `fa chat` implements a stateful conversational loop. It exposes a math solver tool (`math_solver.py`) that executes mathematical Python code in a safe sandbox to perform ad-hoc quantitative operations over extracted data.
-8. **Formatting-Preserving PDF/HTML Parsing**:
+8. **Formatting-Preserving PDF/HTML Ingestion**:
    To ensure that unstructured documents like financial reports, earnings announcements, and SEC filings are digested accurately without losing structural relationships, the ingestion engine employs custom parsing. HTML filings are converted to Markdown with column-preserving tables via BeautifulSoup. PDF reports are parsed using PyMuPDF (`pymupdf`) in physical layout-preservation mode (`page.get_text("layout")`), which retains spacing, table grid relationships, and columnar flows, avoiding garbled outputs.
-
 
 ---
 
@@ -217,22 +220,19 @@ graph TD
 
 ---
 
-## 6. Self-Learning LLMWiki & Curator Agent Architecture
+## 6. Self-Learning Blackboard & Curator Agent Architecture
 
-The self-learning mechanism replaces separate config folders with 4 dedicated root files per company workspace:
+The self-learning mechanism consolidates run-to-run feedback and pipeline indicators directly on the blackboard:
 
-### Workspace LLMWiki & Index Files
-- `[TICKER]_wiki.md`: Stores qualitative perspectives (Bull & Bear) extracted strictly from recent document context without outside knowledge pollution.
-- `[TICKER]_folder_index.md`: Automatically maintained folder index mapping all files in 4_extracted_data, 5_historical_analysis, and 6_financial_model with their metadata (relative paths, size, modified date, type, summary/description) to help other agents search and find data.
-- `[TICKER]_extract_learning.md`: Stores the fiscal schedule end-dates (Q1, Q2, Q3, FY) and extraction lessons (e.g., handling ambiguous table rows or subtotal overlaps) across financials, analyst reports, transcripts, and other document types.
-- `[TICKER]_analyze_learning.md`: Stores qualitative/trend analysis lessons.
-- `[TICKER]_model_learning.md`: Stores modeling lessons (e.g., ADR conversion ratios, base currencies, WACC inputs).
+### Workspace State & Wiki Files
+- `[TICKER]_wiki.md`: Stores qualitative perspectives (Bull & Bear) curated strictly from fanned-in document context without outside knowledge pollution.
+- `workspace_state.json`: The central shared blackboard state storing extracted financial schedules, company metadata, longitudinal summaries, DCF calculations, and run-to-run agent learnings.
 
 ### Curator Agent Logic (`CuratorAgent`)
-The `CuratorAgent` class (in `src/agents/curator_agent.py`) executes compaction after each pipeline stage completes:
-1. **User Feedback Extraction**: It scans the file for a `## User Feedback` header, extracts everything underneath it, and filters out placeholder HTML comments.
-2. **LLM Compaction**: It feeds the existing markdown body, new user feedback, and recent stage logs (or compiled historical analysis outputs in the case of the analyze stage) to the LLM, instructing it to keep the learnings highly succinct and focused strictly on actionable information that will help future AI agent tasks (such as search keywords or line item mappings), while discarding conversational filler and generic advice.
-3. **Rewrite & Clean**: The LLM compiles the feedback into the lessons sections, rewrites the file to be highly succinct, and resets the `## User Feedback` section back to its blank template state.
+The `CuratorAgent` class (in `src/agents/curator_agent.py`) executes compilation after pipeline stages complete:
+1. **User Feedback Extraction**: It scans `[TICKER]_wiki.md` for a `## User Feedback` header, extracts everything underneath it, and filters out placeholder HTML comments.
+2. **LLM Synthesis**: It feeds the existing markdown body, new user feedback, and recent stage logs or summaries to the LLM, instructing it to refine and write comprehensive Bull and Bear perspectives.
+3. **Rewrite & Clean**: The LLM compiles the feedback, rewrites the file, and resets the `## User Feedback` section back to its blank template state.
 
 ---
 
@@ -248,7 +248,7 @@ The extraction and modeling sub-agents execute inside a unified turn-based loop 
    - Standardizes tool results injection back to the chat history, verifying schemas and catching tool execution failures cleanly.
 
 2. **Native Tool Calling (`GeminiChatSession` in `llm_client.py`)**:
-   - Directly configures Google's Gemini client with standard Python functions as tools (`config.tools`).
+   - Directly configures Google's Gemini client with standard Python functions as tools.
    - Automatically handles function dispatching when Gemini requests a tool call.
    - Feeds observations back to Gemini via `types.Part.from_function_response`.
 

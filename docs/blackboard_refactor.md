@@ -156,8 +156,8 @@ To support decoupled execution, we establish a strict tool permission registry. 
 
 | Specialist Sub-Agent Template | Category   | Permitted Tools / Services             | Mandatory Input Context                                                                | Rationale                                                                                                                |
 | :---------------------------- | :--------- | :------------------------------------- | :------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------- |
-| **`Ingester`**                | Ingestion  | None                                   | Active Ticker                                                                          | Parses, hashes, and chunks raw documents, running initial LLM metadata identification.                                   |
-| **`MetadataAgent`**           | Setup      | `get_first_chunk`, `keyword_search`    | list of parsed document filenames                                                      | Runs once across all parsed documents to extract company name, description, fiscal boundaries, and currency definitions. |
+| **`Ingester`**                | Ingestion  | None                                   | Active Ticker                                                                          | Parses, hashes, and chunks raw documents (deterministic, LLM-free renaming).                                             |
+| **`MetadataAgent`**           | Setup      | `get_first_chunk`, `keyword_search`    | list of parsed document filenames                                                      | Runs once across all parsed documents to extract company-wide metadata and document-level metadata (dates, period, etc.). |
 | **`BalanceSheetAgent`**       | Extraction | `find_chunk`, `keyword_search`, `check_balance_sheet_quality`         | target document filename, company metadata, agent learnings                            | Scans raw filings to extract assets, liabilities, and equity tables to return to the Orchestrator.                       |
 | **`IncomeStatementAgent`**    | Extraction | `find_chunk`, `keyword_search`, `check_income_statement_quality`         | target document filename, company metadata, agent learnings                            | Scans raw filings to extract revenue, expenses, and income tables to return to the Orchestrator.                         |
 | **`AnalystReportAgent`**      | Extraction | `find_chunk`, `keyword_search`         | target document filename, company metadata, agent learnings                            | Scans broker reports to extract moats, margins, and growth views.                                                        |
@@ -195,7 +195,7 @@ There are four distinct execution modes:
 - **a. Full Pipeline Run**:
   - Enforces the following exact execution and dependency order:
     1. **Setup Phase (Sequential)**:
-       - `metadata_agent` runs once across all parsed documents to extract company name, description, fiscal dates, currencies, and conversion rates, populating the root `WorkspaceContext.metadata`. This acts as a blocking gate prerequisite; no other agents can be spawned if the metadata has not been successfully populated.
+       - `metadata_agent` runs once across all parsed documents to extract both company-wide metadata and document-level metadata (document dates, types, periods, etc.), populating `WorkspaceContext.metadata` and document properties on the blackboard. This acts as a blocking gate prerequisite; no other agents can be spawned if the metadata has not been successfully populated.
     2. **Extraction Phase (Parallel)**:
        - `balance_sheet`, `income_statement`, `analyst_report`, and `other_doc` execute in parallel across fanned-in documents.
     3. **Metrics Phase**:

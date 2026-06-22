@@ -83,7 +83,7 @@ Implement the central blackboard schema (`WorkspaceContext`) and refactor the sp
   - [x] **`MetadataAgent`**: [metadata_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/metadata_agent.py)
     - Tools: `get_first_chunk`, `keyword_search` (10-turn limit).
     - Mandatory Input Context: `list of parsed document filenames`.
-    - Scans fanned-in documents in the parsed folder to extract company metadata (name, description, fiscal calendar dates, currencies, conversion factors) to establish the prerequisite setup before spawning other agents.
+    - Scans fanned-in documents in the parsed folder to extract company-wide metadata (name, description, fiscal calendar dates, currencies, conversion factors) and document-level metadata (dates, type, period, year) to establish the setup before spawning other agents.
   - [x] **`BalanceSheetAgent`**: [balance_sheet_agent.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/extractor_financials_agents/balance_sheet_agent.py)
     - Tools: `find_chunk`, `keyword_search`, `check_balance_sheet_quality` (20-turn limit).
     - Mandatory Input Context: `target document filename, company metadata, agent learnings`.
@@ -187,7 +187,7 @@ Implement the central pipeline coordinator (`BlackboardOrchestrator`) that manag
 
 - [x] **Enforce Execution Gates & Dependencies**
   - Group parallel and sequential tasks inside the async event loop:
-    1. **Setup Phase (Sequential)**: Run `metadata_agent` first to populate company metadata (`WorkspaceContext.metadata`). This acts as a blocking gate prerequisite; subsequent agent phases cannot run if company metadata is not successfully completed.
+    1. **Setup Phase (Sequential)**: Run `metadata_agent` first to populate company-wide metadata (`WorkspaceContext.metadata`) and document-level metadata. This acts as a blocking gate prerequisite; subsequent agent phases cannot run if company metadata is not successfully completed.
     2. **Extraction Phase (Parallel)**: Launch `balance_sheet`, `income_statement`, `analyst_report`, and `other_doc` concurrently.
     3. **Metrics Level 1 (Parallel)**: Launch `diluted_shares`, `organic_growth`, and `interpretation` concurrently.
     4. **Metrics Level 2 (Parallel)**: Launch `operating_ebita` (depends on `interpretation` output) and `adjusted_taxes` (depends on `interpretation` output; uses `operating_ebita` if available, but it's optional) concurrently.
