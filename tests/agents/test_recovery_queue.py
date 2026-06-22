@@ -44,7 +44,13 @@ def temp_workspace_env(tmp_path, monkeypatch):
 
 
 def test_is_network_failure():
-    orchestrator = BlackboardOrchestrator()
+    from unittest.mock import MagicMock
+
+    mock_settings = MagicMock()
+    mock_settings.concurrency_limit_company = 1
+    mock_settings.concurrency_limit_document = 3
+    mock_settings.concurrency_limit_phase = 3
+    orchestrator = BlackboardOrchestrator(settings=mock_settings, client=MagicMock())
 
     # Test validation error
     val_err = ValueError("validation failed for field x")

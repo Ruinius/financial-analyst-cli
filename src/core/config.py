@@ -27,7 +27,7 @@ class Settings(BaseModel):
     )
 
     gemini_model: Optional[str] = Field(
-        "gemini-2.5-flash", description="Gemini model preference"
+        "gemini-3.1-flash-lite", description="Gemini model preference"
     )
     openrouter_model: Optional[str] = Field(
         "google/gemma-4-31b-it:free", description="OpenRouter model preference"
@@ -69,7 +69,7 @@ class Settings(BaseModel):
         text_model = data.get("text_model_id")
 
         # Determine defaults for each provider model
-        default_gemini = "gemini-2.5-flash"
+        default_gemini = "gemini-3.1-flash-lite"
         default_openrouter = "google/gemma-4-31b-it:free"
         default_deepseek = "deepseek-v4-flash"
 

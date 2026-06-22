@@ -31,7 +31,7 @@ def test_settings_model():
     assert settings.full_name == "Alice"
     assert settings.email == "alice@example.com"
     assert settings.text_model_id == "google/gemma-4-31b-it:free"
-    assert settings.gemini_model == "gemini-2.5-flash"
+    assert settings.gemini_model == "gemini-3.1-flash-lite"
     assert settings.openrouter_model == "google/gemma-4-31b-it:free"
     assert settings.deepseek_model == "deepseek-v4-flash"
 
@@ -340,7 +340,7 @@ def test_initialize_config_flow_gemini(monkeypatch, temp_config):
     assert settings.project_name == "Gemini_Proj"
     assert settings.api_provider == "gemini"
     assert settings.gemini_api_key == "AIzaSy-geminiKey"
-    assert settings.text_model_id == "gemini-2.5-flash"
+    assert settings.text_model_id == "gemini-3.1-flash-lite"
 
 
 def test_cli_config_set(temp_config):
@@ -372,7 +372,7 @@ def test_cli_config_set(temp_config):
     assert updated.api_provider == "gemini"
     assert updated.gemini_api_key == "AIzaSy-new-gemini-key"
     assert updated.primary_llm_api_key == "AIzaSy-new-gemini-key"
-    assert updated.text_model_id == "gemini-2.5-flash"
+    assert updated.text_model_id == "gemini-3.1-flash-lite"
 
     # test setting provider to deepseek
     result = runner.invoke(
@@ -484,3 +484,130 @@ def test_cli_run_extract(mock_orchestrator_cls, temp_config):
     mock_orchestrator.run_pipeline.assert_called_once_with(
         "AAPL", stage="extract", agent=None, non_interactive=False
     )
+
+
+def test_initialize_config_flow_non_destructive_preserves_keys(
+    monkeypatch, temp_config
+):
+    # Setup pre-existing config with keys
+    old_settings = Settings(
+        full_name="Original Name",
+        email="original@example.com",
+        project_name="OrigProj",
+        api_provider="openrouter",
+        openrouter_api_key="sk-openrouter-key",
+        gemini_api_key="AIzaSy-gemini-key",
+        deepseek_api_key="sk-ds-deepseek-key",
+        base_workspace_dir=str(temp_config.parent / "workspace"),
+        active_ticker="MSFT",
+        active_workspace_path=str(temp_config.parent / "workspace" / "MSFT"),
+    )
+    save_config(old_settings)
+
+    # Mock PromptSession to avoid NoConsoleScreenBufferError
+    class MockPromptSession:
+        pass
+
+    monkeypatch.setattr("src.cli.commands.config.PromptSession", MockPromptSession)
+
+    from src.cli.commands.config import initialize_config_flow
+
+    # Simulate pressing enter/blank on everything, and selecting 'gemini' as provider
+    prompts = [
+        "",  # Full Name (accept default)
+        "",  # Email (accept default)
+        "",  # Project Name (accept default)
+        "gemini",  # API Provider Selection (switched)
+        "",  # Gemini API Key (accept default / existing)
+        "",  # Text model (accept default)
+        "",  # Workspace Path (accept default)
+    ]
+    prompt_idx = 0
+
+    async def mock_get_input_with_pig(*args, **kwargs):
+        nonlocal prompt_idx
+        val = prompts[prompt_idx]
+        prompt_idx += 1
+        return val
+
+    monkeypatch.setattr(
+        "src.cli.commands.config.get_input_with_pig", mock_get_input_with_pig
+    )
+
+    settings = initialize_config_flow()
+
+    # All keys should be preserved!
+    assert settings.openrouter_api_key == "sk-openrouter-key"
+    assert settings.gemini_api_key == "AIzaSy-gemini-key"
+    assert settings.deepseek_api_key == "sk-ds-deepseek-key"
+    # Basic info should be preserved
+    assert settings.full_name == "Original Name"
+    assert settings.email == "original@example.com"
+    # Workspace info should be preserved
+    assert settings.active_ticker == "MSFT"
+    assert settings.active_workspace_path == str(
+        temp_config.parent / "workspace" / "MSFT"
+    )
+
+    # Load from disk and verify it's saved correctly too
+    loaded = load_config()
+    assert loaded.openrouter_api_key == "sk-openrouter-key"
+    assert loaded.gemini_api_key == "AIzaSy-gemini-key"
+    assert loaded.deepseek_api_key == "sk-ds-deepseek-key"
+
+
+def test_initialize_config_flow_non_destructive_updates_only_prompted_key(
+    monkeypatch, temp_config
+):
+    # Setup pre-existing config with keys
+    old_settings = Settings(
+        full_name="Original Name",
+        email="original@example.com",
+        project_name="OrigProj",
+        api_provider="gemini",
+        openrouter_api_key="sk-openrouter-key",
+        gemini_api_key="AIzaSy-gemini-key",
+        deepseek_api_key="sk-ds-deepseek-key",
+        base_workspace_dir=str(temp_config.parent / "workspace"),
+    )
+    save_config(old_settings)
+
+    class MockPromptSession:
+        pass
+
+    monkeypatch.setattr("src.cli.commands.config.PromptSession", MockPromptSession)
+
+    from src.cli.commands.config import initialize_config_flow
+
+    prompts = [
+        "",  # Full Name (accept default)
+        "",  # Email (accept default)
+        "",  # Project Name (accept default)
+        "gemini",  # API Provider Selection
+        "AIzaSy-brand-new-key",  # Gemini API Key (updating!)
+        "",  # Text model (accept default)
+        "",  # Workspace Path (accept default)
+    ]
+    prompt_idx = 0
+
+    async def mock_get_input_with_pig(*args, **kwargs):
+        nonlocal prompt_idx
+        val = prompts[prompt_idx]
+        prompt_idx += 1
+        return val
+
+    monkeypatch.setattr(
+        "src.cli.commands.config.get_input_with_pig", mock_get_input_with_pig
+    )
+
+    settings = initialize_config_flow()
+
+    # Gemini key should be updated, other keys preserved
+    assert settings.gemini_api_key == "AIzaSy-brand-new-key"
+    assert settings.openrouter_api_key == "sk-openrouter-key"
+    assert settings.deepseek_api_key == "sk-ds-deepseek-key"
+
+    loaded = load_config()
+    assert loaded.gemini_api_key == "AIzaSy-brand-new-key"
+    assert loaded.openrouter_api_key == "sk-openrouter-key"
+    assert loaded.deepseek_api_key == "sk-ds-deepseek-key"

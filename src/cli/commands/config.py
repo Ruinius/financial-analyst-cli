@@ -15,55 +15,193 @@ app = typer.Typer(help="Manage Sir Pennyworth's configuration settings.")
 async def _initialize_config_flow_async() -> Settings:
     session = PromptSession()
 
-    full_name = await get_input_with_pig(
-        session, prompt_text="Full Name (e.g. Jane Doe): "
+    from src.core.config import config_exists
+
+    existing_settings = None
+    if config_exists():
+        try:
+            existing_settings = load_config()
+        except Exception:
+            pass
+
+    default_name = existing_settings.full_name if existing_settings else ""
+    prompt_name = (
+        f"Full Name (e.g. Jane Doe) [{default_name}]: "
+        if default_name
+        else "Full Name (e.g. Jane Doe): "
     )
-    email = await get_input_with_pig(
-        session, prompt_text="Email Address (e.g. jane.doe@example.com): "
+    full_name = await get_input_with_pig(session, prompt_text=prompt_name)
+    full_name = full_name.strip()
+    if not full_name and default_name:
+        full_name = default_name
+
+    default_email = existing_settings.email if existing_settings else ""
+    prompt_email = (
+        f"Email Address (e.g. jane.doe@example.com) [{default_email}]: "
+        if default_email
+        else "Email Address (e.g. jane.doe@example.com): "
     )
-    project_name = await get_input_with_pig(
-        session, prompt_text="Project Name (e.g. Value_Investing_2026): "
+    email = await get_input_with_pig(session, prompt_text=prompt_email)
+    email = email.strip()
+    if not email and default_email:
+        email = default_email
+
+    default_project = existing_settings.project_name if existing_settings else ""
+    prompt_project = (
+        f"Project Name (e.g. Value_Investing_2026) [{default_project}]: "
+        if default_project
+        else "Project Name (e.g. Value_Investing_2026): "
     )
-    api_provider = await get_input_with_pig(
-        session, prompt_text="API Provider (openrouter/gemini/deepseek) [openrouter]: "
+    project_name = await get_input_with_pig(session, prompt_text=prompt_project)
+    project_name = project_name.strip()
+    if not project_name and default_project:
+        project_name = default_project
+
+    default_provider = (
+        existing_settings.api_provider if existing_settings else "openrouter"
     )
+    prompt_provider = (
+        f"API Provider (openrouter/gemini/deepseek) [{default_provider}]: "
+    )
+    api_provider = await get_input_with_pig(session, prompt_text=prompt_provider)
     api_provider = api_provider.strip().lower()
     if not api_provider or api_provider not in ["openrouter", "gemini", "deepseek"]:
-        api_provider = "openrouter"
+        api_provider = default_provider
+
+    existing_openrouter = (
+        existing_settings.openrouter_api_key if existing_settings else None
+    )
+    existing_gemini = existing_settings.gemini_api_key if existing_settings else None
+    existing_deepseek = (
+        existing_settings.deepseek_api_key if existing_settings else None
+    )
 
     openrouter_api_key = None
     gemini_api_key = None
     deepseek_api_key = None
 
     if api_provider == "openrouter":
-        openrouter_api_key = await get_input_with_pig(
-            session, prompt_text="OpenRouter API Key: ", is_password=True
+        prompt_text = "OpenRouter API Key: "
+        if existing_openrouter:
+            masked = mask_key(existing_openrouter)
+            prompt_text = f"OpenRouter API Key [{masked}]: "
+        val = await get_input_with_pig(
+            session, prompt_text=prompt_text, is_password=True
         )
-        default_model = "google/gemma-4-31b-it:free"
+        val = val.strip()
+        if not val and existing_openrouter:
+            openrouter_api_key = existing_openrouter
+        else:
+            openrouter_api_key = val if val else None
+
+        if existing_settings and existing_settings.api_provider == "openrouter":
+            default_model = (
+                existing_settings.text_model_id or "google/gemma-4-31b-it:free"
+            )
+        else:
+            default_model = (
+                existing_settings.openrouter_model if existing_settings else None
+            ) or "google/gemma-4-31b-it:free"
+
     elif api_provider == "gemini":
-        gemini_api_key = await get_input_with_pig(
-            session, prompt_text="Gemini API Key: ", is_password=True
+        prompt_text = "Gemini API Key: "
+        if existing_gemini:
+            masked = mask_key(existing_gemini)
+            prompt_text = f"Gemini API Key [{masked}]: "
+        val = await get_input_with_pig(
+            session, prompt_text=prompt_text, is_password=True
         )
-        default_model = "gemini-2.5-flash"
+        val = val.strip()
+        if not val and existing_gemini:
+            gemini_api_key = existing_gemini
+        else:
+            gemini_api_key = val if val else None
+
+        if existing_settings and existing_settings.api_provider == "gemini":
+            default_model = existing_settings.text_model_id or "gemini-3.1-flash-lite"
+        else:
+            default_model = (
+                existing_settings.gemini_model if existing_settings else None
+            ) or "gemini-3.1-flash-lite"
+
     else:
-        deepseek_api_key = await get_input_with_pig(
-            session, prompt_text="DeepSeek API Key: ", is_password=True
+        prompt_text = "DeepSeek API Key: "
+        if existing_deepseek:
+            masked = mask_key(existing_deepseek)
+            prompt_text = f"DeepSeek API Key [{masked}]: "
+        val = await get_input_with_pig(
+            session, prompt_text=prompt_text, is_password=True
         )
-        default_model = "deepseek-v4-flash"
+        val = val.strip()
+        if not val and existing_deepseek:
+            deepseek_api_key = existing_deepseek
+        else:
+            deepseek_api_key = val if val else None
+
+        if existing_settings and existing_settings.api_provider == "deepseek":
+            default_model = existing_settings.text_model_id or "deepseek-v4-flash"
+        else:
+            default_model = (
+                existing_settings.deepseek_model if existing_settings else None
+            ) or "deepseek-v4-flash"
 
     text_model = await get_input_with_pig(
         session, prompt_text=f"Text-to-Text Model ID [{default_model}]: "
     )
-    if not text_model.strip():
+    text_model = text_model.strip()
+    if not text_model:
         text_model = default_model
 
-    default_ws = str(Path.home() / "Desktop" / project_name.strip())
+    # Retain the existing keys for other providers that weren't selected
+    if existing_settings:
+        if api_provider != "openrouter":
+            openrouter_api_key = existing_openrouter
+        if api_provider != "gemini":
+            gemini_api_key = existing_gemini
+        if api_provider != "deepseek":
+            deepseek_api_key = existing_deepseek
+
+    # Determine default workspace path
+    if existing_settings:
+        default_ws = existing_settings.base_workspace_dir
+    else:
+        default_ws = str(Path.home() / "Desktop" / project_name.strip())
+
     base_ws_dir = await get_input_with_pig(
         session,
         prompt_text=f"Workspace Path (Base folder for company workspaces) [{default_ws}]: ",
     )
-    if not base_ws_dir.strip():
+    base_ws_dir = base_ws_dir.strip()
+    if not base_ws_dir:
         base_ws_dir = default_ws
+
+    # Preserve other existing configuration fields
+    gemini_model = existing_settings.gemini_model if existing_settings else None
+    openrouter_model = existing_settings.openrouter_model if existing_settings else None
+    deepseek_model = existing_settings.deepseek_model if existing_settings else None
+
+    # Update the provider's specific model if they configured it in the text_model prompt
+    if api_provider == "openrouter":
+        openrouter_model = text_model
+    elif api_provider == "gemini":
+        gemini_model = text_model
+    else:
+        deepseek_model = text_model
+
+    active_ticker = existing_settings.active_ticker if existing_settings else None
+    active_workspace_path = (
+        existing_settings.active_workspace_path if existing_settings else None
+    )
+    llm_timeout = existing_settings.llm_timeout if existing_settings else 30.0
+    concurrency_limit_company = (
+        existing_settings.concurrency_limit_company if existing_settings else 1
+    )
+    concurrency_limit_document = (
+        existing_settings.concurrency_limit_document if existing_settings else 3
+    )
+    concurrency_limit_phase = (
+        existing_settings.concurrency_limit_phase if existing_settings else 3
+    )
 
     settings = Settings(
         full_name=full_name,
@@ -75,7 +213,16 @@ async def _initialize_config_flow_async() -> Settings:
         deepseek_api_key=deepseek_api_key,
         primary_llm_api_key=openrouter_api_key or gemini_api_key or deepseek_api_key,
         text_model_id=text_model,
+        gemini_model=gemini_model,
+        openrouter_model=openrouter_model,
+        deepseek_model=deepseek_model,
         base_workspace_dir=base_ws_dir,
+        active_ticker=active_ticker,
+        active_workspace_path=active_workspace_path,
+        llm_timeout=llm_timeout,
+        concurrency_limit_company=concurrency_limit_company,
+        concurrency_limit_document=concurrency_limit_document,
+        concurrency_limit_phase=concurrency_limit_phase,
     )
 
     save_config(settings)
@@ -124,7 +271,7 @@ def config_show():
         table.add_row(
             "Primary LLM API Key (Legacy)", mask_key(settings.primary_llm_api_key or "")
         )
-        table.add_row("Gemini Model", settings.gemini_model or "gemini-2.5-flash")
+        table.add_row("Gemini Model", settings.gemini_model or "gemini-3.1-flash-lite")
         table.add_row(
             "OpenRouter Model",
             settings.openrouter_model or "google/gemma-4-31b-it:free",
@@ -188,7 +335,7 @@ def config_set(
         settings.api_provider = p
         # Dynamically switch active model to the provider's configured model
         if p == "gemini":
-            settings.text_model_id = settings.gemini_model or "gemini-2.5-flash"
+            settings.text_model_id = settings.gemini_model or "gemini-3.1-flash-lite"
         elif p == "openrouter":
             settings.text_model_id = (
                 settings.openrouter_model or "google/gemma-4-31b-it:free"

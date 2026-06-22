@@ -80,7 +80,7 @@ class GeminiLLMClient(LLMClient):
         super().__init__(settings)
         self.api_key = settings.gemini_api_key or settings.primary_llm_api_key
         self.default_model = (
-            model or getattr(settings, "gemini_model", None) or "gemini-2.5-flash"
+            model or getattr(settings, "gemini_model", None) or "gemini-3.1-flash-lite"
         )
         from google import genai
 
