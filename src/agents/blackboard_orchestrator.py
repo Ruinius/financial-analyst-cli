@@ -342,6 +342,7 @@ class BlackboardOrchestrator:
         stage: Optional[str] = None,
         agent: Optional[str] = None,
         non_interactive: bool = False,
+        limit: Optional[int] = None,
     ) -> None:
         """Executes full or stage-level execution of the blackboard coordinator."""
         self._failure_queue.clear()
@@ -352,7 +353,7 @@ class BlackboardOrchestrator:
             if stage is None or stage == "ingest":
                 from src.agents.orchestrator_pipelines.ingest import orchestrate_ingest
 
-                await orchestrate_ingest(self, ticker)
+                await orchestrate_ingest(self, ticker, limit=limit)
 
             if stage is None or stage == "extract":
                 from src.agents.orchestrator_pipelines.extract import (

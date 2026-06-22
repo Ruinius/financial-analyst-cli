@@ -4,7 +4,7 @@ import hashlib
 import logging
 import re
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 from bs4 import BeautifulSoup, NavigableString
 
 from src.core.config import load_config
@@ -439,7 +439,9 @@ class Ingester:
         pass
 
 
-async def orchestrate_ingest(orchestrator, ticker: str) -> None:
+async def orchestrate_ingest(
+    orchestrator, ticker: str, limit: Optional[int] = None
+) -> None:
     ingester = Ingester()
     settings = orchestrator.settings
     workspace = Path(settings.active_workspace_path)
@@ -461,16 +463,23 @@ async def orchestrate_ingest(orchestrator, ticker: str) -> None:
 
     registry = ingester.load_parsed_registry()
 
+    # Filter files that actually need processing (not already in registry or marked completed)
+    state = load_workspace_state(ticker)
+    files_to_process = []
     for raw_file in raw_files:
         file_hash = compute_sha256(raw_file)
-        state = load_workspace_state(ticker)
         is_processed = any(
             doc.file_name == raw_file.name and doc.ingestion_status == "completed"
             for doc in state.raw_documents
         )
-        if is_processed or file_hash in registry:
-            continue
+        if not is_processed and file_hash not in registry:
+            files_to_process.append(raw_file)
 
+    if limit is not None:
+        files_to_process = files_to_process[:limit]
+
+    for raw_file in files_to_process:
+        file_hash = compute_sha256(raw_file)
         orchestrator.checkout_status(ticker, "ingestion", file_name=raw_file.name)
         try:
             await asyncio.to_thread(ingester.ingest_single_file, raw_file, registry)

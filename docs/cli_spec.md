@@ -68,7 +68,18 @@ All pipeline commands (`fa run extract`, `fa run analyze`, `fa run model`, `fa r
 - `--non-interactive` / `-n`: Disables all stdin blocking prompts. Safe for headless execution. Enables automatic retries on LLM/API errors, bypasses retries on validation or quality issues, and aborts with exit code `1` on validation failures.
 - `--agent <agent_name>` / `-a <agent_name>`: Bypasses the full stage pipeline and executes a single targeted sub-agent directly (e.g. `fa run extract --agent balance_sheet`), validating its prerequisite inputs on the blackboard first.
 
-### 3.2 `fa run` Subcommands (Pipeline Orchestration)
+### 3.2 `fa run` (Pipeline Orchestration)
+
+Executing `fa run` directly without a subcommand triggers the **Full Pipeline execution** (ingest -> extract -> analyze -> model) for the active ticker.
+
+- **Options**:
+  - `--ticker` / `-t`: Limit execution or switch active workspace to this company ticker first.
+  - `--non-interactive` / `-n`: Disables all stdin blocking prompts.
+- **Execution**:
+  - Checks if there are raw files in `1_ingest_data/`. If there are, prompts the user: `"How many files would you like to process?"` (unless `--non-interactive` is passed).
+  - Sequentially runs the stages: `ingest` (applying the resolved document limit), `extract`, `analyze`, and `model`.
+  - > [!IMPORTANT]
+  - > The full pipeline does **NOT** include `edgar` (filings download). File downloading must be performed explicitly beforehand using `fa run edgar <ticker>`.
 
 #### `fa run edgar <ticker>`
 Downloads raw financial filings for a specific company from the SEC EDGAR system.

@@ -23,7 +23,7 @@ Welcome to the `financial-analyst-cli` project.
 - tmp/: Temporary logs, scratchpads, and execution scripts.
 - src/: Application source package.
   - src/cli/: Sub-commands and main CLI definitions.
-    - src/cli/main.py: Primary Typer entry point and command router.
+    - src/cli/main.py: Primary Typer entry point and command router, including the 'fa run' callback executing the full pipeline.
     - src/cli/commands/config.py: Commands for config initialization (`init`), masked printing (`show`), and direct parameter updating (`set`).
     - src/cli/commands/use.py: Workspace switcher command that updates active ticker and initializes 7 folders.
   - src/core/: Settings, custom exception classes, and Pydantic schemas.

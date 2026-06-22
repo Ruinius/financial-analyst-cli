@@ -194,6 +194,94 @@ app.command("use")(use_cmd.main_use)
 
 # 2. Register run command
 run_app = typer.Typer(help="Execute data pipeline stages.")
+
+
+@run_app.callback(invoke_without_command=True)
+def run_callback(
+    ctx: typer.Context,
+    ticker: str = typer.Option(
+        None, "--ticker", "-t", help="Company ticker symbol (e.g. AAPL)"
+    ),
+    non_interactive: bool = typer.Option(False, "--non-interactive", "-n"),
+):
+    """Execute data pipeline stages. Calling 'fa run' directly runs the full pipeline (ingest -> extract -> analyze -> model)."""
+    if ctx.invoked_subcommand is not None:
+        return
+
+    try:
+        settings = load_config()
+    except Exception as e:
+        formatting.print_error(f"Configuration error: {str(e)}")
+        raise typer.Exit(1)
+
+    if ticker:
+        use_cmd.main_use(ticker)
+        settings = load_config()
+
+    active_ticker = settings.active_ticker
+    if not active_ticker:
+        formatting.print_error(
+            "No active ticker selected. Please specify a ticker or run 'fa use <ticker>' first."
+        )
+        raise typer.Exit(1)
+
+    # Ingestion limit prompt if there are raw files to process
+    limit = None
+    if settings.active_workspace_path:
+        ingest_dir = Path(settings.active_workspace_path) / "1_ingest_data"
+        raw_files = (
+            [
+                p
+                for p in ingest_dir.iterdir()
+                if p.is_file()
+                and p.name.lower() != "readme.md"
+                and not p.name.startswith(".")
+            ]
+            if ingest_dir.exists()
+            else []
+        )
+        if raw_files:
+            formatting.speak(
+                f"Splendid! I found {len(raw_files)} raw file(s) ready for ingestion."
+            )
+            if non_interactive:
+                response = "all"
+            else:
+                response = typer.prompt(
+                    "How many files would you like to process?", default="all"
+                )
+
+            if response.strip().lower() != "all":
+                try:
+                    limit = int(response.strip())
+                except ValueError:
+                    formatting.print_warning(
+                        "Invalid number of files entered. Defaulting to processing all files."
+                    )
+                    limit = None
+
+    formatting.print_info(f"Starting full data pipeline for {active_ticker}...")
+    try:
+        from src.agents.blackboard_orchestrator import BlackboardOrchestrator
+        import asyncio
+
+        orchestrator = BlackboardOrchestrator(settings=settings)
+        asyncio.run(
+            orchestrator.run_pipeline(
+                active_ticker,
+                stage=None,
+                non_interactive=non_interactive,
+                limit=limit,
+            )
+        )
+        formatting.print_success(
+            f"Successfully executed full data pipeline for {active_ticker}!"
+        )
+    except Exception as e:
+        formatting.print_error(f"Full pipeline execution failed: {str(e)}")
+        raise typer.Exit(1)
+
+
 app.add_typer(run_app, name="run")
 
 
