@@ -253,12 +253,10 @@ class CuratorAgent:
                             "- What are line items to watch out for and why: None\n"
                         )
                 if sections_to_add:
-                    feedback_match = re.search(
-                        r"## User Feedback", content, re.IGNORECASE
-                    )
-                    if feedback_match:
-                        prefix = content[: feedback_match.start()]
-                        suffix = content[feedback_match.start() :]
+                    feedback_match_idx = content.lower().find("## user feedback")
+                    if feedback_match_idx != -1:
+                        prefix = content[:feedback_match_idx]
+                        suffix = content[feedback_match_idx:]
                         new_content = (
                             prefix + "\n".join(sections_to_add) + "\n\n" + suffix
                         )
@@ -307,12 +305,10 @@ class CuratorAgent:
                             "- What are line items to watch out for and why: None\n"
                         )
                 if sections_to_add:
-                    feedback_match = re.search(
-                        r"## User Feedback", content, re.IGNORECASE
-                    )
-                    if feedback_match:
-                        prefix = content[: feedback_match.start()]
-                        suffix = content[feedback_match.start() :]
+                    feedback_match_idx = content.lower().find("## user feedback")
+                    if feedback_match_idx != -1:
+                        prefix = content[:feedback_match_idx]
+                        suffix = content[feedback_match_idx:]
                         new_content = (
                             prefix + "\n".join(sections_to_add) + "\n\n" + suffix
                         )
