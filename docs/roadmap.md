@@ -212,3 +212,9 @@ Config      Ingestion   Extraction  History     Modeling    Interactive  Blackbo
   - [x] Reorganize the test suite into modular folders mirroring the package structure, splitting monolithic files and validating that all tests pass successfully.
   - [x] Refactor `parse_markdown_to_line_items` to accept markdown strings directly, eliminating temporary markdown disk writes and unlinking.
   - [x] Prune active workspaces initialization to create only 4 directories (`1_ingest_data/`, `2_parsed_data/`, `3_archived_data/`, `9_scenario_model_json/`), deprecating directories 4, 5, 6.
+
+---
+
+## Next Steps
+
+- [ ] Test the extensibility of the new blackboard architecture by adding the high trading volume, increase in price, low trading volume, increase in price, low trading volume decrease in price, high trading volume decrease in price.
