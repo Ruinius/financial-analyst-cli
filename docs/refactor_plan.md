@@ -179,6 +179,9 @@ Implement the central pipeline coordinator (`BlackboardOrchestrator`) that manag
   - Prior to agent launch, reservation transitions status flag on blackboard to `running` (committing atomic checkpoint to disk).
   - On sub-agent resolution, releases lock, writes structured payloads, updates status flag to `completed` or `failed`, and atomic commits to disk.
   - On orchestrator restart, scans for dangling `running` items and marks them `failed`/`pending` for safe recovery.
+- [x] **Implement Single Agent Execution Capability**
+  - Add logic in [blackboard_orchestrator.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/blackboard_orchestrator.py) to check and support the `agent` parameter (e.g. `--agent <agent_name>` / `-a <agent_name>`).
+  - Only execute the targeted specialist agent, verifying its input prerequisite dependencies first.
 
 ### Phase 3.2: Execution Gating & Concurrency Control
 
@@ -273,6 +276,24 @@ Implement the central pipeline coordinator (`BlackboardOrchestrator`) that manag
   - Simplify coordinator/integration testing inside `tests/agents/test_extractor_orchestrator.py` and `tests/agents/test_modeler_orchestrator.py`.
 - [ ] **Verify Execution**:
   - Assert that all 124 tests continue to pass under the new structure and execution latency is optimized.
+
+### Phase 3.7: Orchestrator Pipeline Modularization & Maintenance
+
+- [ ] **Create Orchestrator Pipelines Directory**
+  - Path: [src/agents/orchestrator_pipelines/](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/orchestrator_pipelines)
+  - Modularize the monolithic `BlackboardOrchestrator` execution stages (`ingest`, `extract`, `analyze`, `model`) and full pipelines into separate files within this package to enhance maintainability.
+  - Simplify [blackboard_orchestrator.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/blackboard_orchestrator.py) to delegate to these modular files.
+
+### Phase 3.8: Legacy Agent Code Cleanup
+
+- [ ] **Deprecate and Remove Legacy Agent Orchestration Code**
+  - Delete legacy linear pipeline controllers:
+    - [DELETE] [extractor_orchestrator.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_orchestrator.py)
+    - [DELETE] [extractor_financials.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/extractor_financials.py)
+    - [DELETE] [analyzer.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/analyzer.py)
+    - [DELETE] [modeler.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/modeler.py)
+    - [DELETE] [modeler_orchestrator.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/modeler_orchestrator.py)
+  - Ensure all CLI command definitions route through the new blackboard orchestrator pipeline.
 
 ---
 
