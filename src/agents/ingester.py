@@ -1,12 +1,9 @@
-from src.utils.markdown_helper import extract_json_from_text
 import csv
-import datetime
 import hashlib
-import json
 import logging
 import re
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List
 from bs4 import BeautifulSoup, NavigableString
 
 from src.core.config import load_config
@@ -204,218 +201,9 @@ class Ingester:
                 clean_row["file_hash"] = row.get("file_hash", "")
                 writer.writerow(clean_row)
 
-    def identify_metadata(
-        self, first_chunk: str, original_filename: str
-    ) -> Tuple[str, str, str, str, str]:
-        """Use LLM to identify document_date, document_type, fiscal_quarter, fiscal_year, and period_end_date."""
-        # Load document types spec
-        doc_types_path = (
-            Path(__file__).parent.parent / "resources" / "document_types.json"
-        )
-        doc_types_str = ""
-        if doc_types_path.exists():
-            with open(doc_types_path, "r", encoding="utf-8") as f:
-                doc_types_str = f.read()
-
-        ticker = self.settings.active_ticker or "UNK"
-        context_path = (
-            Path(self.settings.active_workspace_path) / f"{ticker}_extract_learning.md"
-        )
-        context_str = ""
-        if context_path.exists():
-            with open(context_path, "r", encoding="utf-8") as f:
-                context_str = f.read()
-
-        system_prompt = (
-            "You are Sir Pennyworth, a sophisticated, precise financial analyst. "
-            "Your task is to identify key metadata of a company report from its text. "
-            "You MUST return ONLY a JSON object with the keys:\n"
-            "- 'document_date' (YYYY-MM-DD): The date the document was filed, published, or released.\n"
-            "- 'period_end_date' (YYYY-MM-DD or 'N/A'): The actual end date of the fiscal period covered by the report. "
-            "For annual/quarterly reports or earnings releases, this is the date the quarter or year ended. If not specified or not applicable, return 'N/A'.\n"
-            "- 'document_type' (must match one of the keys in document_types.json).\n"
-            "- 'fiscal_quarter' (Q1, Q2, Q3, Q4, FY, or N/A).\n"
-            "- 'fiscal_year' (YYYY or N/A): The fiscal year the report corresponds to."
-        )
-
-        prompt = f"""
-Original Filename: {original_filename}
-Document Types Specification:
-{doc_types_str}
-
-Active Ingestion Context:
-{context_str}
-
-First Chunk of Document:
-\"\"\"
-{first_chunk[:4000]}
-\"\"\"
-
-Please return a valid JSON object matching this structure:
-{{
-  "document_date": "YYYY-MM-DD",
-  "period_end_date": "YYYY-MM-DD or N/A",
-  "document_type": "quarterly_filing | annual_filing | earnings_announcement | press_release | analyst_report | news_article | transcript | other",
-  "fiscal_quarter": "Q1 | Q2 | Q3 | Q4 | FY | N/A",
-  "fiscal_year": "YYYY or N/A"
-}}
-"""
-        response_text_first = self.llm.generate(prompt, system_prompt=system_prompt)
-
-        # Parse document types keys for validation
-        doc_types_keys = []
-        if doc_types_path.exists():
-            try:
-                with open(doc_types_path, "r", encoding="utf-8") as f:
-                    doc_types_data = json.load(f)
-                    doc_types_keys = list(
-                        doc_types_data.get("document_types", {}).keys()
-                    )
-            except Exception:
-                pass
-        if not doc_types_keys:
-            doc_types_keys = [
-                "earnings_announcement",
-                "quarterly_filing",
-                "annual_filing",
-                "press_release",
-                "analyst_report",
-                "news_article",
-                "transcript",
-                "other",
-            ]
-
-        # Extract and parse response directly from first turn
-        json_str = extract_json_from_text(response_text_first)
-        if json_str:
-            try:
-                meta = json.loads(json_str)
-                doc_type = meta.get("document_type", "other")
-                if doc_type not in doc_types_keys:
-                    doc_type = "other"
-                return (
-                    meta.get("document_date", "YYYY-MM-DD"),
-                    doc_type,
-                    meta.get("fiscal_quarter", "N/A"),
-                    meta.get("fiscal_year", "N/A"),
-                    meta.get("period_end_date", "N/A"),
-                )
-            except Exception:
-                pass
-
-        return ("YYYY-MM-DD", "other", "N/A", "N/A", "N/A")
-
     def heal_ingest_context(self, registry: Dict[str, Dict[str, str]] = None) -> None:
-        """Scan the parsed registry and update learning and wiki files using the Curator Agent."""
-        ticker = self.settings.active_ticker or "UNK"
-        if registry is None:
-            registry = self.load_parsed_registry()
-        if not registry:
-            return
-
-        quarter_months = {}
-        quarter_sources = {}
-
-        for row in registry.values():
-            doc_type = row.get("document_type", "")
-            doc_date = row.get("document_date", "")
-            fiscal_quarter = row.get("fiscal_quarter", "")
-            period_end = row.get("period_end_date", "N/A")
-
-            if fiscal_quarter == "N/A" or not fiscal_quarter:
-                continue
-
-            date_obj = None
-            if doc_date and doc_date != "YYYY-MM-DD":
-                try:
-                    date_obj = datetime.datetime.strptime(doc_date, "%Y-%m-%d")
-                except ValueError:
-                    pass
-
-            period_end_obj = None
-            source_info = ""
-            if period_end and period_end != "N/A" and period_end != "YYYY-MM-DD":
-                try:
-                    period_end_obj = datetime.datetime.strptime(period_end, "%Y-%m-%d")
-                    source_info = f"extracted period end date {period_end}"
-                except ValueError:
-                    pass
-
-            if not period_end_obj and date_obj:
-                if doc_type in [
-                    "quarterly_filing",
-                    "annual_filing",
-                    "earnings_announcement",
-                ]:
-                    period_end_obj = date_obj - datetime.timedelta(days=45)
-                    source_info = (
-                        f"estimated from document date {doc_date} minus 45 days"
-                    )
-                else:
-                    period_end_obj = date_obj
-                    source_info = f"extracted from document date {doc_date}"
-
-            if period_end_obj:
-                m = period_end_obj.month
-                quarter_months.setdefault(fiscal_quarter, []).append(m)
-                quarter_sources.setdefault(fiscal_quarter, {}).setdefault(m, []).append(
-                    source_info
-                )
-
-        final_quarter_mappings = {}
-        for q, months in quarter_months.items():
-            if not months:
-                continue
-            from collections import Counter
-
-            most_common_month, count = Counter(months).most_common(1)[0]
-            sources = quarter_sources[q][most_common_month]
-            unique_sources = list(set(sources))
-            source_desc = "; ".join(unique_sources)
-            final_quarter_mappings[q] = (most_common_month, source_desc)
-
-        fye_month = None
-        fye_desc = "Determined by Annual Filing dates."
-        if "FY" in final_quarter_mappings:
-            fye_month, fye_desc_src = final_quarter_mappings["FY"]
-            fye_desc = (
-                f"Month {fye_month} (determined from FY mappings: {fye_desc_src})"
-            )
-        elif "Q4" in final_quarter_mappings:
-            fye_month, fye_desc_src = final_quarter_mappings["Q4"]
-            fye_desc = (
-                f"Month {fye_month} (determined from Q4 mappings: {fye_desc_src})"
-            )
-
-        lines = []
-        lines.append("## Fiscal Schedule Mappings")
-        lines.append(f"- **Fiscal Year End**: {fye_desc}")
-        lines.append("- **Quarterly Mappings**:")
-
-        quarter_order = {"Q1": 1, "Q2": 2, "Q3": 3, "Q4": 4, "FY": 5}
-        sorted_quarters = sorted(
-            final_quarter_mappings.keys(), key=lambda x: quarter_order.get(x, 10)
-        )
-
-        for q in sorted_quarters:
-            m, src = final_quarter_mappings[q]
-            lines.append(f"  - {q}: Ends around Month {m} ({src})")
-
-        # Compile list of files in registry for Wiki Sources
-        file_logs = []
-        file_logs.append("### Registry Files:")
-        for r in registry.values():
-            file_logs.append(
-                f"- [{r.get('new_filename')}]: Original '{r.get('original_filename')}', type '{r.get('document_type')}', date '{r.get('document_date')}', period end '{r.get('period_end_date')}'"
-            )
-
-        agent_logs = "\n".join(lines) + "\n\n" + "\n".join(file_logs)
-
-        # Trigger Curator Agent
-        from src.agents.curator_agent import CuratorAgent
-
-        curator = CuratorAgent(self.settings)
-        curator.curate(ticker, "ingest", agent_logs)
+        """Scan the parsed registry and update learning and wiki files (Deprecated)."""
+        pass
 
     def create_or_update_ingest_context(
         self,
@@ -426,13 +214,13 @@ Please return a valid JSON object matching this structure:
         period_end_date: str = "N/A",
         registry: Dict[str, Dict[str, str]] = None,
     ) -> None:
-        """Call heal_ingest_context to curate via CuratorAgent."""
-        self.heal_ingest_context(registry)
+        """Call heal_ingest_context (Deprecated)."""
+        pass
 
     def ingest_single_file(
         self, raw_path: Path, registry: Dict[str, Dict[str, str]]
     ) -> None:
-        """Process a single file: hash, parse, chunk, LLM identify, rename, archive, and log."""
+        """Process a single file: hash, parse, chunk, archive, and log (no LLM metadata identification)."""
         file_hash = compute_sha256(raw_path)
         import src.utils.formatting as formatting
 
@@ -469,33 +257,17 @@ Please return a valid JSON object matching this structure:
         # Create chunks
         chunks = chunk_text(markdown_body)
 
-        # Identify metadata using the first chunk
-        first_chunk_text = chunks[0] if chunks else ""
-        doc_date, doc_type, fiscal_quarter, fiscal_year, period_end_date = (
-            self.identify_metadata(first_chunk_text, raw_path.name)
-        )
-
-        # Standardize date format YYYYMMDD
-        clean_date = doc_date.replace("-", "").replace("/", "")
-        if not re.match(r"^\d{8}$", clean_date):
-            clean_date = datetime.date.today().strftime("%Y%m%d")
-
-        # Build new filename
-        new_basename = f"{clean_date}_{doc_type}"
+        new_basename = raw_path.stem
 
         # Compile body with chunk comments, tracking their exact positions in the final file
         offsets = [(0, 0) for _ in chunks]
         full_output = ""
         for _ in range(3):
             chunk_lines = []
-            chunk_lines.append("# Document Metadata & Chunk Inventory (chunk_id=0)\n")
+            chunk_lines.append("# Chunk Inventory (chunk_id=0)\n")
             chunk_lines.append("| Metadata Key | Value |")
             chunk_lines.append("| --- | --- |")
             chunk_lines.append(f"| Original Filename | {raw_path.name} |")
-            chunk_lines.append(f"| Document Date | {doc_date} |")
-            chunk_lines.append(f"| Document Type | {doc_type} |")
-            chunk_lines.append(f"| Fiscal Quarter | {fiscal_quarter} |")
-            chunk_lines.append(f"| Fiscal Year | {fiscal_year} |")
             chunk_lines.append(f"| File Hash | {file_hash} |\n")
 
             chunk_lines.append("## Chunk Index Table")
@@ -554,22 +326,12 @@ Please return a valid JSON object matching this structure:
             "file_hash": file_hash,
             "original_filename": raw_path.name,
             "new_filename": out_markdown_path.name,
-            "document_type": doc_type,
-            "document_date": doc_date,
-            "fiscal_quarter": fiscal_quarter,
-            "fiscal_year": fiscal_year,
-            "period_end_date": period_end_date,
+            "document_type": "N/A",
+            "document_date": "N/A",
+            "fiscal_quarter": "N/A",
+            "fiscal_year": "N/A",
+            "period_end_date": "N/A",
         }
-
-        # Update self-healing ingest context
-        self.create_or_update_ingest_context(
-            self.settings.active_ticker or "UNK",
-            doc_type,
-            doc_date,
-            fiscal_quarter,
-            period_end_date,
-            registry,
-        )
         formatting.print_success(
             f"Ingested {raw_path.name} -> {out_markdown_path.name}"
         )
@@ -618,25 +380,13 @@ Please return a valid JSON object matching this structure:
         # Save updated registry
         self.save_parsed_registry(registry)
 
-        # Run the Quality Check Agent for self-healing of csv and markdowns
-        self.run_quality_check_agent()
-        self.heal_markdown_files()
-
-        # Final healing check to ensure all mappings are validated and sorted correctly
-        registry = self.load_parsed_registry()
-        self.heal_ingest_context(registry)
-
     def run_self_healing(self) -> None:
-        """Run only the self-healing and quality check agent on existing parsed data."""
+        """Run only the self-healing and quality check agent on existing parsed data (Deprecated)."""
         import src.utils.formatting as formatting
 
         formatting.print_info(
-            "Starting metadata self-healing and Quality Check Agent..."
+            "Metadata self-healing is deprecated during ingestion. Metadata is now extracted during the extraction stage."
         )
-        self.run_quality_check_agent()
-        self.heal_markdown_files()
-        registry = self.load_parsed_registry()
-        self.heal_ingest_context(registry)
 
     def overwrite_csv_rows(self, updates: List[Dict[str, str]]) -> None:
         """Overwrite fiscal_quarter and fiscal_year in parsed_data.csv for given file hashes."""
@@ -679,142 +429,9 @@ Please return a valid JSON object matching this structure:
             formatting.print_success("Successfully updated parsed_data.csv.")
 
     def heal_markdown_files(self) -> None:
-        """Update markdown files metadata in 2_parsed_data to match the CSV registry as source of truth."""
-        registry = self.load_parsed_registry()
-        workspace = Path(self.settings.active_workspace_path)
-        parsed_dir = workspace / "2_parsed_data"
-        import src.utils.formatting as formatting
-
-        for reg_row in registry.values():
-            filename = reg_row.get("new_filename")
-            if not filename:
-                continue
-
-            file_path = parsed_dir / filename
-            if not file_path.exists():
-                continue
-
-            fq = reg_row.get("fiscal_quarter", "N/A")
-            fy = reg_row.get("fiscal_year", "N/A")
-
-            try:
-                with open(file_path, "r", encoding="utf-8") as f:
-                    content = f.read()
-
-                # Check and replace
-                quarter_pattern = r"(\|\s*Fiscal Quarter\s*\|\s*)([^|]*?)(\s*\|)"
-                year_pattern = r"(\|\s*Fiscal Year\s*\|\s*)([^|]*?)(\s*\|)"
-
-                has_year = re.search(year_pattern, content)
-                has_quarter = re.search(quarter_pattern, content)
-
-                if not has_quarter:
-                    continue
-
-                if has_year:
-                    new_content = re.sub(quarter_pattern, rf"\g<1>{fq}\g<3>", content)
-                    new_content = re.sub(year_pattern, rf"\g<1>{fy}\g<3>", new_content)
-                else:
-                    replacement = rf"\g<1>{fq}\g<3>\n| Fiscal Year | {fy} |"
-                    new_content = re.sub(quarter_pattern, replacement, content)
-
-                if new_content != content:
-                    with open(file_path, "w", encoding="utf-8") as f:
-                        f.write(new_content)
-                    formatting.print_success(
-                        f"Self-healed metadata header in {filename}."
-                    )
-            except Exception as e:
-                formatting.print_warning(
-                    f"Failed to self-heal markdown header for {filename}: {e}"
-                )
+        """Update markdown files metadata in 2_parsed_data (Deprecated)."""
+        pass
 
     def run_quality_check_agent(self) -> None:
-        """Invoke Quality Check Agent to identify, validate and overwrite CSV rows."""
-        import src.utils.formatting as formatting
-
-        ticker = self.settings.active_ticker or "UNK"
-        workspace = Path(self.settings.active_workspace_path)
-        extract_learning_path = workspace / f"{ticker}_extract_learning.md"
-
-        context_str = ""
-        if extract_learning_path.exists():
-            try:
-                with open(extract_learning_path, "r", encoding="utf-8") as f:
-                    context_str = f.read()
-            except Exception:
-                pass
-
-        registry = self.load_parsed_registry()
-        if not registry:
-            formatting.print_info("No registry entries found to quality check.")
-            return
-
-        rows_list = []
-        for r in registry.values():
-            rows_list.append(
-                f"file_hash: {r.get('file_hash')}, original_filename: {r.get('original_filename')}, "
-                f"new_filename: {r.get('new_filename')}, document_type: {r.get('document_type')}, "
-                f"document_date: {r.get('document_date')}, fiscal_quarter: {r.get('fiscal_quarter')}, "
-                f"fiscal_year: {r.get('fiscal_year')}, period_end_date: {r.get('period_end_date')}"
-            )
-        registry_str = "\n".join(rows_list)
-
-        system_prompt = (
-            "You are Sir Pennyworth's Quality Check Agent. Your task is to verify and correct the "
-            "'fiscal_quarter' and 'fiscal_year' columns in the company parsed registry.\n"
-            "You will be given the 'extract_learning.md' content (which contains the active ticker's "
-            "fiscal schedule mappings, lessons, and metadata logic) and the list of current rows "
-            "from 'parsed_data.csv'.\n"
-            "Analyze the 'original_filename', 'new_filename', 'document_date', 'period_end_date', "
-            "and the 'extract_learning.md' mappings. Determine if the current 'fiscal_quarter' "
-            "and 'fiscal_year' values are correct.\n"
-            "You MUST output ONLY a valid JSON object of updates to correct any misaligned quarters or years. "
-            "If all entries are correct, return an empty updates list. Do not correct entries that do not need correction.\n"
-            "Format of response:\n"
-            "{\n"
-            '  "updates": [\n'
-            "    {\n"
-            '      "file_hash": "<file_hash_of_the_row>",\n'
-            '      "fiscal_quarter": "<corrected_quarter (Q1|Q2|Q3|Q4|FY|N/A)>",\n'
-            '      "fiscal_year": "<corrected_year (YYYY|N/A)>"\n'
-            "    }\n"
-            "  ]\n"
-            "}"
-        )
-
-        prompt = f"""
-Active Ingestion Context (extract_learning.md):
-\"\"\"
-{context_str}
-\"\"\"
-
-Current Parsed CSV Rows (parsed_data.csv):
-\"\"\"
-{registry_str}
-\"\"\"
-
-Please identify any incorrect fiscal_quarter or fiscal_year values and return updates in valid JSON.
-"""
-        logger.info("Triggering Quality Check Agent...")
-        try:
-            response = self.llm.generate(prompt, system_prompt=system_prompt)
-            json_str = extract_json_from_text(response)
-            if json_str:
-                data = json.loads(json_str)
-                updates = data.get("updates", [])
-                if updates:
-                    formatting.print_info(
-                        f"Quality Check Agent identified {len(updates)} metadata correction(s)."
-                    )
-                    self.overwrite_csv_rows(updates)
-                else:
-                    formatting.print_info(
-                        "Quality Check Agent found no metadata errors."
-                    )
-            else:
-                formatting.print_warning(
-                    "Quality Check Agent response was not valid JSON."
-                )
-        except Exception as e:
-            formatting.print_error(f"Quality Check Agent execution failed: {e}")
+        """Invoke Quality Check Agent to identify, validate and overwrite CSV rows (Deprecated)."""
+        pass

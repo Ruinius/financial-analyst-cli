@@ -211,15 +211,45 @@ async def orchestrate_extract(
 
         orchestrator.checkout_status(ticker, "metadata")
         try:
-            metadata = await asyncio.to_thread(
+            metadata_result = await asyncio.to_thread(
                 bo.run_metadata_agent,
                 client=orchestrator.client,
                 ticker=ticker,
                 parsed_documents=parsed_documents,
             )
             orchestrator.checkin_status(
-                ticker, "metadata", "completed", payload=metadata
+                ticker, "metadata", "completed", payload=metadata_result
             )
+
+            # Sync newly extracted document metadata back to parsed_data.csv cache
+            if hasattr(metadata_result, "documents_metadata"):
+                ingester_inst = Ingester()
+                reg = ingester_inst.load_parsed_registry()
+                for fn, m in metadata_result.documents_metadata.items():
+                    target_hash = None
+                    for h, row in reg.items():
+                        if (
+                            row.get("new_filename") == fn
+                            or row.get("original_filename") == fn
+                        ):
+                            target_hash = h
+                            break
+                    if target_hash:
+                        reg[target_hash]["document_date"] = m.get(
+                            "document_date", "N/A"
+                        )
+                        reg[target_hash]["document_type"] = m.get(
+                            "document_type", "other"
+                        )
+                        reg[target_hash]["fiscal_quarter"] = m.get(
+                            "fiscal_quarter", "N/A"
+                        )
+                        reg[target_hash]["fiscal_year"] = m.get("fiscal_year", "N/A")
+                        reg[target_hash]["period_end_date"] = m.get(
+                            "period_end_date", "N/A"
+                        )
+                ingester_inst.save_parsed_registry(reg)
+
         except Exception as e:
             logger.error(f"MetadataAgent execution failed: {e}")
             orchestrator.checkin_status(ticker, "metadata", "failed")

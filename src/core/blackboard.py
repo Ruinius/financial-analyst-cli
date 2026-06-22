@@ -365,6 +365,11 @@ class RawDocumentState(BaseModel):
     file_name: str
     sha256: str
     ingestion_status: Literal["pending", "running", "completed", "failed"] = "pending"
+    document_date: Optional[str] = None
+    document_type: Optional[str] = None
+    fiscal_quarter: Optional[str] = None
+    fiscal_year: Optional[str] = None
+    period_end_date: Optional[str] = None
 
 
 class WorkspaceContext(BaseModel):
@@ -469,8 +474,20 @@ class WorkspaceContext(BaseModel):
         """Transition a task flag to completed/failed and write payload to appropriate block."""
         if task_type == "metadata":
             self.metadata_status = status
-            if status == "completed" and isinstance(payload, CompanyMetadata):
-                self.metadata = payload
+            if status == "completed" and payload is not None:
+                if hasattr(payload, "company_metadata"):
+                    self.metadata = payload.company_metadata
+                    docs_meta = getattr(payload, "documents_metadata", {})
+                    for doc in self.raw_documents:
+                        meta = docs_meta.get(doc.file_name)
+                        if meta:
+                            doc.document_date = meta.get("document_date")
+                            doc.document_type = meta.get("document_type")
+                            doc.fiscal_quarter = meta.get("fiscal_quarter")
+                            doc.fiscal_year = meta.get("fiscal_year")
+                            doc.period_end_date = meta.get("period_end_date")
+                elif isinstance(payload, CompanyMetadata):
+                    self.metadata = payload
         elif task_type == "analyzer":
             self.analyzer_status = status
         elif task_type == "curator":

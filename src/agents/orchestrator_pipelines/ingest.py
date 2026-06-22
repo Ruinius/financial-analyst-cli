@@ -57,6 +57,3 @@ async def orchestrate_ingest(orchestrator, ticker: str) -> None:
             )
 
     ingester.save_parsed_registry(registry)
-    ingester.run_quality_check_agent()
-    ingester.heal_markdown_files()
-    ingester.heal_ingest_context(registry)

@@ -34,7 +34,7 @@ Welcome to the `financial-analyst-cli` project.
     - src/core/exceptions.py: Custom exception classes (e.g. ConfigError, WorkspaceError, LLMError).
     - src/core/blackboard.py: Blackboard domain schemas (Pydantic models) and atomic load/save state managers.
   - src/agents/: Execution runner stages (ingest, extract, analyze, model).
-    - src/agents/ingester.py: File parsing, deduplication, chunking, and LLM metadata identification.
+    - src/agents/ingester.py: File parsing, deduplication, and chunking (LLM-free, deterministic renaming).
     - src/agents/agent_executor.py: Unified agent execution loop coordinator for native and simulated tool calling.
     - src/agents/blackboard_orchestrator.py: Coordinates stateful execution of pipeline stages and task status transitions by delegating to modular stage files.
     - src/agents/orchestrator_pipelines/: Directory containing modular pipeline execution stage files.
@@ -49,7 +49,7 @@ Welcome to the `financial-analyst-cli` project.
     - src/agents/extractor_agents/: Folder containing all document sub-extractors and agents.
       - src/agents/extractor_agents/extractor_analyst_report.py: Sub-extractor specialized for analyst reports.
       - src/agents/extractor_agents/extractor_transcript.py: Sub-extractor specialized for transcripts.
-      - src/agents/extractor_agents/metadata_agent.py: Sub-extractor specialized for company-wide metadata extraction.
+      - src/agents/extractor_agents/metadata_agent.py: Sub-extractor specialized for both company-wide and document-level metadata extraction.
       - src/agents/extractor_agents/extractor_other.py: Sub-extractor specialized for all other document types.
       - src/agents/extractor_agents/extractor_financials_agents/: Nested directory for the sub-agents.
         - income_statement_agent.py: Agent specialized in Income Statement extraction.
