@@ -113,7 +113,7 @@ def test_gaap_override_policy(mock_run_bs, temp_workspace_env):
 
     with (
         patch(
-            "src.agents.ingester.Ingester.load_parsed_registry",
+            "src.agents.orchestrator_pipelines.ingest.Ingester.load_parsed_registry",
             return_value=mock_registry,
         ),
         patch(
@@ -231,7 +231,7 @@ def test_nongaap_preservation_policy(
 
     with (
         patch(
-            "src.agents.ingester.Ingester.load_parsed_registry",
+            "src.agents.orchestrator_pipelines.ingest.Ingester.load_parsed_registry",
             return_value=mock_registry,
         ),
         patch(
@@ -297,7 +297,8 @@ def test_quality_audit_failures_written_to_blackboard(mock_run_bs, temp_workspac
     )
 
     with patch(
-        "src.agents.ingester.Ingester.load_parsed_registry", return_value=mock_registry
+        "src.agents.orchestrator_pipelines.ingest.Ingester.load_parsed_registry",
+        return_value=mock_registry,
     ):
         with pytest.raises(SystemExit):
             asyncio.run(

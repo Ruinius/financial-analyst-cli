@@ -77,7 +77,9 @@ def test_single_agent_extract_shares_success(mock_run_shares, temp_workspace_env
     orchestrator = BlackboardOrchestrator()
     mock_run_shares.return_value = (1000.0, 1020.0)
 
-    with patch("src.agents.ingester.Ingester.load_parsed_registry") as mock_registry:
+    with patch(
+        "src.agents.orchestrator_pipelines.ingest.Ingester.load_parsed_registry"
+    ) as mock_registry:
         mock_registry.return_value = {
             "h1": {
                 "new_filename": "20240801_10-Q.md",

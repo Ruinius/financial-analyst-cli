@@ -34,12 +34,11 @@ Welcome to the `financial-analyst-cli` project.
     - src/core/exceptions.py: Custom exception classes (e.g. ConfigError, WorkspaceError, LLMError).
     - src/core/blackboard.py: Blackboard domain schemas (Pydantic models) and atomic load/save state managers.
   - src/agents/: Execution runner stages (ingest, extract, analyze, model).
-    - src/agents/ingester.py: File parsing, deduplication, and chunking (LLM-free, deterministic renaming).
     - src/agents/agent_executor.py: Unified agent execution loop coordinator for native and simulated tool calling.
     - src/agents/blackboard_orchestrator.py: Coordinates stateful execution of pipeline stages and task status transitions by delegating to modular stage files.
     - src/agents/orchestrator_pipelines/: Directory containing modular pipeline execution stage files.
       - __init__.py: Package initialization file.
-      - ingest.py: Stage execution logic for parsing and document ingestion.
+      - ingest.py: Stage execution logic for parsing and document ingestion, containing the parser and Ingester class.
       - extract.py: Stage execution logic for extraction and financial metric sub-agents.
       - analyze.py: Stage execution logic for longitudinal trends synthesis.
       - model.py: Stage execution logic for WACC, growth, margin assumptions and running the DCF calculation.

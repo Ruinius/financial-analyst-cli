@@ -15,7 +15,7 @@ from src.cli.commands import chat as chat_cmd
 from src.cli.commands import viewer as viewer_cmd
 from src.utils import formatting
 from src.services.edgar_client import EdgarClient
-from src.agents.ingester import Ingester
+from src.agents.orchestrator_pipelines.ingest import Ingester
 
 
 def patch_typer_help() -> None:

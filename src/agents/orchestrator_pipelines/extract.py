@@ -121,7 +121,7 @@ async def orchestrate_extract(
     non_interactive: bool = False,
 ) -> None:
     import src.agents.blackboard_orchestrator as bo
-    from src.agents.ingester import Ingester
+    from src.agents.orchestrator_pipelines.ingest import Ingester
 
     state = load_workspace_state(ticker)
     settings = orchestrator.settings

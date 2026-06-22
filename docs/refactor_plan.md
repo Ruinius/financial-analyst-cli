@@ -306,10 +306,11 @@ Implement the central pipeline coordinator (`BlackboardOrchestrator`) that manag
   - Remove its export entry in [**init**.py](file:///f:/AIML%20projects/financial-analyst-cli/src/tools/__init__.py).
   - Perform an imports audit across pipeline stages (`ingest.py`, `extract.py`, `analyze.py`, `model.py`) and sub-agents to remove any unused imports.
 - [x] Delete indexer_agent
-- [ ] Ingester.py code should probably be in ingest.py, since it is not a LLM agent
+- [x] Ingester.py code should probably be in ingest.py, since it is not a LLM agent
 - [ ] Delete extractor_transcript.py per the new blackboard design
 - [ ] Do extensive double check and remove on all the legacy markdown creation code and paths, such as financials_quarter, financials_annual, extracted.md, balance_sheet.md, income_statement.md, trends.md
 - [ ] Do extensive double check and remove on all code that relies on legacy markdowns
+- [ ] Should agent_executor by in agents or services with the llm_clients? Do not by sycophantic
 
 ### Phase 3.9: Post-Coding Audit (Phase 3)
 
