@@ -1,5 +1,4 @@
 import logging
-from pathlib import Path
 from typing import Dict, Any, Optional
 
 from src.services.llm_client import LLMClient
@@ -87,12 +86,7 @@ def run_non_operating_agent(
             period=period,
         )
 
-    def access_resources() -> str:
-        """Access the central balance sheet dictionary for classifications."""
-        dict_path = Path("src/resources/dictionary/balance_sheet.md")
-        if dict_path.exists():
-            return dict_path.read_text(encoding="utf-8")
-        return ""
+    from src.tools.access_resources import access_resources
 
     def finalize(
         cash: float,

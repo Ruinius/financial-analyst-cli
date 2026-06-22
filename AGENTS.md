@@ -88,7 +88,6 @@ Welcome to the `financial-analyst-cli` project.
     - src/tools/find_chunk.py: Tool to extract chunk content by ID.
     - src/tools/keyword_search.py: Tool to find occurrences of keywords.
     - src/tools/investopedia_search.py: Investopedia search tool.
-    - src/tools/pull_markdown.py: Tool to safe lookup of markdown files.
     - src/tools/access_resources.py: Tool to safely look up static markdown dictionary templates.
     - src/tools/query_blackboard.py: Core helper to query the in-memory blackboard state.
   - src/utils/: CLI output formatting, math utilities, and filesystem helpers.

@@ -15,8 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 def parse_markdown_to_line_items(
-    file_path: Path,
-    target_statement_path: Path,
+    markdown_content: str,
     llm,
     category_default: str,
 ) -> list:
@@ -24,10 +23,10 @@ def parse_markdown_to_line_items(
     from src.utils.financial_math import clean_val
     from src.utils.markdown_helper import extract_json_from_text
 
-    if not target_statement_path.exists():
+    if not markdown_content:
         return []
 
-    content = target_statement_path.read_text(encoding="utf-8")
+    content = markdown_content
 
     dict_guidance = ""
     if category_default == "income_statement":
@@ -110,9 +109,7 @@ Return a valid JSON object matching this structure:
                 )
                 extracted_items.append(line_item)
     except Exception as e:
-        logger.error(
-            f"Failed to parse line items from markdown statement {target_statement_path.name}: {e}"
-        )
+        logger.error(f"Failed to parse line items from markdown statement: {e}")
 
     return extracted_items
 
@@ -373,18 +370,11 @@ async def orchestrate_extract(
 
                 if should_overwrite:
                     # Parse table to line items
-                    tmp_file = Path("tmp") / f"bs_{period_key}.md"
-                    tmp_file.write_text(
-                        res.raw_balance_sheet_markdown, encoding="utf-8"
-                    )
                     bs_items = parse_markdown_to_line_items(
-                        workspace / "2_parsed_data" / fn,
-                        tmp_file,
+                        res.raw_balance_sheet_markdown,
                         orchestrator.client,
                         "current_assets",
                     )
-                    if tmp_file.exists():
-                        tmp_file.unlink()
 
                     # Append to blackboard line items (replacing previous Balance Sheet items)
                     cur_state = load_workspace_state(ticker)
@@ -476,18 +466,11 @@ async def orchestrate_extract(
 
                 if should_overwrite:
                     # Parse table to line items
-                    tmp_file = Path("tmp") / f"is_{period_key}.md"
-                    tmp_file.write_text(
-                        res.raw_income_statement_markdown, encoding="utf-8"
-                    )
                     is_items = parse_markdown_to_line_items(
-                        workspace / "2_parsed_data" / fn,
-                        tmp_file,
+                        res.raw_income_statement_markdown,
                         orchestrator.client,
                         "income_statement",
                     )
-                    if tmp_file.exists():
-                        tmp_file.unlink()
 
                     # Append to blackboard line items (replacing previous Income Statement items)
                     cur_state = load_workspace_state(ticker)
