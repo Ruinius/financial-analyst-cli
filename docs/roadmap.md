@@ -217,4 +217,13 @@ Config      Ingestion   Extraction  History     Modeling    Interactive  Blackbo
 
 ## Next Steps
 
+### 1. Blackboard Extensibility & Trading Volume Patterns
 - [ ] Test the extensibility of the new blackboard architecture by adding the high trading volume, increase in price, low trading volume, increase in price, low trading volume decrease in price, high trading volume decrease in price.
+
+### 2. Multi-Company Chat & Global Indexing
+Goal: Establish cross-company indexing and enable a natural-language query interface querying flat tables indexed from workspace states.
+- [ ] **Synchronize Workspace JSON to Global JSON Index**: Write a lightweight indexer to extract flat metrics from `workspace_state.json` files and compile them into a global `workspaces/workspace_index.json` registry file.
+- [ ] **Expose Read-Only Query Tools to Chat Agent**: Bind `read_blackboard(ticker, period)`, `search_wiki(query)`, and `trigger_pipeline_run(ticker)` to the chat session.
+- [ ] **Write Integration Tests**: Verify chat tool routing, cross-company comparisons, and missing data backfill triggering inside `tests/cli/test_chat.py`.
+- [ ] **Verify Read-Only Bounds**: Confirm query tools are strictly read-only and prevent the chat model from modifying any values inside the company-specific blackboard JSON files.
+- [ ] **Verify Cross-Company Comparisons**: Assert that cross-company comparison prompts (e.g., identifying highest organic growth rates) correctly query the consolidated JSON index, yielding accurate comparisons.
