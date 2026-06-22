@@ -46,6 +46,15 @@ class Settings(BaseModel):
     llm_timeout: float = Field(
         30.0, description="Timeout for LLM API requests in seconds"
     )
+    concurrency_limit_company: int = Field(
+        1, description="Concurrency limit for company runs"
+    )
+    concurrency_limit_document: int = Field(
+        3, description="Concurrency limit for document processing"
+    )
+    concurrency_limit_phase: int = Field(
+        3, description="Concurrency limit for stage/phase execution"
+    )
 
     @model_validator(mode="before")
     @classmethod

@@ -257,3 +257,34 @@ def test_single_agent_model_wacc_success(mock_run_wacc, temp_workspace_env):
     updated_state = load_workspace_state(ticker)
     assert updated_state.reports["2024_Q3"].wacc_agent_status == "completed"
     assert updated_state.reports["2024_Q3"].base_model.assumptions.wacc == 0.085
+
+
+def test_concurrency_settings_and_semaphores(temp_workspace_env):
+    # Verify settings defaults
+    assert temp_workspace_env.concurrency_limit_company == 1
+    assert temp_workspace_env.concurrency_limit_document == 3
+    assert temp_workspace_env.concurrency_limit_phase == 3
+
+    # Verify orchestrator picks them up and initializes semaphores
+    orchestrator = BlackboardOrchestrator()
+    assert orchestrator.company_sem._value == 1
+    assert orchestrator.doc_sem._value == 3
+    assert orchestrator.phase_sem._value == 3
+
+
+@patch("src.agents.blackboard_orchestrator.run_balance_sheet_agent")
+def test_pipeline_metadata_gating(mock_run_bs, temp_workspace_env):
+    ticker = "AAPL"
+    state = load_workspace_state(ticker)
+    # Set metadata_status to failed, which should gate/block extraction stage execution
+    state.metadata_status = "failed"
+    save_workspace_state(ticker, state)
+
+    orchestrator = BlackboardOrchestrator()
+
+    import asyncio
+
+    asyncio.run(orchestrator.run_pipeline(ticker, stage="extract"))
+
+    # Balance sheet agent must not be run since metadata was not completed
+    mock_run_bs.assert_not_called()

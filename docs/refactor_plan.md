@@ -185,7 +185,7 @@ Implement the central pipeline coordinator (`BlackboardOrchestrator`) that manag
 
 ### Phase 3.2: Execution Gating & Concurrency Control
 
-- [ ] **Enforce Execution Gates & Dependencies**
+- [x] **Enforce Execution Gates & Dependencies**
   - Group parallel and sequential tasks inside the async event loop:
     1. **Setup Phase (Sequential)**: Run `metadata_agent` first to populate company metadata (`WorkspaceContext.metadata`). This acts as a blocking gate prerequisite; subsequent agent phases cannot run if company metadata is not successfully completed.
     2. **Extraction Phase (Parallel)**: Launch `balance_sheet`, `income_statement`, `analyst_report`, and `other_doc` concurrently.
@@ -193,7 +193,7 @@ Implement the central pipeline coordinator (`BlackboardOrchestrator`) that manag
     4. **Metrics Level 2 (Parallel)**: Launch `operating_ebita` (depends on `interpretation` output) and `adjusted_taxes` (depends on `interpretation` output; uses `operating_ebita` if available, but it's optional) concurrently.
     5. **Modeling Level 1 (Parallel)**: Launch `wacc`, `growth`, `margin`, and `non_operating` concurrently.
     6. **Modeling Level 2 (Sequential)**: Run `dcf_modeling_agent` (depends on Level 1 modeling inputs).
-- [ ] **Implement Concurrency Knobs**
+- [x] **Implement Concurrency Knobs**
   - Implement `asyncio.Semaphore` configurations to restrict company, document, and phase concurrency to protect LLM API endpoints.
 
 ### Phase 3.3: Merge Policies & Arithmetic Checks

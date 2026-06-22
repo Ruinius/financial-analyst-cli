@@ -58,7 +58,16 @@ class BlackboardOrchestrator:
     def __init__(self, settings=None, client=None):
         self.settings = settings or load_config()
         self.client = client or get_llm_client()
-        self.sem = asyncio.Semaphore(3)  # Protect against rate limiting
+
+        # Concurrency knobs (configurable via settings)
+        company_limit = getattr(self.settings, "concurrency_limit_company", 1)
+        doc_limit = getattr(self.settings, "concurrency_limit_document", 3)
+        phase_limit = getattr(self.settings, "concurrency_limit_phase", 3)
+
+        self.company_sem = asyncio.Semaphore(company_limit)
+        self.doc_sem = asyncio.Semaphore(doc_limit)
+        self.phase_sem = asyncio.Semaphore(phase_limit)
+        self.sem = self.phase_sem  # Alias for backward compatibility
 
     def recover_dangling_states(self, ticker: str) -> None:
         """Scan the blackboard for tasks stuck in 'running' state and reset them to 'failed'."""
@@ -105,19 +114,20 @@ class BlackboardOrchestrator:
         non_interactive: bool = False,
     ) -> None:
         """Executes full or stage-level execution of the blackboard coordinator."""
-        self.recover_dangling_states(ticker)
+        async with self.company_sem:
+            self.recover_dangling_states(ticker)
 
-        if stage is None or stage == "ingest":
-            await self._orchestrate_ingest(ticker)
+            if stage is None or stage == "ingest":
+                await self._orchestrate_ingest(ticker)
 
-        if stage is None or stage == "extract":
-            await self._orchestrate_extract(ticker, agent, non_interactive)
+            if stage is None or stage == "extract":
+                await self._orchestrate_extract(ticker, agent, non_interactive)
 
-        if stage is None or stage == "analyze":
-            await self._orchestrate_analyze(ticker)
+            if stage is None or stage == "analyze":
+                await self._orchestrate_analyze(ticker)
 
-        if stage is None or stage == "model":
-            await self._orchestrate_model(ticker, agent, non_interactive)
+            if stage is None or stage == "model":
+                await self._orchestrate_model(ticker, agent, non_interactive)
 
     async def _orchestrate_ingest(self, ticker: str) -> None:
         """Orchestrate ingest stage."""
@@ -446,243 +456,463 @@ class BlackboardOrchestrator:
                     "Missing dependency: Income statement must be completed for at least one period before running tax agent."
                 )
 
-        # Launch Balance Sheet & Income Statement agents for each period & document
-        async def process_bs_and_is(period_key: str, doc_row: dict):
-            fn = doc_row["new_filename"]
-            doc_type = doc_row.get("document_type", "other")
-            is_q = "Q" in period_key
+        # Define inner tasks for concurrent execution
 
-            # Read document content
-            doc_path = workspace / "2_parsed_data" / fn
-            if not doc_path.exists():
-                return
-            content = doc_path.read_text(encoding="utf-8")
+        # 1. Extraction Phase (Parallel) Tasks
+        async def run_balance_sheet(period_key: str, fn: str, content: str, is_q: bool):
+            async with self.doc_sem:
+                self.checkout_status(ticker, "balance_sheet", period=period_key)
+                try:
+                    res = await asyncio.to_thread(
+                        run_balance_sheet_agent,
+                        client=self.client,
+                        filename=fn,
+                        content=content,
+                        company_metadata=state.metadata,
+                        learnings=learnings,
+                        is_quarterly=is_q,
+                    )
+                    self.checkin_status(
+                        ticker,
+                        "balance_sheet",
+                        "completed",
+                        period=period_key,
+                        payload=res,
+                    )
 
-            # Determine whether formal filing
-            is_formal = doc_type in ("quarterly_filing", "annual_filing")
+                    # Parse table to line items
+                    tmp_file = Path("tmp") / f"bs_{period_key}.md"
+                    tmp_file.write_text(
+                        res.raw_balance_sheet_markdown, encoding="utf-8"
+                    )
+                    bs_items = parse_markdown_to_line_items(
+                        workspace / "2_parsed_data" / fn,
+                        tmp_file,
+                        extractor_dummy,
+                        "current_assets",
+                    )
+                    if tmp_file.exists():
+                        tmp_file.unlink()
 
-            async with self.sem:
-                # 1. Income Statement
-                report = load_workspace_state(ticker).reports[period_key]
-                if normalized_agent is None or normalized_agent == "income_statement":
-                    if (
-                        report.income_statement_status in ("pending", "failed")
-                        or (is_formal and fn not in report.source_files)
-                        or normalized_agent == "income_statement"
-                    ):
-                        self.checkout_status(
-                            ticker, "income_statement", period=period_key
-                        )
-                        try:
-                            res = await asyncio.to_thread(
-                                run_income_statement_agent,
-                                client=self.client,
-                                filename=fn,
-                                content=content,
-                                company_metadata=state.metadata,
-                                learnings=learnings,
-                                is_quarterly=is_q,
-                            )
-                            self.checkin_status(
-                                ticker,
-                                "income_statement",
-                                "completed",
-                                period=period_key,
-                                payload=res,
-                            )
+                    # Append to blackboard line items
+                    cur_state = load_workspace_state(ticker)
+                    cur_state.reports[period_key].financial_data.line_items.extend(
+                        [convert_to_blackboard_line_item(x) for x in bs_items]
+                    )
+                    if fn not in cur_state.reports[period_key].source_files:
+                        cur_state.reports[period_key].source_files.append(fn)
+                    save_workspace_state(ticker, cur_state)
+                    updated_periods.add(period_key)
 
-                            # Parse table to line items
-                            tmp_file = Path("tmp") / f"is_{period_key}.md"
-                            tmp_file.write_text(
-                                res.raw_income_statement_markdown, encoding="utf-8"
-                            )
-                            is_items = parse_markdown_to_line_items(
-                                doc_path, tmp_file, extractor_dummy, "income_statement"
-                            )
-                            if tmp_file.exists():
-                                tmp_file.unlink()
+                except Exception as e:
+                    logger.error(f"Balance sheet agent failed for {fn}: {e}")
+                    self.checkin_status(
+                        ticker, "balance_sheet", "failed", period=period_key
+                    )
 
-                            # Append to blackboard line items
-                            cur_state = load_workspace_state(ticker)
-                            cur_state.reports[
-                                period_key
-                            ].financial_data.line_items.extend(
-                                [convert_to_blackboard_line_item(x) for x in is_items]
-                            )
-                            if fn not in cur_state.reports[period_key].source_files:
-                                cur_state.reports[period_key].source_files.append(fn)
-                            save_workspace_state(ticker, cur_state)
-                            updated_periods.add(period_key)
+        async def run_income_statement(
+            period_key: str, fn: str, content: str, is_q: bool
+        ):
+            async with self.doc_sem:
+                self.checkout_status(ticker, "income_statement", period=period_key)
+                try:
+                    res = await asyncio.to_thread(
+                        run_income_statement_agent,
+                        client=self.client,
+                        filename=fn,
+                        content=content,
+                        company_metadata=state.metadata,
+                        learnings=learnings,
+                        is_quarterly=is_q,
+                    )
+                    self.checkin_status(
+                        ticker,
+                        "income_statement",
+                        "completed",
+                        period=period_key,
+                        payload=res,
+                    )
 
-                        except Exception as e:
-                            logger.error(f"Income statement agent failed for {fn}: {e}")
-                            self.checkin_status(
-                                ticker, "income_statement", "failed", period=period_key
-                            )
+                    # Parse table to line items
+                    tmp_file = Path("tmp") / f"is_{period_key}.md"
+                    tmp_file.write_text(
+                        res.raw_income_statement_markdown, encoding="utf-8"
+                    )
+                    is_items = parse_markdown_to_line_items(
+                        workspace / "2_parsed_data" / fn,
+                        tmp_file,
+                        extractor_dummy,
+                        "income_statement",
+                    )
+                    if tmp_file.exists():
+                        tmp_file.unlink()
 
-                # 2. Balance Sheet
-                report = load_workspace_state(ticker).reports[period_key]
-                if normalized_agent is None or normalized_agent == "balance_sheet":
-                    if (
-                        report.balance_sheet_status in ("pending", "failed")
-                        or (is_formal and fn not in report.source_files)
-                        or normalized_agent == "balance_sheet"
-                    ):
-                        self.checkout_status(ticker, "balance_sheet", period=period_key)
-                        try:
-                            res = await asyncio.to_thread(
-                                run_balance_sheet_agent,
-                                client=self.client,
-                                filename=fn,
-                                content=content,
-                                company_metadata=state.metadata,
-                                learnings=learnings,
-                                is_quarterly=is_q,
-                            )
-                            self.checkin_status(
-                                ticker,
-                                "balance_sheet",
-                                "completed",
-                                period=period_key,
-                                payload=res,
-                            )
+                    # Append to blackboard line items
+                    cur_state = load_workspace_state(ticker)
+                    cur_state.reports[period_key].financial_data.line_items.extend(
+                        [convert_to_blackboard_line_item(x) for x in is_items]
+                    )
+                    if fn not in cur_state.reports[period_key].source_files:
+                        cur_state.reports[period_key].source_files.append(fn)
+                    save_workspace_state(ticker, cur_state)
+                    updated_periods.add(period_key)
 
-                            # Parse table to line items
-                            tmp_file = Path("tmp") / f"bs_{period_key}.md"
-                            tmp_file.write_text(
-                                res.raw_balance_sheet_markdown, encoding="utf-8"
-                            )
-                            bs_items = parse_markdown_to_line_items(
-                                doc_path, tmp_file, extractor_dummy, "current_assets"
-                            )
-                            if tmp_file.exists():
-                                tmp_file.unlink()
+                except Exception as e:
+                    logger.error(f"Income statement agent failed for {fn}: {e}")
+                    self.checkin_status(
+                        ticker, "income_statement", "failed", period=period_key
+                    )
 
-                            # Append to blackboard line items
-                            cur_state = load_workspace_state(ticker)
-                            cur_state.reports[
-                                period_key
-                            ].financial_data.line_items.extend(
-                                [convert_to_blackboard_line_item(x) for x in bs_items]
-                            )
-                            if fn not in cur_state.reports[period_key].source_files:
-                                cur_state.reports[period_key].source_files.append(fn)
-                            save_workspace_state(ticker, cur_state)
-                            updated_periods.add(period_key)
+        async def run_analyst_report(period_key: str, fn: str, content: str):
+            async with self.doc_sem:
+                try:
+                    res = await asyncio.to_thread(
+                        run_analyst_report_agent,
+                        client=self.client,
+                        filename=fn,
+                        content=content,
+                        company_metadata=state.metadata,
+                        learnings=learnings,
+                    )
+                    # Checkin
+                    cur_state = load_workspace_state(ticker)
+                    cur_state.reports[period_key].other_data.analyst_reports.append(res)
+                    if fn not in cur_state.reports[period_key].source_files:
+                        cur_state.reports[period_key].source_files.append(fn)
+                    save_workspace_state(ticker, cur_state)
+                    updated_periods.add(period_key)
+                except Exception as e:
+                    logger.error(f"AnalystReportAgent failed for {fn}: {e}")
 
-                        except Exception as e:
-                            logger.error(f"Balance sheet agent failed for {fn}: {e}")
-                            self.checkin_status(
-                                ticker, "balance_sheet", "failed", period=period_key
-                            )
+        async def run_other_doc(period_key: str, fn: str, content: str):
+            async with self.doc_sem:
+                try:
+                    res = await asyncio.to_thread(
+                        run_other_doc_agent,
+                        client=self.client,
+                        filename=fn,
+                        content=content,
+                        company_metadata=state.metadata,
+                        learnings=learnings,
+                    )
+                    # Checkin
+                    cur_state = load_workspace_state(ticker)
+                    cur_state.reports[period_key].other_data.others.append(res)
+                    if fn not in cur_state.reports[period_key].source_files:
+                        cur_state.reports[period_key].source_files.append(fn)
+                    save_workspace_state(ticker, cur_state)
+                    updated_periods.add(period_key)
+                except Exception as e:
+                    logger.error(f"OtherDocAgent failed for {fn}: {e}")
 
-        tasks = []
-        for period_key, doc_rows in periods_docs.items():
-            for row in doc_rows:
-                doc_type = row.get("document_type", "other")
-                if doc_type in (
-                    "quarterly_filing",
-                    "annual_filing",
-                    "earnings_announcement",
-                ):
-                    tasks.append(process_bs_and_is(period_key, row))
+        # 2. Metrics Level 1 (Parallel) Tasks
+        async def run_shares_task(period_key: str):
+            async with self.phase_sem:
+                cur_state = load_workspace_state(ticker)
+                is_q = "Q" in period_key
 
-        # Wait for all Balance Sheet and Income Statement extractions to finish
-        if tasks:
-            await asyncio.gather(*tasks)
+                registry_rows = periods_docs.get(period_key, [])
+                parsed_documents = {}
+                for r in registry_rows:
+                    fn = r["new_filename"]
+                    doc_path = workspace / "2_parsed_data" / fn
+                    if doc_path.exists():
+                        parsed_documents[fn] = doc_path.read_text(encoding="utf-8")
 
-        # 3. Qualitative Extractions (Analyst Reports, news, transcripts)
-        async def process_qualitative(period_key: str, doc_row: dict):
-            fn = doc_row["new_filename"]
-            doc_type = doc_row.get("document_type", "other")
-            doc_path = workspace / "2_parsed_data" / fn
-            if not doc_path.exists():
-                return
-            content = doc_path.read_text(encoding="utf-8")
+                self.checkout_status(ticker, "shares", period=period_key)
+                try:
+                    basic, diluted = await asyncio.to_thread(
+                        run_diluted_shares_agent,
+                        client=self.client,
+                        parsed_documents=parsed_documents,
+                        company_metadata=state.metadata,
+                        workspace_state=cur_state,
+                        period_key=period_key,
+                        is_quarterly=is_q,
+                        learnings=learnings,
+                    )
+                    self.checkin_status(
+                        ticker,
+                        "shares",
+                        "completed",
+                        period=period_key,
+                        payload=(basic, diluted),
+                    )
+                    updated_periods.add(period_key)
+                except Exception as e:
+                    logger.error(f"SharesAgent failed for {period_key}: {e}")
+                    self.checkin_status(ticker, "shares", "failed", period=period_key)
 
-            async with self.sem:
+        async def run_organic_growth_task(period_key: str):
+            async with self.phase_sem:
+                cur_state = load_workspace_state(ticker)
+                is_q = "Q" in period_key
+
+                registry_rows = periods_docs.get(period_key, [])
+                parsed_documents = {}
+                for r in registry_rows:
+                    fn = r["new_filename"]
+                    doc_path = workspace / "2_parsed_data" / fn
+                    if doc_path.exists():
+                        parsed_documents[fn] = doc_path.read_text(encoding="utf-8")
+
+                self.checkout_status(ticker, "organic_growth", period=period_key)
+                try:
+                    (
+                        simple_growth,
+                        organic_growth,
+                        revenue,
+                    ) = await asyncio.to_thread(
+                        run_organic_growth_agent,
+                        client=self.client,
+                        parsed_documents=parsed_documents,
+                        company_metadata=state.metadata,
+                        workspace_state=cur_state,
+                        period_key=period_key,
+                        is_quarterly=is_q,
+                        learnings=learnings,
+                    )
+                    self.checkin_status(
+                        ticker,
+                        "organic_growth",
+                        "completed",
+                        period=period_key,
+                        payload=(simple_growth, organic_growth, revenue),
+                    )
+                    updated_periods.add(period_key)
+                except Exception as e:
+                    logger.error(f"OrganicGrowthAgent failed for {period_key}: {e}")
+                    self.checkin_status(
+                        ticker, "organic_growth", "failed", period=period_key
+                    )
+
+        async def run_interpretation_task(period_key: str):
+            async with self.phase_sem:
                 cur_state = load_workspace_state(ticker)
                 report = cur_state.reports[period_key]
-                if fn in report.source_files:
-                    return
+                is_q = "Q" in period_key
 
-                if doc_type == "analyst_report":
-                    if normalized_agent is None or normalized_agent == "analyst_report":
+                if report.financial_data.line_items:
+                    try:
+                        # Convert to orchestrator LineItem objects
+                        orig_items = [
+                            convert_to_orchestrator_line_item(x)
+                            for x in report.financial_data.line_items
+                        ]
+                        interpreted_items = await asyncio.to_thread(
+                            run_interpretation_agent,
+                            client=self.client,
+                            extracted_line_items=orig_items,
+                            company_metadata=state.metadata,
+                            workspace_state=cur_state,
+                            period_key=period_key,
+                            is_quarterly=is_q,
+                            learnings=learnings,
+                        )
+                        # Update
+                        cur_state = load_workspace_state(ticker)
+                        cur_state.reports[period_key].financial_data.line_items = [
+                            convert_to_blackboard_line_item(x)
+                            for x in interpreted_items
+                        ]
+                        save_workspace_state(ticker, cur_state)
+                        updated_periods.add(period_key)
+                    except Exception as e:
+                        logger.error(
+                            f"InterpretationAgent failed for {period_key}: {e}"
+                        )
+
+        # 3. Metrics Level 2 (Parallel) Tasks
+        async def run_ebita_task(period_key: str):
+            async with self.phase_sem:
+                cur_state = load_workspace_state(ticker)
+                is_q = "Q" in period_key
+
+                registry_rows = periods_docs.get(period_key, [])
+                parsed_documents = {}
+                for r in registry_rows:
+                    fn = r["new_filename"]
+                    doc_path = workspace / "2_parsed_data" / fn
+                    if doc_path.exists():
+                        parsed_documents[fn] = doc_path.read_text(encoding="utf-8")
+
+                self.checkout_status(ticker, "ebita", period=period_key)
+                try:
+                    op_inc, ebita, ebita_adjustments = await asyncio.to_thread(
+                        run_ebita_agent,
+                        client=self.client,
+                        parsed_documents=parsed_documents,
+                        company_metadata=state.metadata,
+                        workspace_state=cur_state,
+                        period_key=period_key,
+                        is_quarterly=is_q,
+                        learnings=learnings,
+                    )
+                    self.checkin_status(
+                        ticker,
+                        "ebita",
+                        "completed",
+                        period=period_key,
+                        payload=(op_inc, ebita),
+                    )
+
+                    # Store adjustments in notes/metadata for next agent
+                    cur_state = load_workspace_state(ticker)
+                    cur_state.reports[
+                        period_key
+                    ].financial_data.raw_notes_markdown = json.dumps(ebita_adjustments)
+                    save_workspace_state(ticker, cur_state)
+                    updated_periods.add(period_key)
+                except Exception as e:
+                    logger.error(f"EbitaAgent failed for {period_key}: {e}")
+                    self.checkin_status(ticker, "ebita", "failed", period=period_key)
+
+        async def run_tax_task(period_key: str):
+            async with self.phase_sem:
+                cur_state = load_workspace_state(ticker)
+                report = cur_state.reports[period_key]
+                is_q = "Q" in period_key
+
+                registry_rows = periods_docs.get(period_key, [])
+                parsed_documents = {}
+                for r in registry_rows:
+                    fn = r["new_filename"]
+                    doc_path = workspace / "2_parsed_data" / fn
+                    if doc_path.exists():
+                        parsed_documents[fn] = doc_path.read_text(encoding="utf-8")
+
+                self.checkout_status(ticker, "tax", period=period_key)
+                try:
+                    # Get ebita adjustments from notes
+                    ebita_adjustments = []
+                    notes = report.financial_data.raw_notes_markdown
+                    if notes:
                         try:
-                            res = await asyncio.to_thread(
-                                run_analyst_report_agent,
-                                client=self.client,
-                                filename=fn,
-                                content=content,
-                                company_metadata=cur_state.metadata,
-                                learnings=learnings,
-                            )
-                            # Checkin
-                            cur_state = load_workspace_state(ticker)
-                            cur_state.reports[
-                                period_key
-                            ].other_data.analyst_reports.append(res)
-                            if fn not in cur_state.reports[period_key].source_files:
-                                cur_state.reports[period_key].source_files.append(fn)
-                            save_workspace_state(ticker, cur_state)
-                            updated_periods.add(period_key)
-                        except Exception as e:
-                            logger.error(f"AnalystReportAgent failed for {fn}: {e}")
+                            ebita_adjustments = json.loads(notes)
+                        except Exception:
+                            pass
 
-                elif doc_type in (
-                    "press_release",
-                    "news_article",
-                    "transcript",
-                    "other",
-                ):
-                    if normalized_agent is None or normalized_agent == "other":
-                        try:
-                            res = await asyncio.to_thread(
-                                run_other_doc_agent,
-                                client=self.client,
-                                filename=fn,
-                                content=content,
-                                company_metadata=cur_state.metadata,
-                                learnings=learnings,
-                            )
-                            # Checkin
-                            cur_state = load_workspace_state(ticker)
-                            cur_state.reports[period_key].other_data.others.append(res)
-                            if fn not in cur_state.reports[period_key].source_files:
-                                cur_state.reports[period_key].source_files.append(fn)
-                            save_workspace_state(ticker, cur_state)
-                            updated_periods.add(period_key)
-                        except Exception as e:
-                            logger.error(f"OtherDocAgent failed for {fn}: {e}")
+                    op_ebita = (
+                        report.financial_data.ebita
+                        if report.ebita_status == "completed"
+                        else 0.0
+                    )
 
-        qual_tasks = []
+                    (
+                        inc_bt,
+                        rep_tax,
+                        adj_taxes,
+                        tax_adjustments,
+                    ) = await asyncio.to_thread(
+                        run_tax_agent,
+                        client=self.client,
+                        parsed_documents=parsed_documents,
+                        company_metadata=state.metadata,
+                        workspace_state=cur_state,
+                        period_key=period_key,
+                        operating_income=report.financial_data.operating_income,
+                        operating_ebita=op_ebita,
+                        ebita_adjustments=ebita_adjustments,
+                        is_quarterly=is_q,
+                        learnings=learnings,
+                    )
+                    self.checkin_status(
+                        ticker,
+                        "tax",
+                        "completed",
+                        period=period_key,
+                        payload=(inc_bt, rep_tax, adj_taxes),
+                    )
+                    updated_periods.add(period_key)
+                except Exception as e:
+                    logger.error(f"TaxAgent failed for {period_key}: {e}")
+                    self.checkin_status(ticker, "tax", "failed", period=period_key)
+
+        # ----------------------------------------------------
+        # Execution Gating & Concurrency
+        # ----------------------------------------------------
+
+        # Setup Phase is Sequential and already completed (metadata_agent run is handled above).
+
+        # 1. Extraction Phase (Parallel)
+        extract_tasks = []
         for period_key, doc_rows in periods_docs.items():
             for row in doc_rows:
+                fn = row["new_filename"]
                 doc_type = row.get("document_type", "other")
-                if doc_type not in (
+                is_q = "Q" in period_key
+
+                doc_path = workspace / "2_parsed_data" / fn
+                if not doc_path.exists():
+                    continue
+                content = doc_path.read_text(encoding="utf-8")
+
+                # Check period report lock / status
+                report = state.reports[period_key]
+
+                is_formal = doc_type in (
                     "quarterly_filing",
                     "annual_filing",
                     "earnings_announcement",
-                ):
-                    qual_tasks.append(process_qualitative(period_key, row))
+                )
+                if is_formal:
+                    # Income Statement
+                    if (
+                        normalized_agent is None
+                        or normalized_agent == "income_statement"
+                    ):
+                        if (
+                            report.income_statement_status in ("pending", "failed")
+                            or (is_formal and fn not in report.source_files)
+                            or normalized_agent == "income_statement"
+                        ):
+                            extract_tasks.append(
+                                run_income_statement(period_key, fn, content, is_q)
+                            )
 
-        if qual_tasks:
-            await asyncio.gather(*qual_tasks)
+                    # Balance Sheet
+                    if normalized_agent is None or normalized_agent == "balance_sheet":
+                        if (
+                            report.balance_sheet_status in ("pending", "failed")
+                            or (is_formal and fn not in report.source_files)
+                            or normalized_agent == "balance_sheet"
+                        ):
+                            extract_tasks.append(
+                                run_balance_sheet(period_key, fn, content, is_q)
+                            )
+                else:
+                    # Qualitative extractions
+                    if doc_type == "analyst_report":
+                        if (
+                            normalized_agent is None
+                            or normalized_agent == "analyst_report"
+                        ):
+                            if fn not in report.source_files:
+                                extract_tasks.append(
+                                    run_analyst_report(period_key, fn, content)
+                                )
+                    elif doc_type in (
+                        "press_release",
+                        "news_article",
+                        "transcript",
+                        "other",
+                    ):
+                        if normalized_agent is None or normalized_agent == "other":
+                            if fn not in report.source_files:
+                                extract_tasks.append(
+                                    run_other_doc(period_key, fn, content)
+                                )
 
-        # 4. Metrics Phase
-        # Level 1 (Parallel): diluted_shares, organic_growth, interpretation
-        async def process_metrics_l1(period_key: str):
-            cur_state = load_workspace_state(ticker)
-            report = cur_state.reports[period_key]
-            is_q = "Q" in period_key
+        if extract_tasks:
+            await asyncio.gather(*extract_tasks)
 
-            registry_rows = periods_docs.get(period_key, [])
-            parsed_documents = {}
-            for r in registry_rows:
-                fn = r["new_filename"]
-                doc_path = workspace / "2_parsed_data" / fn
-                if doc_path.exists():
-                    parsed_documents[fn] = doc_path.read_text(encoding="utf-8")
+        # Reload state to have all latest extractions available for metrics
+        state = load_workspace_state(ticker)
+
+        # 2. Metrics Level 1 (Parallel)
+        metrics_l1_tasks = []
+        for period_key in periods_docs:
+            report = state.reports[period_key]
 
             # A. Diluted Shares Agent
             if normalized_agent is None or normalized_agent == "shares":
@@ -691,31 +921,7 @@ class BlackboardOrchestrator:
                     or normalized_agent == "shares"
                 ):
                     if report.income_statement_status == "completed":
-                        self.checkout_status(ticker, "shares", period=period_key)
-                        try:
-                            basic, diluted = await asyncio.to_thread(
-                                run_diluted_shares_agent,
-                                client=self.client,
-                                parsed_documents=parsed_documents,
-                                company_metadata=state.metadata,
-                                workspace_state=cur_state,
-                                period_key=period_key,
-                                is_quarterly=is_q,
-                                learnings=learnings,
-                            )
-                            self.checkin_status(
-                                ticker,
-                                "shares",
-                                "completed",
-                                period=period_key,
-                                payload=(basic, diluted),
-                            )
-                            updated_periods.add(period_key)
-                        except Exception as e:
-                            logger.error(f"SharesAgent failed for {period_key}: {e}")
-                            self.checkin_status(
-                                ticker, "shares", "failed", period=period_key
-                            )
+                        metrics_l1_tasks.append(run_shares_task(period_key))
 
             # B. Organic Growth Agent
             if normalized_agent is None or normalized_agent == "organic_growth":
@@ -724,93 +930,26 @@ class BlackboardOrchestrator:
                     or normalized_agent == "organic_growth"
                 ):
                     if report.income_statement_status == "completed":
-                        self.checkout_status(
-                            ticker, "organic_growth", period=period_key
-                        )
-                        try:
-                            (
-                                simple_growth,
-                                organic_growth,
-                                revenue,
-                            ) = await asyncio.to_thread(
-                                run_organic_growth_agent,
-                                client=self.client,
-                                parsed_documents=parsed_documents,
-                                company_metadata=state.metadata,
-                                workspace_state=cur_state,
-                                period_key=period_key,
-                                is_quarterly=is_q,
-                                learnings=learnings,
-                            )
-                            self.checkin_status(
-                                ticker,
-                                "organic_growth",
-                                "completed",
-                                period=period_key,
-                                payload=(simple_growth, organic_growth, revenue),
-                            )
-                            updated_periods.add(period_key)
-                        except Exception as e:
-                            logger.error(
-                                f"OrganicGrowthAgent failed for {period_key}: {e}"
-                            )
-                            self.checkin_status(
-                                ticker, "organic_growth", "failed", period=period_key
-                            )
+                        metrics_l1_tasks.append(run_organic_growth_task(period_key))
 
-            # C. Interpretation Agent (runs on line items directly)
+            # C. Interpretation Agent
             if normalized_agent is None or normalized_agent == "interpretation":
-                if report.financial_data.line_items:
-                    if (
-                        report.balance_sheet_status == "completed"
-                        and report.income_statement_status == "completed"
-                    ):
-                        try:
-                            # Convert to orchestrator LineItem objects
-                            orig_items = [
-                                convert_to_orchestrator_line_item(x)
-                                for x in report.financial_data.line_items
-                            ]
-                            interpreted_items = await asyncio.to_thread(
-                                run_interpretation_agent,
-                                client=self.client,
-                                extracted_line_items=orig_items,
-                                company_metadata=state.metadata,
-                                workspace_state=cur_state,
-                                period_key=period_key,
-                                is_quarterly=is_q,
-                                learnings=learnings,
-                            )
-                            # Update
-                            cur_state = load_workspace_state(ticker)
-                            cur_state.reports[period_key].financial_data.line_items = [
-                                convert_to_blackboard_line_item(x)
-                                for x in interpreted_items
-                            ]
-                            save_workspace_state(ticker, cur_state)
-                            updated_periods.add(period_key)
-                        except Exception as e:
-                            logger.error(
-                                f"InterpretationAgent failed for {period_key}: {e}"
-                            )
+                if (
+                    report.balance_sheet_status == "completed"
+                    and report.income_statement_status == "completed"
+                ):
+                    metrics_l1_tasks.append(run_interpretation_task(period_key))
 
-        l1_tasks = [process_metrics_l1(pk) for pk in periods_docs]
-        if l1_tasks:
-            await asyncio.gather(*l1_tasks)
+        if metrics_l1_tasks:
+            await asyncio.gather(*metrics_l1_tasks)
 
-        # Level 2 (Sequential): Run operating_ebita and adjusted_taxes
+        # Reload state to have interpretation outputs available for Metrics Level 2
+        state = load_workspace_state(ticker)
+
+        # 3. Metrics Level 2 (Parallel)
+        metrics_l2_tasks = []
         for period_key in periods_docs:
-            cur_state = load_workspace_state(ticker)
-            report = cur_state.reports[period_key]
-            is_q = "Q" in period_key
-
-            registry_rows = periods_docs.get(period_key, [])
-            parsed_documents = {}
-            for r in registry_rows:
-                fn = r["new_filename"]
-                doc_path = workspace / "2_parsed_data" / fn
-                if doc_path.exists():
-                    parsed_documents[fn] = doc_path.read_text(encoding="utf-8")
+            report = state.reports[period_key]
 
             # Run operating_ebita
             if normalized_agent is None or normalized_agent == "ebita":
@@ -819,44 +958,7 @@ class BlackboardOrchestrator:
                     or normalized_agent == "ebita"
                 ):
                     if report.income_statement_status == "completed":
-                        self.checkout_status(ticker, "ebita", period=period_key)
-                        try:
-                            op_inc, ebita, ebita_adjustments = await asyncio.to_thread(
-                                run_ebita_agent,
-                                client=self.client,
-                                parsed_documents=parsed_documents,
-                                company_metadata=state.metadata,
-                                workspace_state=cur_state,
-                                period_key=period_key,
-                                is_quarterly=is_q,
-                                learnings=learnings,
-                            )
-                            self.checkin_status(
-                                ticker,
-                                "ebita",
-                                "completed",
-                                period=period_key,
-                                payload=(op_inc, ebita),
-                            )
-
-                            # Store adjustments in notes/metadata for next agent
-                            cur_state = load_workspace_state(ticker)
-                            cur_state.reports[
-                                period_key
-                            ].financial_data.raw_notes_markdown = json.dumps(
-                                ebita_adjustments
-                            )
-                            save_workspace_state(ticker, cur_state)
-                            updated_periods.add(period_key)
-                        except Exception as e:
-                            logger.error(f"EbitaAgent failed for {period_key}: {e}")
-                            self.checkin_status(
-                                ticker, "ebita", "failed", period=period_key
-                            )
-
-            # Reload workspace state to get ebita updates if any
-            cur_state = load_workspace_state(ticker)
-            report = cur_state.reports[period_key]
+                        metrics_l2_tasks.append(run_ebita_task(period_key))
 
             # Run adjusted_taxes
             if normalized_agent is None or normalized_agent == "tax":
@@ -865,54 +967,10 @@ class BlackboardOrchestrator:
                     or normalized_agent == "tax"
                 ):
                     if report.income_statement_status == "completed":
-                        self.checkout_status(ticker, "tax", period=period_key)
-                        try:
-                            # Get ebita adjustments from notes
-                            ebita_adjustments = []
-                            notes = report.financial_data.raw_notes_markdown
-                            if notes:
-                                try:
-                                    ebita_adjustments = json.loads(notes)
-                                except Exception:
-                                    pass
+                        metrics_l2_tasks.append(run_tax_task(period_key))
 
-                            op_ebita = (
-                                report.financial_data.ebita
-                                if report.ebita_status == "completed"
-                                else 0.0
-                            )
-
-                            (
-                                inc_bt,
-                                rep_tax,
-                                adj_taxes,
-                                tax_adjustments,
-                            ) = await asyncio.to_thread(
-                                run_tax_agent,
-                                client=self.client,
-                                parsed_documents=parsed_documents,
-                                company_metadata=state.metadata,
-                                workspace_state=cur_state,
-                                period_key=period_key,
-                                operating_income=report.financial_data.operating_income,
-                                operating_ebita=op_ebita,
-                                ebita_adjustments=ebita_adjustments,
-                                is_quarterly=is_q,
-                                learnings=learnings,
-                            )
-                            self.checkin_status(
-                                ticker,
-                                "tax",
-                                "completed",
-                                period=period_key,
-                                payload=(inc_bt, rep_tax, adj_taxes),
-                            )
-                            updated_periods.add(period_key)
-                        except Exception as e:
-                            logger.error(f"TaxAgent failed for {period_key}: {e}")
-                            self.checkin_status(
-                                ticker, "tax", "failed", period=period_key
-                            )
+        if metrics_l2_tasks:
+            await asyncio.gather(*metrics_l2_tasks)
 
         # 5. Deterministic Calculations for capital and ROIC
         import src.utils.financial_math as pipeline_math
@@ -1214,28 +1272,31 @@ class BlackboardOrchestrator:
                 ):
 
                     async def run_wacc():
-                        self.checkout_status(ticker, "wacc_agent", period=latest_period)
-                        try:
-                            wacc_res = await asyncio.to_thread(
-                                run_wacc_agent,
-                                client=self.client,
-                                company_metadata=state.metadata,
-                                workspace_state=state,
-                                period_key=latest_period,
-                                learnings=learning_context,
+                        async with self.phase_sem:
+                            self.checkout_status(
+                                ticker, "wacc_agent", period=latest_period
                             )
-                            self.checkin_status(
-                                ticker,
-                                "wacc_agent",
-                                "completed",
-                                period=latest_period,
-                                payload=wacc_res,
-                            )
-                        except Exception as e:
-                            logger.error(f"WACC Agent failed: {e}")
-                            self.checkin_status(
-                                ticker, "wacc_agent", "failed", period=latest_period
-                            )
+                            try:
+                                wacc_res = await asyncio.to_thread(
+                                    run_wacc_agent,
+                                    client=self.client,
+                                    company_metadata=state.metadata,
+                                    workspace_state=state,
+                                    period_key=latest_period,
+                                    learnings=learning_context,
+                                )
+                                self.checkin_status(
+                                    ticker,
+                                    "wacc_agent",
+                                    "completed",
+                                    period=latest_period,
+                                    payload=wacc_res,
+                                )
+                            except Exception as e:
+                                logger.error(f"WACC Agent failed: {e}")
+                                self.checkin_status(
+                                    ticker, "wacc_agent", "failed", period=latest_period
+                                )
 
                     tasks.append(run_wacc())
 
@@ -1247,30 +1308,34 @@ class BlackboardOrchestrator:
                 ):
 
                     async def run_growth():
-                        self.checkout_status(
-                            ticker, "growth_agent", period=latest_period
-                        )
-                        try:
-                            growth_res = await asyncio.to_thread(
-                                run_growth_agent,
-                                client=self.client,
-                                company_metadata=state.metadata,
-                                workspace_state=state,
-                                period_key=latest_period,
-                                learnings=learning_context,
+                        async with self.phase_sem:
+                            self.checkout_status(
+                                ticker, "growth_agent", period=latest_period
                             )
-                            self.checkin_status(
-                                ticker,
-                                "growth_agent",
-                                "completed",
-                                period=latest_period,
-                                payload=growth_res,
-                            )
-                        except Exception as e:
-                            logger.error(f"Growth Agent failed: {e}")
-                            self.checkin_status(
-                                ticker, "growth_agent", "failed", period=latest_period
-                            )
+                            try:
+                                growth_res = await asyncio.to_thread(
+                                    run_growth_agent,
+                                    client=self.client,
+                                    company_metadata=state.metadata,
+                                    workspace_state=state,
+                                    period_key=latest_period,
+                                    learnings=learning_context,
+                                )
+                                self.checkin_status(
+                                    ticker,
+                                    "growth_agent",
+                                    "completed",
+                                    period=latest_period,
+                                    payload=growth_res,
+                                )
+                            except Exception as e:
+                                logger.error(f"Growth Agent failed: {e}")
+                                self.checkin_status(
+                                    ticker,
+                                    "growth_agent",
+                                    "failed",
+                                    period=latest_period,
+                                )
 
                     tasks.append(run_growth())
 
@@ -1282,30 +1347,34 @@ class BlackboardOrchestrator:
                 ):
 
                     async def run_margin():
-                        self.checkout_status(
-                            ticker, "margin_agent", period=latest_period
-                        )
-                        try:
-                            margin_res = await asyncio.to_thread(
-                                run_margin_agent,
-                                client=self.client,
-                                company_metadata=state.metadata,
-                                workspace_state=state,
-                                period_key=latest_period,
-                                learnings=learning_context,
+                        async with self.phase_sem:
+                            self.checkout_status(
+                                ticker, "margin_agent", period=latest_period
                             )
-                            self.checkin_status(
-                                ticker,
-                                "margin_agent",
-                                "completed",
-                                period=latest_period,
-                                payload=margin_res,
-                            )
-                        except Exception as e:
-                            logger.error(f"Margin Agent failed: {e}")
-                            self.checkin_status(
-                                ticker, "margin_agent", "failed", period=latest_period
-                            )
+                            try:
+                                margin_res = await asyncio.to_thread(
+                                    run_margin_agent,
+                                    client=self.client,
+                                    company_metadata=state.metadata,
+                                    workspace_state=state,
+                                    period_key=latest_period,
+                                    learnings=learning_context,
+                                )
+                                self.checkin_status(
+                                    ticker,
+                                    "margin_agent",
+                                    "completed",
+                                    period=latest_period,
+                                    payload=margin_res,
+                                )
+                            except Exception as e:
+                                logger.error(f"Margin Agent failed: {e}")
+                                self.checkin_status(
+                                    ticker,
+                                    "margin_agent",
+                                    "failed",
+                                    period=latest_period,
+                                )
 
                     tasks.append(run_margin())
 
@@ -1317,33 +1386,34 @@ class BlackboardOrchestrator:
                 ):
 
                     async def run_non_operating():
-                        self.checkout_status(
-                            ticker, "non_operating_agent", period=latest_period
-                        )
-                        try:
-                            non_op_res = await asyncio.to_thread(
-                                run_non_operating_agent,
-                                client=self.client,
-                                company_metadata=state.metadata,
-                                workspace_state=state,
-                                period_key=latest_period,
-                                learnings=learning_context,
+                        async with self.phase_sem:
+                            self.checkout_status(
+                                ticker, "non_operating_agent", period=latest_period
                             )
-                            self.checkin_status(
-                                ticker,
-                                "non_operating_agent",
-                                "completed",
-                                period=latest_period,
-                                payload=non_op_res,
-                            )
-                        except Exception as e:
-                            logger.error(f"Non-Operating Agent failed: {e}")
-                            self.checkin_status(
-                                ticker,
-                                "non_operating_agent",
-                                "failed",
-                                period=latest_period,
-                            )
+                            try:
+                                non_op_res = await asyncio.to_thread(
+                                    run_non_operating_agent,
+                                    client=self.client,
+                                    company_metadata=state.metadata,
+                                    workspace_state=state,
+                                    period_key=latest_period,
+                                    learnings=learning_context,
+                                )
+                                self.checkin_status(
+                                    ticker,
+                                    "non_operating_agent",
+                                    "completed",
+                                    period=latest_period,
+                                    payload=non_op_res,
+                                )
+                            except Exception as e:
+                                logger.error(f"Non-Operating Agent failed: {e}")
+                                self.checkin_status(
+                                    ticker,
+                                    "non_operating_agent",
+                                    "failed",
+                                    period=latest_period,
+                                )
 
                     tasks.append(run_non_operating())
 
