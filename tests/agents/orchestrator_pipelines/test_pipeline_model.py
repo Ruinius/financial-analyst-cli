@@ -3,7 +3,7 @@ import json
 import asyncio
 from unittest.mock import patch, MagicMock
 
-from src.agents.modeler_orchestrator import Modeler
+from src.agents.orchestrator_pipelines.model import Modeler
 from src.agents.blackboard_orchestrator import BlackboardOrchestrator
 from src.core.blackboard import (
     load_workspace_state,
@@ -18,7 +18,7 @@ from src.core.exceptions import WorkspaceError
 @patch("src.agents.modeler_agents.growth_agent.run_growth_agent")
 @patch("src.agents.modeler_agents.non_operating_agent.run_non_operating_agent")
 @patch("src.agents.modeler_agents.wacc_agent.run_wacc_agent")
-@patch("src.agents.modeler_orchestrator.load_config")
+@patch("src.agents.orchestrator_pipelines.model.load_config")
 @patch("src.services.market_data.get_market_profile")
 def test_calculate_default_assumptions(
     mock_get_profile,
@@ -74,6 +74,7 @@ def test_calculate_default_assumptions(
 
     # Mock settings
     mock_settings = MagicMock()
+    mock_settings.base_workspace_dir = str(mock_workspace.parent)
     mock_settings.active_workspace_path = str(mock_workspace)
     mock_settings.active_ticker = "MOCK"
     mock_load_config.return_value = mock_settings
@@ -99,9 +100,10 @@ def test_calculate_default_assumptions(
     assert assumptions["other_financial"] == 0.0
 
 
-@patch("src.agents.modeler_orchestrator.load_config")
+@patch("src.agents.orchestrator_pipelines.model.load_config")
 def test_generate_financial_model(mock_load_config, mock_workspace):
     mock_settings = MagicMock()
+    mock_settings.base_workspace_dir = str(mock_workspace.parent)
     mock_settings.active_workspace_path = str(mock_workspace)
     mock_settings.active_ticker = "MOCK"
     mock_load_config.return_value = mock_settings
@@ -152,7 +154,7 @@ def test_generate_financial_model(mock_load_config, mock_workspace):
 @patch("src.agents.modeler_agents.growth_agent.run_growth_agent")
 @patch("src.agents.modeler_agents.non_operating_agent.run_non_operating_agent")
 @patch("src.agents.modeler_agents.wacc_agent.run_wacc_agent")
-@patch("src.agents.modeler_orchestrator.load_config")
+@patch("src.agents.orchestrator_pipelines.model.load_config")
 @patch("src.services.market_data.get_market_profile")
 def test_calculate_default_assumptions_ltm_unavailable(
     mock_get_profile,
@@ -162,29 +164,87 @@ def test_calculate_default_assumptions_ltm_unavailable(
     mock_run_growth_agent,
     mock_run_margin_agent,
     tmp_path,
+    monkeypatch,
 ):
     workspace = tmp_path / "MOCK"
     workspace.mkdir(parents=True)
-    analysis_dir = workspace / "5_historical_analysis"
-    analysis_dir.mkdir(parents=True)
+    fake_config_path = tmp_path / ".env"
+    monkeypatch.setattr("src.core.config.CONFIG_FILE_PATH", fake_config_path)
+    from src.core.config import Settings, save_config
 
-    # Only 2 quarters available -> LTM not available
-    quarter_path = analysis_dir / "financials_quarter.md"
-    quarter_path.write_text(
-        "## Historical Financials\n"
-        "| Time Period | Period End | Revenue | EBITA | EBITA Margin | Adj Tax Rate | NOPAT | Invested Capital | Capital Turnover | ROIC | Organic Growth | Source Document |\n"
-        "|-------------|-----------|---------|-------|--------------|-------------|-------|-----------------|------------------|------|----------------|-----------------|\n"
-        "| 2023-Q1     | 2023-03-31 | 1000    | 200   | 20.00%       | 25.00%      | 150   | 500             | 2.0x             | 30.0%| 5.00%          | 10-Q            |\n"
-        "| 2023-Q2     | 2023-06-30 | 1100    | 220   | 20.00%       | 35.00%      | 165   | 600             | 2.0x             | 30.0%| 5.00%          | 10-Q            |\n"
+    settings = Settings(
+        full_name="Test Developer",
+        email="developer@example.com",
+        project_name="TestProject",
+        base_workspace_dir=str(tmp_path),
+        active_workspace_path=str(workspace),
+        active_ticker="MOCK",
     )
-
-    analyst_path = analysis_dir / "analyst_views.md"
-    analyst_path.write_text(
-        "## Analyst Views\n"
-        "| Date | Document | Economic Moat | Moat Rationale | Margin Outlook | Margin Magnitude | Margin Rationale | Growth Outlook | Growth Magnitude | Growth Rationale |\n"
-        "|---|---|---|---|---|---|---|---|---|---|\n"
-        "| 2023-06-30 | 10-Q | Wide | Strong brand | Expanding | +2pp | Good | Expanding | +3pp | Good |\n"
-    )
+    save_config(settings)
+    state_file = workspace / "workspace_state.json"
+    state_data = {
+        "metadata": {"ticker": "MOCK", "company_name": "Mock Company"},
+        "metadata_status": "completed",
+        "company_data": {
+            "quarterly_financials": [
+                {
+                    "fiscal_year": 2023,
+                    "fiscal_period": "Q1",
+                    "revenue": 1000.0,
+                    "operating_income": 200.0,
+                    "ebita": 200.0,
+                    "reported_tax_provision": 50.0,
+                    "adjusted_taxes": 50.0,
+                    "adjusted_tax_rate": 0.25,
+                    "basic_shares": 10.0,
+                    "diluted_shares": 10.0,
+                    "simple_growth": 0.05,
+                    "organic_growth": 0.05,
+                    "net_working_capital": 100.0,
+                    "net_long_term_operating_assets": 400.0,
+                    "invested_capital": 500.0,
+                    "capital_turnover": 2.0,
+                    "nopat": 150.0,
+                    "roic": 30.0,
+                },
+                {
+                    "fiscal_year": 2023,
+                    "fiscal_period": "Q2",
+                    "revenue": 1100.0,
+                    "operating_income": 220.0,
+                    "ebita": 220.0,
+                    "reported_tax_provision": 77.0,
+                    "adjusted_taxes": 77.0,
+                    "adjusted_tax_rate": 0.35,
+                    "basic_shares": 10.0,
+                    "diluted_shares": 10.0,
+                    "simple_growth": 0.05,
+                    "organic_growth": 0.05,
+                    "net_working_capital": 110.0,
+                    "net_long_term_operating_assets": 440.0,
+                    "invested_capital": 600.0,
+                    "capital_turnover": 2.0,
+                    "nopat": 165.0,
+                    "roic": 30.0,
+                },
+            ],
+            "historical_analyst_views": [
+                {
+                    "report_date": "2023-06-30",
+                    "source_file": "10-Q",
+                    "economic_moat": "Wide",
+                    "economic_moat_rationale": "Strong brand",
+                    "margin_outlook": "Expanding",
+                    "margin_magnitude": "+2pp",
+                    "margin_rationale": "Good",
+                    "growth_outlook": "Expanding",
+                    "growth_magnitude": "+3pp",
+                    "growth_rationale": "Good",
+                }
+            ],
+        },
+    }
+    state_file.write_text(json.dumps(state_data), encoding="utf-8")
 
     # Mock all external calls
     mock_run_wacc_agent.return_value = {
@@ -221,6 +281,7 @@ def test_calculate_default_assumptions_ltm_unavailable(
         "shares_outstanding": 10000000,
     }
     mock_settings = MagicMock()
+    mock_settings.base_workspace_dir = str(workspace.parent)
     mock_settings.active_workspace_path = str(workspace)
     mock_settings.active_ticker = "MOCK"
     mock_load_config.return_value = mock_settings
@@ -237,10 +298,29 @@ def test_calculate_default_assumptions_ltm_unavailable(
     assert assumptions["adjusted_tax_rate"] == pytest.approx(0.30)
 
 
-@patch("src.agents.modeler_orchestrator.load_config")
-def test_generate_financial_model_mid_year_and_markdown(mock_load_config, tmp_path):
+@patch("src.agents.orchestrator_pipelines.model.load_config")
+def test_generate_financial_model_mid_year_and_markdown(
+    mock_load_config, tmp_path, monkeypatch
+):
+    workspace = tmp_path / "MOCK"
+    workspace.mkdir(parents=True, exist_ok=True)
+    fake_config_path = tmp_path / ".env"
+    monkeypatch.setattr("src.core.config.CONFIG_FILE_PATH", fake_config_path)
+    from src.core.config import Settings, save_config
+
+    settings = Settings(
+        full_name="Test Developer",
+        email="developer@example.com",
+        project_name="TestProject",
+        base_workspace_dir=str(tmp_path),
+        active_workspace_path=str(workspace),
+        active_ticker="MOCK",
+    )
+    save_config(settings)
+
     mock_settings = MagicMock()
-    mock_settings.active_workspace_path = str(tmp_path)
+    mock_settings.base_workspace_dir = str(workspace.parent)
+    mock_settings.active_workspace_path = str(workspace)
     mock_settings.active_ticker = "MOCK"
     mock_load_config.return_value = mock_settings
 
@@ -267,21 +347,44 @@ def test_generate_financial_model_mid_year_and_markdown(mock_load_config, tmp_pa
         "ltm_warning": True,
     }
 
-    # Setup financials_quarter.md in historical analysis directory
-    analysis_dir = tmp_path / "5_historical_analysis"
-    analysis_dir.mkdir(parents=True)
-    quarter_path = analysis_dir / "financials_quarter.md"
-    quarter_path.write_text(
-        "## Historical Financials\n"
-        "| Time Period | Period End | Revenue | EBITA | EBITA Margin | Adj Tax Rate | NOPAT | Invested Capital | Capital Turnover | ROIC | Organic Growth | Source Document |\n"
-        "|-------------|-----------|---------|-------|--------------|-------------|-------|-----------------|------------------|------|----------------|-----------------|\n"
-        "| 2023-Q1     | 2023-03-31 | 1000    | 200   | 20.00%       | 25.00%      | 150   | 500             | 2.0x             | 30.0%| 5.00%          | 10-Q            |\n"
-    )
+    state_file = workspace / "workspace_state.json"
+    state_data = {
+        "metadata": {"ticker": "MOCK", "company_name": "Mock Company"},
+        "metadata_status": "completed",
+        "company_data": {
+            "quarterly_financials": [
+                {
+                    "fiscal_year": 2023,
+                    "fiscal_period": "Q1",
+                    "revenue": 1000.0,
+                    "operating_income": 200.0,
+                    "ebita": 200.0,
+                    "reported_tax_provision": 50.0,
+                    "adjusted_taxes": 50.0,
+                    "adjusted_tax_rate": 0.25,
+                    "basic_shares": 10.0,
+                    "diluted_shares": 10.0,
+                    "simple_growth": 0.05,
+                    "organic_growth": 0.05,
+                    "net_working_capital": 100.0,
+                    "net_long_term_operating_assets": 400.0,
+                    "invested_capital": 500.0,
+                    "capital_turnover": 2.0,
+                    "nopat": 150.0,
+                    "roic": 30.0,
+                }
+            ]
+        },
+    }
+    state_file.write_text(json.dumps(state_data), encoding="utf-8")
+
+    mock_settings.base_workspace_dir = str(workspace.parent)
+    mock_settings.active_workspace_path = str(workspace)
 
     modeler = Modeler()
-    modeler.generate_financial_model("MOCK", tmp_path, assumptions)
+    modeler.generate_financial_model("MOCK", workspace, assumptions)
 
-    model_dir = tmp_path / "6_financial_model"
+    model_dir = workspace / "6_financial_model"
     md_files = list(model_dir.glob("*_model.md"))
     assert len(md_files) == 1
 
@@ -319,13 +422,15 @@ def test_generate_financial_model_mid_year_and_markdown(mock_load_config, tmp_pa
     assert "| Calculation Date |" in md_content
 
 
-@patch("src.agents.modeler_orchestrator.load_config")
-@patch("src.agents.modeler_orchestrator.Modeler.calculate_default_assumptions")
-@patch("src.agents.modeler_orchestrator.Modeler.estimate_llm_assumptions")
-@patch("src.agents.modeler_orchestrator.Modeler.propose_and_validate_assumptions")
-@patch("src.agents.modeler_orchestrator.Modeler.generate_financial_model")
-@patch("src.agents.curator_agent.CuratorAgent")
-@patch("src.agents.indexer_agent.IndexerAgent")
+@patch("src.agents.orchestrator_pipelines.model.load_config")
+@patch("src.agents.orchestrator_pipelines.model.Modeler.calculate_default_assumptions")
+@patch("src.agents.orchestrator_pipelines.model.Modeler.estimate_llm_assumptions")
+@patch(
+    "src.agents.orchestrator_pipelines.model.Modeler.propose_and_validate_assumptions"
+)
+@patch("src.agents.orchestrator_pipelines.model.Modeler.generate_financial_model")
+@patch("src.agents.orchestrator_pipelines.model.CuratorAgent")
+@patch("src.agents.orchestrator_pipelines.model.IndexerAgent", create=True)
 @patch("src.cli.commands.use.main_use")
 def test_run_modeling_curator_calls(
     mock_main_use,

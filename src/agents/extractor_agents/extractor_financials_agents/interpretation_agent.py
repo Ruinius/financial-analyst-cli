@@ -2,9 +2,8 @@ import json
 import logging
 from typing import Optional
 from src.services.llm_client import LLMClient
-from src.core.blackboard import CompanyMetadata, WorkspaceContext
+from src.core.blackboard import CompanyMetadata, WorkspaceContext, LineItem
 from src.agents.agent_executor import run_agent_loop
-from src.agents.extractor_orchestrator import LineItem, AuditLinkage
 
 logger = logging.getLogger(__name__)
 
@@ -135,17 +134,30 @@ def run_interpretation_agent(
             matching_orig.value = up_item.get("value", matching_orig.value)
             updated_items.append(matching_orig)
         else:
+            cat = up_item.get("category", "income_statement")
+            if cat not in [
+                "current_assets",
+                "noncurrent_assets",
+                "current_liabilities",
+                "noncurrent_liabilities",
+                "equity",
+                "income_statement",
+            ]:
+                if "asset" in cat:
+                    cat = "current_assets"
+                elif "liabilit" in cat:
+                    cat = "current_liabilities"
+                elif "equity" in cat:
+                    cat = "equity"
+                else:
+                    cat = "income_statement"
+
             new_item = LineItem(
                 line_name=up_item.get("line_name"),
                 value=up_item.get("value", 0.0),
                 operating=up_item.get("operating", True),
                 calculated=up_item.get("calculated", False),
-                category=up_item.get("category", "other"),
-                audit=AuditLinkage(
-                    source_file="Agent-interpreted item",
-                    chunk_id=0,
-                    exact_snippet="Agent-interpreted item",
-                ),
+                category=cat,
             )
             updated_items.append(new_item)
 

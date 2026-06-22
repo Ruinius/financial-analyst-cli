@@ -25,7 +25,7 @@ def run_diluted_shares_agent(
     Returns (basic_shares, diluted_shares) as floats (in millions).
     Enforces a 10-turn limit and tool restrictions.
     """
-    from src.agents.extractor_orchestrator import clean_val
+    from src.utils.financial_math import clean_val
 
     focus_period = (
         "fiscal quarter (three months)"

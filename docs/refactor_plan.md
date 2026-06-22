@@ -284,7 +284,7 @@ Implement the central pipeline coordinator (`BlackboardOrchestrator`) that manag
 
 ### Phase 3.7: Legacy Agent Code Cleanup
 
-- [ ] **Deprecate and Remove Legacy Agent Orchestration Code**
+- [x] **Deprecate and Remove Legacy Agent Orchestration Code**
   - Delete legacy linear pipeline controllers:
     - [DELETE] [extractor_orchestrator.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_orchestrator.py)
     - [DELETE] [extractor_financials.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/extractor_agents/extractor_financials.py)
@@ -293,7 +293,11 @@ Implement the central pipeline coordinator (`BlackboardOrchestrator`) that manag
     - [DELETE] [modeler_orchestrator.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/modeler_orchestrator.py)
   - Ensure all CLI command definitions route through the new blackboard orchestrator pipeline.
 
-### Phase 3.8: Post-Coding Audit (Phase 3)
+### Phase 3.8:
+
+1. [ ] **Clean up Legacy Code**: Double check everywhere that reads or writes markdown. Double check all imports. Do not keep fallbacks, which just add to bloat. Double check all fallbacks. I hate them.
+
+### Phase 3.9: Post-Coding Audit (Phase 3)
 
 1. [ ] **Execution Loop Integration Test**: Verify that the deprecated linear files (`extractor_orchestrator.py`, `extractor_financials.py`, `analyzer.py`, `modeler_orchestrator.py`) have been removed and that `uv run pytest tests/` runs successfully using the new coordinator.
 2. [ ] **Multi-Document Merge Check**: Process an earnings release containing non-GAAP items and a subsequent 10-Q/10-K. Verify that GAAP figures overwrite EA details, but non-GAAP attributes (Organic Growth, Adjusted Taxes, Operating EBITA) are preserved.

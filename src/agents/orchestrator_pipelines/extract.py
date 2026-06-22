@@ -9,10 +9,112 @@ from src.core.blackboard import (
     load_workspace_state,
     save_workspace_state,
     TemporalBlackboard,
-    LineItem as BlackboardLineItem,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def parse_markdown_to_line_items(
+    file_path: Path,
+    target_statement_path: Path,
+    llm,
+    category_default: str,
+) -> list:
+    from src.core.blackboard import LineItem
+    from src.utils.financial_math import clean_val
+    from src.utils.markdown_helper import extract_json_from_text
+
+    if not target_statement_path.exists():
+        return []
+
+    content = target_statement_path.read_text(encoding="utf-8")
+
+    dict_guidance = ""
+    if category_default == "income_statement":
+        dict_path = Path("src/resources/dictionary/income_statement.md")
+        if dict_path.exists():
+            try:
+                is_dict = dict_path.read_text(encoding="utf-8")
+                if is_dict:
+                    dict_guidance = f"\n\nUse the following Income Statement Dictionary as a guide for classifications and expense/revenue sign mapping:\n{is_dict}\n"
+            except Exception:
+                pass
+
+    sys_prompt = (
+        "You are Sir Pennyworth, a senior financial analyst. "
+        "Extract all financial statement line items from the provided markdown statement. "
+        "Ensure you extract standard items: revenue, operating income, cash_and_equivalents, debt, etc."
+    )
+    if category_default == "income_statement":
+        sys_prompt += (
+            "\n\nStandardize positive/negative signs for the Income Statement:\n"
+            "- Any number that subtracts from the revenue is an expense, cost, or loss, and MUST be expressed as a negative number.\n"
+            "- Any number that effectively increases profit (e.g. revenue, interest income, tax benefits, gains) MUST be expressed as a positive number.\n"
+            "- If an item is an expense but listed as a positive number in the source markdown, you MUST convert it to a negative number.\n"
+            "- Be careful with ambiguous items like 'Net Interest Income' or 'Other Income/Expense Net'. Check their context: if they represent a net expense or loss, express them as negative. If they represent net income or gain, express them as positive."
+        )
+
+    prompt = f"""
+Markdown statement content:
+\"\"\"
+{content}
+\"\"\"
+{dict_guidance}
+Extract all financial statement line items (Line Name, Value, Category (current_assets | current_liabilities | noncurrent_assets | noncurrent_liabilities | income_statement | other)).
+Return a valid JSON object matching this structure:
+{{
+  "line_items": [
+     {{
+       "line_name": "Cash and cash equivalents",
+       "value": "12,345",
+       "category": "{category_default}"
+     }}
+  ]
+}}
+"""
+    extracted_items = []
+    try:
+        resp = llm.generate(prompt, system_prompt=sys_prompt, stream_thinking=True)
+        json_str = extract_json_from_text(resp)
+        if json_str:
+            data = json.loads(json_str)
+            for item in data.get("line_items", []):
+                val_float = clean_val(str(item.get("value", "0")))
+                if val_float == 0.0 and str(item.get("value")) not in ["0", "0.0"]:
+                    continue
+
+                cat = item.get("category", category_default)
+                if cat not in [
+                    "current_assets",
+                    "noncurrent_assets",
+                    "current_liabilities",
+                    "noncurrent_liabilities",
+                    "equity",
+                    "income_statement",
+                ]:
+                    if "asset" in cat:
+                        cat = "current_assets"
+                    elif "liabilit" in cat:
+                        cat = "current_liabilities"
+                    elif "equity" in cat:
+                        cat = "equity"
+                    else:
+                        cat = "income_statement"
+
+                line_item = LineItem(
+                    line_name=item.get("line_name"),
+                    value=val_float,
+                    category=cat,
+                    operating=True,
+                    calculated=False,
+                )
+                extracted_items.append(line_item)
+    except Exception as e:
+        logger.error(
+            f"Failed to parse line items from markdown statement {target_statement_path.name}: {e}"
+        )
+
+    return extracted_items
 
 
 async def orchestrate_extract(
@@ -174,71 +276,6 @@ async def orchestrate_extract(
         except Exception:
             pass
 
-    # Helper to convert line item types
-    from src.agents.extractor_orchestrator import (
-        LineItem as OrchestratorLineItem,
-        AuditLinkage,
-    )
-    from src.agents.extractor_agents.extractor_financials import (
-        parse_markdown_to_line_items,
-    )
-    from src.agents.extractor_orchestrator import Extractor
-
-    extractor_dummy = Extractor()
-
-    def convert_to_blackboard_line_item(
-        item: OrchestratorLineItem,
-    ) -> BlackboardLineItem:
-        cat = item.category
-        if cat == "current_asset":
-            cat = "current_assets"
-        elif cat == "noncurrent_asset":
-            cat = "noncurrent_assets"
-        elif cat == "current_liability":
-            cat = "current_liabilities"
-        elif cat == "noncurrent_liability":
-            cat = "noncurrent_liabilities"
-        elif cat not in [
-            "current_assets",
-            "noncurrent_assets",
-            "current_liabilities",
-            "noncurrent_liabilities",
-            "equity",
-            "income_statement",
-        ]:
-            if "asset" in cat:
-                cat = "current_assets"
-            elif "liabilit" in cat:
-                cat = "current_liabilities"
-            elif "equity" in cat:
-                cat = "equity"
-            else:
-                cat = "income_statement"
-        return BlackboardLineItem(
-            line_name=item.line_name,
-            value=item.value,
-            operating=item.operating,
-            calculated=item.calculated,
-            category=cat,
-        )
-
-    def convert_to_orchestrator_line_item(
-        item: BlackboardLineItem,
-    ) -> OrchestratorLineItem:
-        cat = item.category
-        if cat == "current_assets":
-            cat = "current_asset"
-        elif cat == "noncurrent_assets":
-            cat = "noncurrent_asset"
-        return OrchestratorLineItem(
-            line_name=item.line_name,
-            value=item.value,
-            operating=item.operating,
-            calculated=item.calculated,
-            category=cat,
-            audit=AuditLinkage(source_file="blackboard", chunk_id=0, exact_snippet=""),
-        )
-
     updated_periods = set()
 
     # Check prerequisites for single agents that target specific periods
@@ -343,7 +380,7 @@ async def orchestrate_extract(
                     bs_items = parse_markdown_to_line_items(
                         workspace / "2_parsed_data" / fn,
                         tmp_file,
-                        extractor_dummy,
+                        orchestrator.client,
                         "current_assets",
                     )
                     if tmp_file.exists():
@@ -364,9 +401,7 @@ async def orchestrate_extract(
                             "equity",
                         )
                     ]
-                    report.financial_data.line_items.extend(
-                        [convert_to_blackboard_line_item(x) for x in bs_items]
-                    )
+                    report.financial_data.line_items.extend(bs_items)
                     if fn not in report.source_files:
                         report.source_files.append(fn)
                     save_workspace_state(ticker, cur_state)
@@ -448,7 +483,7 @@ async def orchestrate_extract(
                     is_items = parse_markdown_to_line_items(
                         workspace / "2_parsed_data" / fn,
                         tmp_file,
-                        extractor_dummy,
+                        orchestrator.client,
                         "income_statement",
                     )
                     if tmp_file.exists():
@@ -462,9 +497,7 @@ async def orchestrate_extract(
                         for item in report.financial_data.line_items
                         if item.category != "income_statement"
                     ]
-                    report.financial_data.line_items.extend(
-                        [convert_to_blackboard_line_item(x) for x in is_items]
-                    )
+                    report.financial_data.line_items.extend(is_items)
                     if fn not in report.source_files:
                         report.source_files.append(fn)
                     save_workspace_state(ticker, cur_state)
@@ -642,15 +675,10 @@ async def orchestrate_extract(
 
             if report.financial_data.line_items:
                 try:
-                    # Convert to orchestrator LineItem objects
-                    orig_items = [
-                        convert_to_orchestrator_line_item(x)
-                        for x in report.financial_data.line_items
-                    ]
                     interpreted_items = await asyncio.to_thread(
                         bo.run_interpretation_agent,
                         client=orchestrator.client,
-                        extracted_line_items=orig_items,
+                        extracted_line_items=report.financial_data.line_items,
                         company_metadata=state.metadata,
                         workspace_state=cur_state,
                         period_key=period_key,
@@ -659,9 +687,9 @@ async def orchestrate_extract(
                     )
                     # Update
                     cur_state = load_workspace_state(ticker)
-                    cur_state.reports[period_key].financial_data.line_items = [
-                        convert_to_blackboard_line_item(x) for x in interpreted_items
-                    ]
+                    cur_state.reports[
+                        period_key
+                    ].financial_data.line_items = interpreted_items
                     save_workspace_state(ticker, cur_state)
                     updated_periods.add(period_key)
                 except Exception as e:

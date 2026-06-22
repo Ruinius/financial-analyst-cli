@@ -117,29 +117,25 @@ def test_gaap_override_policy(mock_run_bs, temp_workspace_env):
             return_value=mock_registry,
         ),
         patch(
-            "src.agents.extractor_agents.extractor_financials.parse_markdown_to_line_items"
+            "src.agents.orchestrator_pipelines.extract.parse_markdown_to_line_items"
         ) as mock_parse_items,
     ):
         # We need mock_parse_items to return corresponding LineItem mock objects
-        from src.agents.extractor_orchestrator import LineItem as OrchestratorLineItem
-        from src.agents.extractor_orchestrator import AuditLinkage
+        from src.core.blackboard import LineItem
 
-        mock_audit = AuditLinkage(source_file="f.md", chunk_id=0, exact_snippet="")
-        ea_item = OrchestratorLineItem(
+        ea_item = LineItem(
             line_name="EA Item",
             value=100.0,
             operating=True,
             calculated=False,
-            category="current_asset",
-            audit=mock_audit,
+            category="current_assets",
         )
-        formal_item = OrchestratorLineItem(
+        formal_item = LineItem(
             line_name="Formal 10-Q Item",
             value=200.0,
             operating=True,
             calculated=False,
-            category="current_asset",
-            audit=mock_audit,
+            category="current_assets",
         )
 
         mock_parse_items.side_effect = [[ea_item], [formal_item]]
@@ -239,7 +235,7 @@ def test_nongaap_preservation_policy(
             return_value=mock_registry,
         ),
         patch(
-            "src.agents.extractor_agents.extractor_financials.parse_markdown_to_line_items",
+            "src.agents.orchestrator_pipelines.extract.parse_markdown_to_line_items",
             return_value=[],
         ),
     ):

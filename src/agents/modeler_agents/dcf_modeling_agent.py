@@ -34,7 +34,7 @@ def run_dcf_modeling_agent(
             "No history.",
         )
 
-    from src.agents.modeler_orchestrator import Modeler
+    from src.agents.orchestrator_pipelines.model import Modeler
 
     m = Modeler()
 

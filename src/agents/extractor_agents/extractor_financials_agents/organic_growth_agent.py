@@ -25,7 +25,7 @@ def run_organic_growth_agent(
     Returns (simple_growth, organic_growth, revenue) as floats.
     Enforces a 10-turn limit and tool restrictions.
     """
-    from src.agents.extractor_orchestrator import clean_val
+    from src.utils.financial_math import clean_val
 
     focus_period = (
         "fiscal quarter (three months)"
