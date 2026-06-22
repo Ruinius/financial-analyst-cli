@@ -954,21 +954,13 @@ Date: {today}
         if not company_metadata.company_name:
             company_metadata.company_name = ticker
 
-        analysis_dir = workspace / "5_historical_analysis"
-        quarter_path = analysis_dir / "financials_quarter.md"
         period_key = "2024_FY"
-        if quarter_path.exists():
-            try:
-                quarter_content = quarter_path.read_text(encoding="utf-8")
-                hist_table = parse_markdown_table(
-                    quarter_content, "## Historical Financials"
-                )
-                if hist_table:
-                    period_key = (
-                        hist_table[-1].get("Time Period", "2024-FY").replace("-", "_")
-                    )
-            except Exception:
-                pass
+        if workspace_state.company_data.quarterly_financials:
+            latest_q = workspace_state.company_data.quarterly_financials[-1]
+            period_key = f"{latest_q.fiscal_year}_{latest_q.fiscal_period}"
+        elif workspace_state.company_data.yearly_financials:
+            latest_y = workspace_state.company_data.yearly_financials[-1]
+            period_key = f"{latest_y.fiscal_year}_{latest_y.fiscal_period}"
 
         final_assumptions, comments, history_text = run_dcf_modeling_agent(
             client=llm,
