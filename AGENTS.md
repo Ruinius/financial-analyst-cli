@@ -96,6 +96,7 @@ Welcome to the `financial-analyst-cli` project.
     - src/utils/pig_animation.py: Sir Pennyworth pig snout and ear console animation helper.
 
 - tests/: Test suite folder.
+  - tests/conftest.py: Global pytest fixtures and fail-safe network connection gates.
   - tests/test_analyzer.py: Unit tests for qualitative views compiling, longitudinal financial trends, and Q4 deduction logic.
   - tests/agents/test_blackboard_orchestrator.py: Unit tests for BlackboardOrchestrator state transitions and recovery.
   - tests/test_chat.py: Unit tests for interactive chat and assistant behavior.
