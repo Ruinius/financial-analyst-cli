@@ -190,10 +190,9 @@ Implement the central pipeline coordinator (`BlackboardOrchestrator`) that manag
     1. **Setup Phase (Sequential)**: Run `metadata_agent` first to populate company metadata (`WorkspaceContext.metadata`). This acts as a blocking gate prerequisite; subsequent agent phases cannot run if company metadata is not successfully completed.
     2. **Extraction Phase (Parallel)**: Launch `balance_sheet`, `income_statement`, `analyst_report`, and `other_doc` concurrently.
     3. **Metrics Level 1 (Parallel)**: Launch `diluted_shares`, `organic_growth`, and `interpretation` concurrently.
-    4. **Metrics Level 2 (Sequential)**: Run `operating_ebita` (depends on `interpretation` output).
-    5. **Metrics Level 3 (Sequential)**: Run `adjusted_taxes` (depends on `operating_ebita` output).
-    6. **Modeling Level 1 (Parallel)**: Launch `wacc`, `growth`, `margin`, and `non_operating` concurrently.
-    7. **Modeling Level 2 (Sequential)**: Run `dcf_modeling_agent` (depends on Level 1 modeling inputs).
+    4. **Metrics Level 2 (Parallel)**: Launch `operating_ebita` (depends on `interpretation` output) and `adjusted_taxes` (depends on `interpretation` output; uses `operating_ebita` if available, but it's optional) concurrently.
+    5. **Modeling Level 1 (Parallel)**: Launch `wacc`, `growth`, `margin`, and `non_operating` concurrently.
+    6. **Modeling Level 2 (Sequential)**: Run `dcf_modeling_agent` (depends on Level 1 modeling inputs).
 - [ ] **Implement Concurrency Knobs**
   - Implement `asyncio.Semaphore` configurations to restrict company, document, and phase concurrency to protect LLM API endpoints.
 
@@ -235,7 +234,14 @@ Implement the central pipeline coordinator (`BlackboardOrchestrator`) that manag
 3. [ ] **Validation Logs Check**: Verify that a sub-agent running out of turns with quality audit check failures writes details into the period's `arithmetic_errors` field and correctly marks the task state as `failed`.
 4. [ ] **Recovery Prompt Audit**: Run in `--non-interactive` mode, inject a quality validation failure, and confirm the pipeline halts with exit code `1` immediately without blocking on user input.
 
-### Phase 3.6: Test Suite Refactoring
+### Phase 3.6: Orchestrator Pipeline Modularization & Maintenance
+
+- [ ] **Create Orchestrator Pipelines Directory**
+  - Path: [src/agents/orchestrator_pipelines/](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/orchestrator_pipelines)
+  - Modularize the monolithic `BlackboardOrchestrator` execution stages (`ingest`, `extract`, `analyze`, `model`) and full pipelines into separate files within this package to enhance maintainability.
+  - Simplify [blackboard_orchestrator.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/blackboard_orchestrator.py) to delegate to these modular files.
+
+### Phase 3.7: Test Suite Refactoring
 
 - [ ] **Establish Modular Test Layout**:
   - Reorganize directory structure to mirror the `src/` modular layout, performing the following moves and deletions:
@@ -254,6 +260,11 @@ Implement the central pipeline coordinator (`BlackboardOrchestrator`) that manag
       - [MOVE/RENAME] `tests/test_analyzer.py` -> `tests/agents/test_analyzer.py`
       - [MOVE/RENAME] `tests/test_indexer.py` -> `tests/agents/test_indexer.py`
       - [MOVE/RENAME] `tests/test_ingester.py` -> `tests/agents/test_ingester.py`
+    - [NEW] `tests/agents/orchestrator_pipelines/`: Group unit and integration tests for modular orchestrator pipeline files (`ingest.py`, `extract.py`, `analyze.py`, `model.py` stage controllers), avoiding monolithic test files.
+      - [NEW] `test_pipeline_ingest.py`: Specialized tests for the ingestion pipeline stage.
+      - [NEW] `test_pipeline_extract.py`: Specialized tests for the extraction pipeline stage.
+      - [NEW] `test_pipeline_analyze.py`: Specialized tests for the analysis pipeline stage.
+      - [NEW] `test_pipeline_model.py`: Specialized tests for the modeling pipeline stage.
     - [NEW] `tests/core/`: Keep blackboard and config tests.
       - [MOVE/RENAME] `tests/test_blackboard.py` -> `tests/core/test_blackboard.py`
       - [MOVE/RENAME] `tests/test_config.py` -> `tests/core/test_config.py`
@@ -271,18 +282,12 @@ Implement the central pipeline coordinator (`BlackboardOrchestrator`) that manag
     - [DELETE] Remove original monolithic root files once all contents have been successfully migrated:
       - `tests/test_modeler.py`
       - `tests/test_extractor_orchestrator.py`
+      - `tests/agents/test_blackboard_orchestrator.py` (split and moved to core lifecycle and pipeline tests)
 - [ ] **Decouple Integration & Unit Testing**:
   - Restructure tests so that pure logic / formula functions (e.g., WACC calculation capping, Pydantic schemas validation) do not require heavy disk or LLM mocks.
   - Simplify coordinator/integration testing inside `tests/agents/test_extractor_orchestrator.py` and `tests/agents/test_modeler_orchestrator.py`.
 - [ ] **Verify Execution**:
   - Assert that all 124 tests continue to pass under the new structure and execution latency is optimized.
-
-### Phase 3.7: Orchestrator Pipeline Modularization & Maintenance
-
-- [ ] **Create Orchestrator Pipelines Directory**
-  - Path: [src/agents/orchestrator_pipelines/](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/orchestrator_pipelines)
-  - Modularize the monolithic `BlackboardOrchestrator` execution stages (`ingest`, `extract`, `analyze`, `model`) and full pipelines into separate files within this package to enhance maintainability.
-  - Simplify [blackboard_orchestrator.py](file:///f:/AIML%20projects/financial-analyst-cli/src/agents/blackboard_orchestrator.py) to delegate to these modular files.
 
 ### Phase 3.8: Legacy Agent Code Cleanup
 

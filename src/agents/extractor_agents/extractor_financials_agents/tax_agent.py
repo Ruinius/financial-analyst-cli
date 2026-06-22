@@ -51,7 +51,7 @@ def run_tax_agent(
         "Income Before Taxes and Reported Tax Provision), identify non-operating bridge items and non-recurring tax "
         "benefits from footnotes, and calculate adjusted taxes, focusing specifically on the "
         f"{focus_period} time period.\n\n"
-        "You have been provided with the already extracted Operating Income, Operating EBITA, and EBITA adjustments from a prior stage.\n"
+        "You have been provided with the already extracted Operating Income, and optionally Operating EBITA and EBITA adjustments from a prior stage.\n"
         "Rules:\n"
         "1. You have a maximum of 10 turns. Search for keyword contexts and chunks first to locate the figures.\n"
         "2. Use 'keyword_search' to search the available files. You can search files simultaneously or target specific files.\n"
@@ -77,13 +77,21 @@ def run_tax_agent(
     )
 
     filenames_str = ", ".join(parsed_documents.keys())
+    ebita_info = ""
+    if operating_ebita or ebita_adjustments:
+        ebita_info = (
+            f"The EBITA Agent has determined:\n"
+            f"- Operating EBITA: {operating_ebita}\n"
+            f"- EBITA Adjustments: {json.dumps(ebita_adjustments)}\n\n"
+        )
+    else:
+        ebita_info = "Note: Operating EBITA and EBITA adjustments are not available for this run.\n\n"
+
     user_content = (
         f"Start searching for tax provisions and non-operating bridge items for ticker '{company_metadata.ticker}', period '{period_key}'.\n"
         f"Fanned-in files: [{filenames_str}].\n\n"
-        f"The EBITA Agent has already determined:\n"
-        f"- Operating Income: {operating_income}\n"
-        f"- Operating EBITA: {operating_ebita}\n"
-        f"- EBITA Adjustments: {json.dumps(ebita_adjustments)}\n\n"
+        f"Operating Income: {operating_income}\n"
+        f"{ebita_info}"
         "Here are some useful keywords to search for if needed: interest, gain, loss, tax benefit, tax adjustment, provision, statutory."
     )
     if learnings:

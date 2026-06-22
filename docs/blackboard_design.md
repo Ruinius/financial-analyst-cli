@@ -428,8 +428,7 @@ When both an earnings announcement (press release) and a formal SEC filing (10-Q
         - `balance_sheet`, `income_statement`, `analyst_report`, and `other_doc` execute in parallel across fanned-in documents.
      2. **Metrics Phase**:
         - **Level 1 (Parallel)**: `diluted_shares`, `organic_growth`, and `interpretation` execute in parallel.
-        - **Level 2 (Sequential)**: `operating_ebita` runs sequentially (depends on `interpretation` output).
-        - **Level 3 (Sequential)**: `adjusted_taxes` runs sequentially (depends on `operating_ebita` output).
+        - **Level 2 (Parallel)**: `operating_ebita` (depends on `interpretation` output) and `adjusted_taxes` (depends on `interpretation` output; uses `operating_ebita` if available, but it's optional) execute in parallel.
      3. **Modeling Phase**:
         - **Level 1 (Parallel)**: `wacc`, `growth`, `margin`, and `non_operating` execute in parallel.
         - **Level 2 (Sequential)**: `dcf_modeling_agent` runs last (depends on all Level 1 modeling outputs).

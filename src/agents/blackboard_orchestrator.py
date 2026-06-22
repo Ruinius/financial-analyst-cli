@@ -439,12 +439,11 @@ class BlackboardOrchestrator:
         elif normalized_agent == "tax":
             has_valid_period = any(
                 report.income_statement_status == "completed"
-                and report.ebita_status == "completed"
                 for report in state.reports.values()
             )
             if not has_valid_period:
                 raise WorkspaceError(
-                    "Missing dependency: Both income statement and EBITA must be completed for at least one period before running tax agent."
+                    "Missing dependency: Income statement must be completed for at least one period before running tax agent."
                 )
 
         # Launch Balance Sheet & Income Statement agents for each period & document
@@ -799,7 +798,7 @@ class BlackboardOrchestrator:
         if l1_tasks:
             await asyncio.gather(*l1_tasks)
 
-        # Level 2 (Sequential): Run operating_ebita
+        # Level 2 (Sequential): Run operating_ebita and adjusted_taxes
         for period_key in periods_docs:
             cur_state = load_workspace_state(ticker)
             report = cur_state.reports[period_key]
@@ -813,6 +812,7 @@ class BlackboardOrchestrator:
                 if doc_path.exists():
                     parsed_documents[fn] = doc_path.read_text(encoding="utf-8")
 
+            # Run operating_ebita
             if normalized_agent is None or normalized_agent == "ebita":
                 if (
                     report.ebita_status in ("pending", "failed")
@@ -854,29 +854,17 @@ class BlackboardOrchestrator:
                                 ticker, "ebita", "failed", period=period_key
                             )
 
-        # Level 3 (Sequential): Run adjusted_taxes
-        for period_key in periods_docs:
+            # Reload workspace state to get ebita updates if any
             cur_state = load_workspace_state(ticker)
             report = cur_state.reports[period_key]
-            is_q = "Q" in period_key
 
-            registry_rows = periods_docs.get(period_key, [])
-            parsed_documents = {}
-            for r in registry_rows:
-                fn = r["new_filename"]
-                doc_path = workspace / "2_parsed_data" / fn
-                if doc_path.exists():
-                    parsed_documents[fn] = doc_path.read_text(encoding="utf-8")
-
+            # Run adjusted_taxes
             if normalized_agent is None or normalized_agent == "tax":
                 if (
                     report.tax_status in ("pending", "failed")
                     or normalized_agent == "tax"
                 ):
-                    if (
-                        report.income_statement_status == "completed"
-                        and report.ebita_status == "completed"
-                    ):
+                    if report.income_statement_status == "completed":
                         self.checkout_status(ticker, "tax", period=period_key)
                         try:
                             # Get ebita adjustments from notes
@@ -887,6 +875,12 @@ class BlackboardOrchestrator:
                                     ebita_adjustments = json.loads(notes)
                                 except Exception:
                                     pass
+
+                            op_ebita = (
+                                report.financial_data.ebita
+                                if report.ebita_status == "completed"
+                                else 0.0
+                            )
 
                             (
                                 inc_bt,
@@ -901,7 +895,7 @@ class BlackboardOrchestrator:
                                 workspace_state=cur_state,
                                 period_key=period_key,
                                 operating_income=report.financial_data.operating_income,
-                                operating_ebita=report.financial_data.ebita,
+                                operating_ebita=op_ebita,
                                 ebita_adjustments=ebita_adjustments,
                                 is_quarterly=is_q,
                                 learnings=learnings,
