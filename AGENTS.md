@@ -46,7 +46,6 @@ Welcome to the `financial-analyst-cli` project.
     - src/agents/learning_agent.py: Learning agent for capturing run learnings and discretionary blackboard updates.
     - src/agents/extractor_agents/: Folder containing all document sub-extractors and agents.
       - src/agents/extractor_agents/extractor_analyst_report.py: Sub-extractor specialized for analyst reports.
-      - src/agents/extractor_agents/extractor_transcript.py: Sub-extractor specialized for transcripts.
       - src/agents/extractor_agents/metadata_agent.py: Sub-extractor specialized for both company-wide and document-level metadata extraction.
       - src/agents/extractor_agents/extractor_other.py: Sub-extractor specialized for all other document types.
       - src/agents/extractor_agents/extractor_financials_agents/: Nested directory for the sub-agents.

@@ -1,5 +1,4 @@
 import logging
-from pathlib import Path
 from typing import Optional
 from src.core.blackboard import CompanyMetadata, AnalystReportExtraction
 from src.services.llm_client import LLMClient
@@ -111,68 +110,3 @@ def run_analyst_report_agent(
         growth_magnitude=finalized_args.get("growth_magnitude", "0 pp"),
         growth_rationale=finalized_args.get("growth_rationale", ""),
     )
-
-
-def extract_analyst_report(
-    file_path: Path,
-    content: str,
-    chunk_ids: list,
-    extractor,
-) -> bool:
-    """Legacy file-based compatibility wrapper around the stateless run_analyst_report_agent."""
-    import src.utils.formatting as formatting
-
-    ticker = extractor.settings.active_ticker or "UNK"
-    company_metadata = CompanyMetadata(ticker=ticker)
-
-    # Call the new stateless agent
-    report_extraction = run_analyst_report_agent(
-        client=extractor.llm,
-        filename=file_path.name,
-        content=content,
-        company_metadata=company_metadata,
-        learnings=extractor.get_extract_context(),
-    )
-
-    # Format output as expected by the legacy pipeline
-    output_lines = []
-    output_lines.append(f"# Extracted Financial Report: {file_path.name}\n")
-    output_lines.append("Analyst Company: **Unknown**\n")
-    output_lines.append("## Chunk Summaries\n")
-    output_lines.append("- **Summary**: Processed via stateless agent.\n")
-    output_lines.append("\n---\n")
-
-    output_lines.append("### Economic Moat\n")
-    output_lines.append(f"Rating: **{report_extraction.economic_moat}**\n")
-    output_lines.append(f"Rationale: {report_extraction.economic_moat_rationale}\n")
-
-    output_lines.append("### EBITA Margin Outlook\n")
-    output_lines.append(f"Outlook: **{report_extraction.margin_outlook}**\n")
-    output_lines.append(f"Magnitude: **{report_extraction.margin_magnitude}**\n")
-    output_lines.append(f"Rationale: {report_extraction.margin_rationale}\n")
-
-    output_lines.append("### Organic Growth Outlook\n")
-    output_lines.append(f"Outlook: **{report_extraction.growth_outlook}**\n")
-    output_lines.append(f"Magnitude: **{report_extraction.growth_magnitude}**\n")
-    output_lines.append(f"Rationale: {report_extraction.growth_rationale}\n")
-
-    # Write output file to 4_extracted_data/
-    extracted_dir = Path(extractor.settings.active_workspace_path) / "4_extracted_data"
-    extracted_dir.mkdir(parents=True, exist_ok=True)
-    out_file_path = extracted_dir / f"{file_path.stem}_extracted.md"
-
-    with open(out_file_path, "w", encoding="utf-8") as f:
-        f.write("\n".join(output_lines))
-
-    # Invoke Curator Agent to curate lessons
-    try:
-        from src.agents.curator_agent import CuratorAgent
-
-        history_text = f"Stateless run of AnalystReportAgent on {file_path.name}. Finalized output: {report_extraction.model_dump_json()}"
-        curator = CuratorAgent(extractor.settings)
-        curator.curate_agent(ticker, "analyst_report", history_text)
-    except Exception as e:
-        logger.error(f"Failed to run curator for analyst_report: {e}")
-
-    formatting.print_success(f"Extracted: {file_path.name} -> {out_file_path.name}")
-    return True

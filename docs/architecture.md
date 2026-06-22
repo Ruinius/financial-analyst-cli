@@ -76,7 +76,6 @@ financial-analyst-cli/
 │   │   ├── learning_agent.py       # Learning agent for capturing run learnings & blackboard updates
 │   │   ├── extractor_agents/        # Folder containing specialized extractors and agents
 │   │   │   ├── extractor_analyst_report.py # Specialized extractor for analyst reports
-│   │   │   ├── extractor_transcript.py # Specialized extractor for transcripts
 │   │   │   ├── extractor_other.py   # Specialized extractor for other types
 │   │   │   ├── metadata_agent.py    # Extracts company-wide and document-level metadata
 │   │   │   └── extractor_financials_agents/ # Nested financial sub-agents

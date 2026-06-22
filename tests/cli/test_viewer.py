@@ -26,7 +26,7 @@ def test_save_scenario_ticker_sanitization(monkeypatch, tmp_path):
     )
 
     # Create the model directory so glob doesn't fail
-    models_dir = tmp_path / "8_historical_model_json"
+    models_dir = tmp_path / "9_scenario_model_json"
     models_dir.mkdir(parents=True)
 
     import json
@@ -170,7 +170,7 @@ def test_save_scenario_csrf_protection(monkeypatch, tmp_path):
         content_type="application/json", origin="http://127.0.0.1:8080"
     )
     # Make directory so it doesn't fail on save
-    (tmp_path / "8_historical_model_json").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "9_scenario_model_json").mkdir(parents=True, exist_ok=True)
     handler.do_POST()
     assert ("code", 200) in handler.responses
 

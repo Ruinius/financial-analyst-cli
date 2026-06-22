@@ -1,6 +1,7 @@
 import pytest
 import json
 import asyncio
+from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 from src.agents.orchestrator_pipelines.model import Modeler
@@ -133,10 +134,9 @@ def test_generate_financial_model(mock_load_config, mock_workspace):
     modeler = Modeler()
     modeler.generate_financial_model("MOCK", mock_workspace, assumptions)
 
-    model_dir = mock_workspace / "6_financial_model"
-    json_dir = mock_workspace / "7_historical_model_json"
+    json_dir = mock_workspace / "9_scenario_model_json"
 
-    assert list(model_dir.glob("*_model.md"))
+    assert not (mock_workspace / "6_financial_model").exists()
     assert list(json_dir.glob("*_0.json"))
 
     json_path = list(json_dir.glob("*_0.json"))[0]
@@ -384,42 +384,20 @@ def test_generate_financial_model_mid_year_and_markdown(
     modeler = Modeler()
     modeler.generate_financial_model("MOCK", workspace, assumptions)
 
-    model_dir = workspace / "6_financial_model"
-    md_files = list(model_dir.glob("*_model.md"))
-    assert len(md_files) == 1
+    json_dir = workspace / "9_scenario_model_json"
+    json_files = list(json_dir.glob("*.json"))
+    assert len(json_files) == 1
 
-    md_content = md_files[0].read_text(encoding="utf-8")
+    with open(json_files[0], "r", encoding="utf-8") as f:
+        data = json.load(f)
 
-    # Check that warning callout is in markdown
-    assert "[!WARNING]" in md_content
-    assert "LTM is absolutely not available" in md_content
-
-    # Check that columns are correct
-    assert "Time Period" in md_content
-    assert "Revenue ($M)" in md_content
-    assert "Discount Factor" in md_content
-    assert "Discounted FCF" in md_content
-
-    # Check that Base (Year 0), historical quarter 2023-Q1, Year 1, and Terminal rows are present
-    assert "2023-Q1" in md_content
-    assert "Base (Year 0)" in md_content
-    assert "Year 1" in md_content
-    assert "Terminal" in md_content
-
-    # Check that the Valuation table is present and formatted correctly
-    assert "| Field | Value |" in md_content
-    assert "| Enterprise Value |" in md_content
-    assert "| (+) Cash and Equivalents |" in md_content
-    assert "| (-) Total Debt |" in md_content
-    assert "| **Equity Value** |" in md_content
-    assert "| Diluted Shares Outstanding |" in md_content
-    assert "| **Intrinsic Value Per Share** |" in md_content
-    assert "| Currency |" in md_content
-    assert "| FX Rate Applied |" in md_content
-    assert "| ADR Ratio Applied |" in md_content
-    assert "| Current Market Price |" in md_content
-    assert "| **Upside/Downside** |" in md_content
-    assert "| Calculation Date |" in md_content
+    # Check that assumptions and projections are correct in JSON
+    assert data["ticker"] == "MOCK"
+    assert data["assumptions"]["ltm_warning"] is True
+    assert "valuation" in data
+    assert "projections" in data
+    assert len(data["projections"]) == 10
+    assert not (workspace / "6_financial_model").exists()
 
 
 @patch("src.agents.orchestrator_pipelines.model.load_config")
@@ -441,18 +419,43 @@ def test_run_modeling_curator_calls(
     mock_estimate,
     mock_calculate,
     mock_load_config,
-    tmp_path,
+    temp_workspace_env,
 ):
-    workspace = tmp_path / "MOCK"
-    workspace.mkdir(parents=True)
-    analysis_dir = workspace / "5_historical_analysis"
-    analysis_dir.mkdir(parents=True)
+    workspace = Path(temp_workspace_env.base_workspace_dir) / "MOCK"
+    workspace.mkdir(parents=True, exist_ok=True)
+    # Write a minimal blackboard state with quarterly_financials so modeling is not skipped
+    state_file = workspace / "workspace_state.json"
+    state_data = {
+        "metadata": {"ticker": "MOCK", "company_name": "Mock Company"},
+        "metadata_status": "completed",
+        "company_data": {
+            "quarterly_financials": [
+                {
+                    "fiscal_year": 2023,
+                    "fiscal_period": "Q1",
+                    "revenue": 1000.0,
+                    "operating_income": 200.0,
+                    "ebita": 200.0,
+                    "reported_tax_provision": 50.0,
+                    "adjusted_taxes": 50.0,
+                    "adjusted_tax_rate": 0.25,
+                    "basic_shares": 10.0,
+                    "diluted_shares": 10.0,
+                    "simple_growth": 0.05,
+                    "organic_growth": 0.05,
+                    "net_working_capital": 100.0,
+                    "net_long_term_operating_assets": 400.0,
+                    "invested_capital": 500.0,
+                    "capital_turnover": 2.0,
+                    "nopat": 150.0,
+                    "roic": 30.0,
+                }
+            ]
+        },
+    }
+    import json
 
-    # Create required files so the Modeler doesn't skip modeling
-    (analysis_dir / "analyst_views.md").write_text("Dummy content", encoding="utf-8")
-    (analysis_dir / "financials_quarter.md").write_text(
-        "Dummy content", encoding="utf-8"
-    )
+    state_file.write_text(json.dumps(state_data), encoding="utf-8")
 
     mock_settings = MagicMock()
     mock_settings.active_workspace_path = str(workspace)

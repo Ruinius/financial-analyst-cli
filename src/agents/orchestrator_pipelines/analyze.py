@@ -1,5 +1,4 @@
 import logging
-from pathlib import Path
 from typing import List
 
 from src.core.blackboard import (
@@ -202,105 +201,10 @@ def deduce_q4_financials(
     return deduced_entries
 
 
-def write_analyst_views(path: Path, views: List[HistoricalAnalystView]) -> None:
-    lines = [
-        "# Analyst Views History\n",
-        "| Date | Document | Analyst Company | Economic Moat | Moat Rationale | Margin Outlook | Margin Magnitude | Margin Rationale | Growth Outlook | Growth Magnitude | Growth Rationale |",
-        "|---|---|---|---|---|---|---|---|---|---|---|",
-    ]
-    for v in views:
-        lines.append(
-            f"| {v.report_date} | [{v.source_file}](../4_extracted_data/{v.source_file}) | Unknown | "
-            f"{v.economic_moat} | {v.economic_moat_rationale} | {v.margin_outlook} | {v.margin_magnitude} | {v.margin_rationale} | "
-            f"{v.growth_outlook} | {v.growth_magnitude} | {v.growth_rationale} |"
-        )
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-
-def write_news_trend(path: Path, entries: list) -> None:
-    lines = [
-        "# News and Press Trends\n",
-        "| Date | Document | Summary |",
-        "|---|---|---|",
-    ]
-    for e in entries:
-        summary_clean = e["summary"].replace("\n", " ")
-        lines.append(
-            f"| {e['date']} | [{e['document']}](../4_extracted_data/{e['document']}) | {summary_clean} |"
-        )
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-
-def write_transcript_trend(path: Path, entries: list) -> None:
-    lines = [
-        "# Conference Call Transcript Trends\n",
-        "| Date | Document | Key Themes & Summaries |",
-        "|---|---|---|",
-    ]
-    for e in entries:
-        summary_clean = e["summary"].replace("\n", " ")
-        lines.append(
-            f"| {e['date']} | [{e['document']}](../4_extracted_data/{e['document']}) | {summary_clean} |"
-        )
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-
-def write_financials(
-    path: Path,
-    entries: List[HistoricalFinancialSummary],
-    is_quarterly: bool,
-    currency: str = "USD",
-    unit: str = "Millions",
-) -> None:
-    entries_sorted = sorted(
-        entries,
-        key=lambda x: (
-            x.fiscal_year,
-            {"Q1": 1, "Q2": 2, "Q3": 3, "Q4": 4, "FY": 5}.get(x.fiscal_period, 0),
-        ),
-    )
-
-    lines = [
-        f"# Historical Financials - {'Quarterly' if is_quarterly else 'Annual'}\n",
-        f"**Currency**: {currency}",
-        f"**Unit**: {unit}\n",
-        "| Time Period | Period End | Revenue | EBITA | EBITA Margin | Adj Tax Rate | NOPAT | Invested Capital | Capital Turnover | ROIC | Organic Growth | Source Document |",
-        "|-------------|-----------|---------|-------|--------------|-------------|-------|-----------------|------------------|------|----------------|-----------------|",
-    ]
-    for e in entries_sorted:
-        margin = (e.ebita / e.revenue * 100.0) if e.revenue > 0 else 0.0
-        tax_rate_pct = e.adjusted_tax_rate * 100.0
-        org_growth_pct = (
-            e.organic_growth * 100.0 if e.organic_growth is not None else 0.0
-        )
-        roic_pct = e.roic
-
-        period_str = (
-            f"{e.fiscal_year}-Q{e.fiscal_period.replace('Q', '')}"
-            if is_quarterly
-            else f"{e.fiscal_year}"
-        )
-        source_doc = "Blackboard State"
-        if e.fiscal_period == "Q4":
-            source_doc = "Deducted"
-        doc_link = source_doc
-
-        lines.append(
-            f"| {period_str} | N/A | {e.revenue:,.1f} | {e.ebita:,.1f} | "
-            f"{margin:.2f}% | {tax_rate_pct:.2f}% | {e.nopat:,.2f} | "
-            f"{e.invested_capital:,.1f} | {e.capital_turnover:.2f}x | {roic_pct:.2f}% | "
-            f"{org_growth_pct:.2f}% | {doc_link} |"
-        )
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-
 async def orchestrate_analyze(orchestrator, ticker: str) -> None:
     orchestrator.checkout_status(ticker, "analyzer")
     try:
         state = load_workspace_state(ticker)
-        workspace = Path(orchestrator.settings.active_workspace_path)
-        analysis_dir = workspace / "5_historical_analysis"
-        analysis_dir.mkdir(parents=True, exist_ok=True)
 
         doc_meta = {}
         for doc in state.raw_documents:
@@ -402,27 +306,6 @@ async def orchestrate_analyze(orchestrator, ticker: str) -> None:
         state.company_data.quarterly_financials = quarterly_financials_list
         state.company_data.yearly_financials = yearly_financials_list
         state.company_data.historical_analyst_views = historical_analyst_views_list
-
-        # Save output files to disk for human and tool usage
-        write_analyst_views(
-            analysis_dir / "analyst_views.md", historical_analyst_views_list
-        )
-        write_news_trend(analysis_dir / "news_trend.md", news_entries)
-        write_transcript_trend(analysis_dir / "transcript_trend.md", transcript_entries)
-        write_financials(
-            analysis_dir / "financials_quarter.md",
-            quarterly_financials_list,
-            is_quarterly=True,
-            currency=state.metadata.reporting_currency,
-            unit=state.metadata.preferred_unit,
-        )
-        write_financials(
-            analysis_dir / "financials_annual.md",
-            yearly_financials_list,
-            is_quarterly=False,
-            currency=state.metadata.reporting_currency,
-            unit=state.metadata.preferred_unit,
-        )
 
         save_workspace_state(ticker, state)
         orchestrator.checkin_status(ticker, "analyzer", "completed")

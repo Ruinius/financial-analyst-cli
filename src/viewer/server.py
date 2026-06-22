@@ -18,7 +18,7 @@ class DCFViewerHandler(http.server.SimpleHTTPRequestHandler):
         settings = load_config()
         if not settings.active_workspace_path:
             raise RuntimeError("No active workspace. Use `fa use <ticker>` first.")
-        return Path(settings.active_workspace_path) / "8_historical_model_json"
+        return Path(settings.active_workspace_path) / "9_scenario_model_json"
 
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)

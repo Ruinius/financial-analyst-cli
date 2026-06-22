@@ -89,12 +89,6 @@ def test_run_dcf_modeling_agent(tmp_path):
         ),
     ]
 
-    analysis_dir = tmp_path / "MOCK" / "5_historical_analysis"
-    analysis_dir.mkdir(parents=True, exist_ok=True)
-    (analysis_dir / "financials_quarter.md").write_text(
-        "historical metrics", encoding="utf-8"
-    )
-
     base_assumptions = {
         "wacc": 0.08,
         "revenue_growth_rate": 0.07,

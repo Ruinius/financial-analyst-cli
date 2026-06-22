@@ -42,9 +42,6 @@ def mock_workspace(tmp_path, monkeypatch):
     )
     save_config(settings)
 
-    analysis_dir = workspace / "5_historical_analysis"
-    analysis_dir.mkdir(parents=True)
-
     # Write blackboard JSON state file directly to eliminate disk fallbacks
     state_file = workspace / "workspace_state.json"
     import json

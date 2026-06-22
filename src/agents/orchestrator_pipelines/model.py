@@ -175,8 +175,6 @@ class Modeler:
             )
 
         workspace = Path(self.settings.active_workspace_path)
-        analysis_dir = workspace / "5_historical_analysis"
-
         active_ticker = self.settings.active_ticker
 
         formatting.print_info(f"--- Financial Modeling Started for {active_ticker} ---")
@@ -187,11 +185,7 @@ class Modeler:
             or state.company_data.yearly_financials
         )
 
-        analyst_views_path = analysis_dir / "analyst_views.md"
-        financials_quarter_path = analysis_dir / "financials_quarter.md"
-        has_disk_data = analyst_views_path.exists() and financials_quarter_path.exists()
-
-        if not has_blackboard_data and not has_disk_data:
+        if not has_blackboard_data:
             formatting.print_warning(
                 "Required historical analysis missing. Run extraction and historical synthesis first."
             )
@@ -751,23 +745,12 @@ class Modeler:
     def generate_financial_model(
         self, ticker: str, workspace: Path, assumptions: Dict[str, Any]
     ) -> None:
-        model_dir = workspace / "6_financial_model"
-        json_dir = workspace / "7_historical_model_json"
-
-        model_dir.mkdir(parents=True, exist_ok=True)
+        json_dir = workspace / "9_scenario_model_json"
         json_dir.mkdir(parents=True, exist_ok=True)
 
         dcf_result, projections, valuation_table_str = self.run_valuation_calculation(
             ticker, workspace, assumptions
         )
-
-        target_margin_yr5 = assumptions["margin_yr5"]
-        terminal_margin = assumptions.get("terminal_margin", target_margin_yr5)
-        target_growth_yr5 = assumptions["revenue_growth_rate"]
-        terminal_growth = assumptions["terminal_growth_rate"]
-        wacc = assumptions["wacc"]
-        mct = assumptions["capital_turnover"]
-        l4q_tax = assumptions["adjusted_tax_rate"]
 
         today = datetime.now().strftime("%Y%m%d")
         out_json_path = json_dir / f"{today}_{ticker}_0.json"
@@ -783,148 +766,7 @@ class Modeler:
         with open(out_json_path, "w", encoding="utf-8") as f:
             json.dump(model_state, f, indent=2)
 
-        md_path = model_dir / f"{today}_{ticker}_model.md"
-
-        wacc_explanation_str = assumptions.get("wacc_explanation", "")
-        if wacc_explanation_str:
-            wacc_explanation_str = f"\n{wacc_explanation_str}\n"
-
-        growth_explanation_str = assumptions.get("growth_explanation", "")
-        if growth_explanation_str:
-            growth_explanation_str = f"\n{growth_explanation_str}\n"
-
-        margin_explanation_str = assumptions.get("margin_explanation", "")
-        if margin_explanation_str:
-            margin_explanation_str = f"\n{margin_explanation_str}\n"
-
-        non_operating_explanation_str = assumptions.get("non_operating_explanation", "")
-        if non_operating_explanation_str:
-            non_operating_explanation_str = f"\n{non_operating_explanation_str}\n"
-
-        quarterly_financials = []
-        try:
-            workspace_state = load_workspace_state(ticker)
-            quarterly_financials = workspace_state.company_data.quarterly_financials
-        except Exception as e:
-            logger.warning(
-                f"Error loading historical financials from blackboard in generate_financial_model: {e}"
-            )
-
-        table_rows = []
-
-        for q in quarterly_financials[-4:] if quarterly_financials else []:
-            time_period = f"{q.fiscal_year}-Q{q.fiscal_period.replace('Q', '')}"
-            rev_val = q.revenue
-            growth_val = q.organic_growth * 100.0 if q.organic_growth else 0.0
-            margin_val = (q.ebita / q.revenue * 100.0) if q.revenue else 0.0
-            ic_val = q.invested_capital
-            table_rows.append(
-                f"| {time_period} | {rev_val:,.1f} | {growth_val:,.2f}% | {margin_val:,.2f}% | {ic_val:,.1f} | N/A | N/A | N/A |"
-            )
-
-        base_rev = assumptions["base_revenue"]
-        base_margin = assumptions["base_margin"]
-        base_ic = assumptions["base_ic"]
-        base_fcf = assumptions.get("base_fcf", base_rev * base_margin * (1 - l4q_tax))
-        table_rows.append(
-            f"| Base (Year 0) | {base_rev:,.1f} | N/A | {base_margin * 100:.2f}% | {base_ic:,.1f} | {base_fcf:,.1f} | N/A | N/A |"
-        )
-
-        for p in projections:
-            yr = p["year"]
-            rev_val = p["revenue"]
-            growth_val = p["growth"] * 100
-            margin_val = p["margin"] * 100
-            ic_val = p["ic"]
-            fcf_val = p["fcf"]
-            df_val = p["df"]
-            pv_val = p["pv"]
-            table_rows.append(
-                f"| Year {yr} | {rev_val:,.1f} | {growth_val:,.2f}% | {margin_val:,.2f}% | {ic_val:,.1f} | {fcf_val:,.1f} | {df_val:.4f} | {pv_val:,.1f} |"
-            )
-
-        terminal_fcf = dcf_result["terminal_value"]
-        pv_terminal_value = terminal_fcf / ((1.0 + wacc) ** 10)
-        table_rows.append(
-            f"| Terminal | N/A | {terminal_growth * 100:.2f}% | {terminal_margin * 100:.2f}% | N/A | {terminal_fcf:,.1f} | {1.0 / ((1.0 + wacc) ** 10):.4f} | {pv_terminal_value:,.1f} |"
-        )
-
-        table_header = (
-            "| Time Period | Revenue ($M) | Growth (%) | EBITA Margin (%) | Invested Capital ($M) | Free Cash Flow ($M) | Discount Factor | Discounted FCF |\n"
-            "|---|---|---|---|---|---|---|---|"
-        )
-        table_str = table_header + "\n" + "\n".join(table_rows)
-
-        warning_block = ""
-        if assumptions.get("ltm_warning"):
-            num_quarters = len(quarterly_financials)
-            warning_block = f"""
-> [!WARNING]
-> LTM is absolutely not available due to having fewer than 4 quarters of history (only {num_quarters} quarter(s) available).
-> - Base Revenue has been annualized to ${base_rev:,.2f}M based on available quarters.
-> - Base Invested Capital has been set to the median of available quarters: ${base_ic:,.2f}M.
-"""
-
-        base_wacc = assumptions.get("base_wacc", wacc)
-        base_growth = assumptions.get("base_growth_rate", target_growth_yr5)
-        base_term_growth = assumptions.get("base_terminal_growth", terminal_growth)
-        base_margin_yr5 = assumptions.get("base_margin", base_margin)
-        base_term_margin = assumptions.get("base_terminal_margin", terminal_margin)
-        base_turnover = assumptions.get("base_capital_turnover", mct)
-        base_tax = assumptions.get("base_adjusted_tax_rate", l4q_tax)
-        comparison_table_str = f"""## Assumptions Used vs. Modeler Agents Recommendations
-
-| Parameter | Recommended by Modeler Agents | Actually Used | Status |
-|:---|:---|:---|:---|
-| **WACC** | {base_wacc * 100:.2f}% | {wacc * 100:.2f}% | {"Updated" if abs(base_wacc - wacc) > 1e-6 else "Unchanged"} |
-| **Year 5 Growth** | {base_growth * 100:.2f}% | {target_growth_yr5 * 100:.2f}% | {"Updated" if abs(base_growth - target_growth_yr5) > 1e-6 else "Unchanged"} |
-| **Terminal Growth** | {base_term_growth * 100:.2f}% | {terminal_growth * 100:.2f}% | {"Updated" if abs(base_term_growth - terminal_growth) > 1e-6 else "Unchanged"} |
-| **Year 5 Margin** | {base_margin_yr5 * 100:.2f}% | {target_margin_yr5 * 100:.2f}% | {"Updated" if abs(base_margin_yr5 - target_margin_yr5) > 1e-6 else "Unchanged"} |
-| **Terminal Margin** | {base_term_margin * 100:.2f}% | {terminal_margin * 100:.2f}% | {"Updated" if abs(base_term_margin - terminal_margin) > 1e-6 else "Unchanged"} |
-| **Capital Turnover** | {base_turnover:.1f}x | {mct:.1f}x | {"Updated" if abs(base_turnover - mct) > 1e-6 else "Unchanged"} |
-| **Adjusted Tax Rate** | {base_tax * 100:.2f}% | {l4q_tax * 100:.2f}% | {"Updated" if abs(base_tax - l4q_tax) > 1e-6 else "Unchanged"} |
-"""
-
-        valuation_commentary = assumptions.get("valuation_commentary", "")
-        valuation_commentary_str = ""
-        if valuation_commentary:
-            valuation_commentary_str = f"""## Valuation Commentary & Modeler Critique
-{valuation_commentary}
-"""
-
-        md_content = f"""# Financial Model: {ticker}
-Date: {today}
-{warning_block}
-## Assumptions
-- **WACC**: {wacc * 100:.2f}%
-- **Revenue Growth Rate**: {target_growth_yr5 * 100:.2f}%
-- **Terminal Growth Rate**: {terminal_growth * 100:.2f}%
-- **Margin Yr5**: {target_margin_yr5 * 100:.2f}%
-- **Terminal Margin**: {terminal_margin * 100:.2f}%
-- **Capital Turnover**: {mct}x
-
-{wacc_explanation_str}
-{growth_explanation_str}
-{margin_explanation_str}
-{non_operating_explanation_str}
-
-{comparison_table_str}
-
-{valuation_commentary_str}
-
-## Valuation
-{valuation_table_str}
-
-## Projections Summary
-{table_str}
-"""
-
-        with open(md_path, "w", encoding="utf-8") as f:
-            f.write(md_content)
-
-        formatting.print_success(
-            f"Generated DCF model and saved to {md_path} and {out_json_path}"
-        )
+        formatting.print_success(f"Generated DCF model and saved to {out_json_path}")
 
     def estimate_llm_assumptions(
         self,

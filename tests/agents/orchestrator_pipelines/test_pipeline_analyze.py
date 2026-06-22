@@ -1,6 +1,5 @@
 import asyncio
 from unittest.mock import patch
-from pathlib import Path
 
 from src.core.blackboard import (
     load_workspace_state,
@@ -17,7 +16,6 @@ from src.agents.orchestrator_pipelines.analyze import orchestrate_analyze
 def test_pipeline_analyze_q4_deduction(mock_curate, temp_workspace_env):
     ticker = "AAPL"
     orchestrator = BlackboardOrchestrator()
-    workspace = Path(temp_workspace_env.active_workspace_path)
 
     # 1. Setup metadata and report state with Q1-Q3 and FY completed reports
     state = load_workspace_state(ticker)
@@ -115,18 +113,3 @@ def test_pipeline_analyze_q4_deduction(mock_curate, temp_workspace_env):
     # q4_org_inc = 40.5 - 8 - 11 - 8.4 = 13.1
     # q4_organic_growth = 13.1 / 120 = 0.109166... which rounds to 0.1092
     assert q4.organic_growth == 0.1092
-
-    # 3. Assert flat markdown files were generated
-    analysis_dir = workspace / "5_historical_analysis"
-    assert (analysis_dir / "financials_quarter.md").exists()
-    assert (analysis_dir / "financials_annual.md").exists()
-    assert (analysis_dir / "analyst_views.md").exists()
-    assert (analysis_dir / "news_trend.md").exists()
-    assert (analysis_dir / "transcript_trend.md").exists()
-
-    # Verify content of financials_quarter.md
-    quarter_content = (analysis_dir / "financials_quarter.md").read_text(
-        encoding="utf-8"
-    )
-    assert "2024-Q4" in quarter_content
-    assert "120.0" in quarter_content

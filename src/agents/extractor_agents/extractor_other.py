@@ -1,5 +1,4 @@
 import logging
-from pathlib import Path
 from typing import Optional
 from src.core.blackboard import CompanyMetadata, OtherExtraction
 from src.services.llm_client import LLMClient
@@ -73,57 +72,3 @@ def run_other_doc_agent(
         source_file=filename,
         summary=finalized_args.get("summary", ""),
     )
-
-
-def extract_other(
-    file_path: Path,
-    content: str,
-    chunk_ids: list,
-    extractor,
-) -> bool:
-    """Legacy file-based compatibility wrapper around the stateless run_other_doc_agent."""
-    import src.utils.formatting as formatting
-
-    ticker = extractor.settings.active_ticker or "UNK"
-    company_metadata = CompanyMetadata(ticker=ticker)
-
-    # Call the stateless agent
-    other_extraction = run_other_doc_agent(
-        client=extractor.llm,
-        filename=file_path.name,
-        content=content,
-        company_metadata=company_metadata,
-        learnings=extractor.get_extract_context(),
-    )
-
-    # Format output as expected by the legacy pipeline
-    output_lines = []
-    output_lines.append(f"# Extracted Financial Report: {file_path.name}\n")
-    output_lines.append("## Chunk Summaries\n")
-    output_lines.append("- **Summary**: Processed via stateless agent.\n")
-    output_lines.append("\n---\n")
-
-    if other_extraction.summary:
-        output_lines.append("### Significant News or Developments\n")
-        output_lines.append(f"{other_extraction.summary}\n")
-
-    # Write output file to 4_extracted_data/
-    extracted_dir = Path(extractor.settings.active_workspace_path) / "4_extracted_data"
-    extracted_dir.mkdir(parents=True, exist_ok=True)
-    out_file_path = extracted_dir / f"{file_path.stem}_extracted.md"
-
-    with open(out_file_path, "w", encoding="utf-8") as f:
-        f.write("\n".join(output_lines))
-
-    # Invoke Curator Agent to curate lessons
-    try:
-        from src.agents.curator_agent import CuratorAgent
-
-        history_text = f"Stateless run of OtherDocAgent on {file_path.name}. Finalized output: {other_extraction.model_dump_json()}"
-        curator = CuratorAgent(extractor.settings)
-        curator.curate_agent(ticker, "other", history_text)
-    except Exception as e:
-        logger.error(f"Failed to run curator for other: {e}")
-
-    formatting.print_success(f"Extracted: {file_path.name} -> {out_file_path.name}")
-    return True
