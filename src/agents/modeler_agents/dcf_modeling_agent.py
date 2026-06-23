@@ -50,8 +50,8 @@ def run_dcf_modeling_agent(
     draft_model_md = f"### Draft Valuation Summary (Initial Recommendations)\n{valuation_table_str}\n\n### Draft Projections Table\n"
     for p in projections:
         draft_model_md += (
-            f"| Year {p['year']} | {p['revenue']:,.1f} | {p['growth']*100:.2f}% | "
-            f"{p['margin']*100:.2f}% | {p['ic']:,.1f} | {p['fcf']:,.1f} | {p['df']:.4f} | {p['pv']:,.1f} |\n"
+            f"| Year {p['year']} | {p['revenue']:,.1f} | {p['growth'] * 100:.2f}% | "
+            f"{p['margin'] * 100:.2f}% | {p['ic']:,.1f} | {p['fcf']:,.1f} | {p['df']:.4f} | {p['pv']:,.1f} |\n"
         )
 
     # Initialize final assumptions and critique defaults
@@ -97,7 +97,7 @@ def run_dcf_modeling_agent(
             calc_summary_md = f"### Recalculated Valuation Results\n{val_tab}\n\n### Projections Summary\n"
             for p in proj:
                 calc_summary_md += (
-                    f"| Year {p['year']} | Rev: ${p['revenue']:,.1f}M | Margin: {p['margin']*100:.1f}% | "
+                    f"| Year {p['year']} | Rev: ${p['revenue']:,.1f}M | Margin: {p['margin'] * 100:.1f}% | "
                     f"FCF: ${p['fcf']:,.1f}M | PV: ${p['pv']:,.1f}M |\n"
                 )
             return calc_summary_md
