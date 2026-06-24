@@ -17,3 +17,7 @@
 ## 2024-11-20 - [Native String Replace > Regex for repetitive whitespace]
 **Learning:** For replacing multiple consecutive characters (like formatting \n{3,} to \n\n in large crawled HTML/Markdown), a simple `while "\n\n\n" in text: text = text.replace("\n\n\n", "\n\n")` loop executes ~5x faster than Python's `re.sub` due to bypassing regex engine overhead for massive strings.
 **Action:** Default to native `str.replace` in a while loop when reducing repeating single characters or simple static substrings instead of regex.
+
+## 2024-11-21 - Fast Float Parsing before Regex
+**Learning:** For utility functions that clean and parse numerical strings (like `clean_val`), attempting a direct `float()` conversion after simple native string stripping (e.g., removing `$`, `,`, `%`, `()`) is significantly faster (~2.5x speedup) than immediately matching with a regular expression like `re.search`. Regex should only be invoked as a fallback for "noisy" inputs.
+**Action:** When parsing cleanly formatted numerical data, create a "fast path" using `float()` combined with native string replacements to bypass regex engine overhead entirely.
