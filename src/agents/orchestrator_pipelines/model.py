@@ -42,6 +42,15 @@ def clean_value(val_str: Any) -> float:
 
     cleaned = cleaned.replace("%", "")
 
+    # ⚡ Bolt Optimization: Fast path for clean numeric strings
+    try:
+        num = float(cleaned)
+        if is_negative:
+            num = -num
+        return num
+    except ValueError:
+        pass
+
     match = re.search(r"(-?\d+\.?\d*)", cleaned)
     if match:
         try:
