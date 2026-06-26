@@ -2,14 +2,33 @@ import re
 from pathlib import Path
 
 
+def clean_json_text(text: str) -> str:
+    """Clean a JSON string by removing single-line and multi-line comments,
+    and trailing commas before closing braces/brackets.
+    """
+    if not text:
+        return ""
+    # Strip comments safely without affecting string literals
+    cleaned = re.sub(
+        r'("(?:\\.|[^"\\])*")|/\*.*?\*/|//[^\r\n]*',
+        lambda m: m.group(1) or "",
+        text,
+        flags=re.DOTALL,
+    )
+    # Strip trailing commas before closing braces/brackets
+    cleaned = re.sub(r",\s*([\]}])", r"\1", cleaned)
+    return cleaned
+
+
 def extract_json_from_text(text: str) -> str | None:
-    """Extract a JSON object from text by finding the first '{' and last '}'."""
+    """Extract a JSON object from text by finding the first '{' and last '}' and cleansing it."""
     if not text:
         return None
     start_idx = text.find("{")
     end_idx = text.rfind("}")
     if start_idx != -1 and end_idx != -1 and end_idx >= start_idx:
-        return text[start_idx : end_idx + 1]
+        raw_json = text[start_idx : end_idx + 1]
+        return clean_json_text(raw_json)
     return None
 
 

@@ -60,10 +60,28 @@ def run_agent_loop(
 
     response = chat.send_message(initial_prompt_with_warning)
 
+    # Check for native AFC finalization (e.g. Gemini)
+    if getattr(chat, "finalized", False) is True:
+        history = chat.get_history()
+        turn_count = sum(1 for msg in history if msg.get("role") == "assistant")
+        lines = []
+        for msg in history:
+            role = msg.get("role", "unknown").upper()
+            content = msg.get("content", "")
+            lines.append(f"{role}: {content}")
+        run_logs = "\n\n".join(lines)
+        last_agent_run.set((turn_count, run_logs))
+        return chat.finalized_args, history
+
     finalized_args = None
     finalized = False
 
     for turn in range(max_turns):
+        if getattr(chat, "finalized", False) is True:
+            finalized_args = chat.finalized_args
+            finalized = True
+            break
+
         # If we are on the last turn and not finalized, send a warning
         if turn == max_turns - 1 and not finalized:
             warning = (
@@ -168,6 +186,11 @@ def run_agent_loop(
                 prompt_instruction += get_turn_warning(next_turn_num)
 
             response = chat.send_message(prompt_instruction)
+
+    # Final fallback check if finalization happened during loop exit
+    if not finalized and getattr(chat, "finalized", False) is True:
+        finalized_args = chat.finalized_args
+        finalized = True
 
     # Capture execution metrics in context variable unconditionally before exiting
     history = chat.get_history()

@@ -117,6 +117,7 @@ def test_pipeline_metadata_gating(mock_run_bs, temp_workspace_env):
 
     orchestrator = BlackboardOrchestrator()
 
-    asyncio.run(orchestrator.run_pipeline(ticker, stage="extract"))
+    with pytest.raises(WorkspaceError):
+        asyncio.run(orchestrator.run_pipeline(ticker, stage="extract"))
 
     mock_run_bs.assert_not_called()

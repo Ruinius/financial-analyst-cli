@@ -405,9 +405,7 @@ async def orchestrate_extract(
         except Exception as e:
             logger.error(f"MetadataAgent execution failed: {e}")
             orchestrator.checkin_status(ticker, "metadata", "failed")
-            if non_interactive:
-                raise WorkspaceError(f"Metadata extraction failed: {e}")
-            return
+            raise WorkspaceError(f"Metadata extraction failed: {e}")
 
     # If we are only running metadata agent, stop here
     if normalized_agent == "metadata":

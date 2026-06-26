@@ -129,22 +129,28 @@ def run_metadata_agent(
     if not finalized_args:
         finalized_args = {}
 
-    # Parse documents_metadata JSON string
+    # Parse documents_metadata JSON string or dictionary
     documents_metadata = {}
     docs_meta_str = finalized_args.pop("documents_metadata", None)
     if docs_meta_str:
-        try:
-            documents_metadata = json.loads(docs_meta_str)
-        except Exception as e:
-            logger.warning(f"Failed to parse documents_metadata JSON: {e}")
-            from src.utils.markdown_helper import extract_json_from_text
+        if isinstance(docs_meta_str, dict):
+            documents_metadata = docs_meta_str
+        elif isinstance(docs_meta_str, str):
+            try:
+                from src.utils.markdown_helper import clean_json_text
 
-            json_str = extract_json_from_text(docs_meta_str)
-            if json_str:
-                try:
-                    documents_metadata = json.loads(json_str)
-                except Exception:
-                    pass
+                cleaned = clean_json_text(docs_meta_str)
+                documents_metadata = json.loads(cleaned)
+            except Exception as e:
+                logger.warning(f"Failed to parse documents_metadata JSON: {e}")
+                from src.utils.markdown_helper import extract_json_from_text
+
+                json_str = extract_json_from_text(docs_meta_str)
+                if json_str:
+                    try:
+                        documents_metadata = json.loads(json_str)
+                    except Exception:
+                        pass
 
     # Ensure all fanned-in documents have at least a default dictionary in documents_metadata
     for fn in parsed_documents.keys():

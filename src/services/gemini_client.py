@@ -24,13 +24,37 @@ class GeminiChatSession(ChatSession):
         temperature: float = 0.1,
     ):
         from google.genai import types
+        import functools
+        import inspect
+
+        self.finalized_args = {}
+        self.finalized = False
+
+        wrapped_tools = []
+        if tools:
+            for t in tools:
+                if t.__name__ == "finalize":
+
+                    def make_wrapped(original_t):
+                        @functools.wraps(original_t)
+                        def wrapped_finalize(*args, **kwargs):
+                            self.finalized_args = kwargs
+                            self.finalized = True
+                            return original_t(*args, **kwargs)
+
+                        wrapped_finalize.__signature__ = inspect.signature(original_t)
+                        return wrapped_finalize
+
+                    wrapped_tools.append(make_wrapped(t))
+                else:
+                    wrapped_tools.append(t)
 
         config = types.GenerateContentConfig(
             system_instruction=system_prompt,
             temperature=temperature,
         )
-        if tools:
-            config.tools = tools
+        if wrapped_tools:
+            config.tools = wrapped_tools
         self.chat = client.chats.create(model=model, config=config)
 
     def send_message(
