@@ -232,6 +232,10 @@ async def orchestrate_extract(
                 if (
                     report.balance_sheet_status != "completed"
                     or report.income_statement_status != "completed"
+                    or report.shares_status != "completed"
+                    or report.organic_growth_status != "completed"
+                    or report.ebita_status != "completed"
+                    or report.tax_status != "completed"
                 ):
                     needing_extraction.append(p)
                     continue
