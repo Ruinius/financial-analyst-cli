@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Optional, List, Any
+from typing import Optional
 from src.services.llm_client import LLMClient
 from src.core.blackboard import CompanyMetadata, WorkspaceContext, LineItem
 from src.agents.agent_executor import run_agent_loop
@@ -59,7 +59,7 @@ def run_interpretation_agent(
         "5. Standardize positive/negative signs for the Income Statement:\n"
         "   - Verify that any number that subtracts from the revenue is an expense, cost, or loss, and is expressed as a negative number.\n"
         "   - Verify that any number that effectively increases profit (e.g. revenue, interest income, tax benefits, gains) is expressed as a positive number.\n"
-        "6. Call 'finalize' with the updated/verified line items list as an argument named 'line_items'. Each item should match the structure:\n"
+        "6. Call 'finalize' with the updated/verified line items list as a JSON-serialized string argument named 'line_items'. Each item in the list should match the structure:\n"
         "   {\n"
         "     'line_name': 'Line Item Name',\n"
         "     'value': 12345.0,\n"
@@ -99,8 +99,8 @@ def run_interpretation_agent(
             period=period,
         )
 
-    def finalize(line_items: List[Any]) -> str:
-        """Finalize the line item interpretation, providing the updated/verified list of line items."""
+    def finalize(line_items: str) -> str:
+        """Finalize the line item interpretation, providing the updated/verified list of line items as a JSON-serialized string."""
         return "Line items interpretation finalized."
 
     tools = [access_resources, query_blackboard, finalize]
@@ -116,9 +116,18 @@ def run_interpretation_agent(
     if not finalized_args:
         finalized_args = {}
 
+    raw_line_items = finalized_args.get("line_items", [])
+    if isinstance(raw_line_items, str):
+        try:
+            line_items_data = json.loads(raw_line_items)
+        except Exception:
+            line_items_data = []
+    else:
+        line_items_data = raw_line_items if isinstance(raw_line_items, list) else []
+
     updated_items = []
     # Match back to original line items to preserve audit trails
-    for up_item in finalized_args.get("line_items", []):
+    for up_item in line_items_data:
         matching_orig = None
         for orig in extracted_line_items:
             if orig.line_name.lower() == up_item.get("line_name", "").lower():

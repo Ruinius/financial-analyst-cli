@@ -249,9 +249,26 @@ async def orchestrate_extract(
         # Apply limit to needing_extraction
         files_to_process = needing_extraction
         if limit is not None:
+            import src.utils.formatting as formatting
+
+            if limit > len(needing_extraction):
+                already_extracted = [
+                    p.name for p in all_files if p not in needing_extraction
+                ]
+                formatting.print_info(
+                    f"Acknowledge limit of {limit} files requested, but there is only {len(needing_extraction)} file(s) that is new."
+                )
+                if already_extracted:
+                    formatting.print_info(
+                        "Skipped the already extracted file(s) and starting on the new file(s):"
+                    )
+                    for fn_ext in already_extracted:
+                        formatting.print_info(
+                            f"  - Skipped (already extracted): {fn_ext}"
+                        )
+
             skipped_files = needing_extraction[limit:]
             files_to_process = needing_extraction[:limit]
-            import src.utils.formatting as formatting
 
             for f in skipped_files:
                 formatting.print_info(f"Skipped extraction due to limit: {f.name}")
