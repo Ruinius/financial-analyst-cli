@@ -2,7 +2,6 @@ import asyncio
 import csv
 import hashlib
 import logging
-import re
 from pathlib import Path
 from typing import Dict, List, Optional
 from bs4 import BeautifulSoup, NavigableString
@@ -282,11 +281,9 @@ class Ingester:
             chunk_lines.append("| --- | --- | --- | --- |")
 
             for idx, chunk in enumerate(chunks, 1):
-                # ⚡ Bolt Optimization: Use native string count generator instead of regex for ~2x speedup
+                # ⚡ Bolt Optimization: Replace slow re.findall regex with native str.count for ~2x speedup on large text chunks
                 num_freq = sum(chunk.count(d) for d in "0123456789")
-                sym_freq = sum(
-                    chunk.count(c) for c in "!@#$%^&*()_+-=[]{}|;':\",./<>?"
-                )
+                sym_freq = sum(chunk.count(c) for c in "!@#$%^&*()_+-=[]{}|;':\",./<>?")
                 start_c, end_c = offsets[idx - 1]
                 chunk_lines.append(
                     f"| {idx} | char {start_c} to {end_c} | {num_freq} | {sym_freq} |"
