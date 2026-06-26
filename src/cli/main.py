@@ -5,6 +5,7 @@ if sys.platform.startswith("win"):
     sys.stderr.reconfigure(encoding="utf-8")
 
 import typer
+from typing import Optional
 
 from pathlib import Path
 from src.core.config import config_exists, load_config
@@ -421,11 +422,37 @@ def run_ingest(
         raise typer.Exit(1)
 
 
+def index_to_letter(index: int) -> str:
+    """Convert a 0-based index to a letter label (a, b, ..., z, aa, ab, ...)."""
+    result = []
+    while index >= 0:
+        result.append(chr(97 + (index % 26)))
+        index = (index // 26) - 1
+    return "".join(reversed(result))
+
+
+def letter_to_index(letter: str) -> int:
+    """Convert a letter label back to a 0-based index."""
+    letter = letter.strip().lower()
+    if not letter.isalpha():
+        raise ValueError("Invalid letter label")
+    index = 0
+    for char in letter:
+        index = index * 26 + (ord(char) - 96)
+    return index - 1
+
+
 @run_app.command("extract")
 def run_extract(
     ticker: str = typer.Option(None, "--ticker", "-t"),
     non_interactive: bool = typer.Option(False, "--non-interactive", "-n"),
     agent: str = typer.Option(None, "--agent", "-a"),
+    force: bool = typer.Option(
+        False, "--force", "-f", help="Force re-extraction of already completed files"
+    ),
+    limit: Optional[int] = typer.Option(
+        None, "--limit", "-l", help="Max number of files to process"
+    ),
 ):
     """Extract statements and metrics from parsed data."""
     try:
@@ -445,6 +472,167 @@ def run_extract(
         )
         raise typer.Exit(1)
 
+    limit_val = limit
+    force_val = force
+    target_files = None
+
+    if settings.active_workspace_path:
+        workspace_path = Path(settings.active_workspace_path)
+        parsed_dir = workspace_path / "2_parsed_data"
+        if parsed_dir.exists():
+            from src.core.blackboard import load_workspace_state
+            from src.agents.orchestrator_pipelines.ingest import Ingester
+
+            try:
+                state = load_workspace_state(active_ticker)
+            except Exception:
+                state = None
+
+            # Get parsed registry
+            try:
+                ingester_inst = Ingester()
+                registry = ingester_inst.load_parsed_registry()
+            except Exception:
+                registry = {}
+
+            all_files = [
+                p
+                for p in parsed_dir.iterdir()
+                if p.is_file()
+                and p.suffix.lower() == ".md"
+                and p.name.lower() != "readme.md"
+                and not p.name.startswith(".")
+            ]
+            # Sort files in reverse-chronological order (descending by filename)
+            all_files = sorted(all_files, key=lambda p: p.name, reverse=True)
+
+            # Classify files as extracted vs new
+            extracted_files = set()
+            if state:
+                for report in state.reports.values():
+                    for sf in report.source_files:
+                        extracted_files.add(sf)
+
+            def is_file_extracted(p: Path) -> bool:
+                fn = p.name
+                if fn not in extracted_files:
+                    return False
+
+                # Check formal filing completed status
+                row = None
+                for r in registry.values():
+                    if r.get("new_filename") == fn:
+                        row = r
+                        break
+                if not row:
+                    return False
+
+                fy = row.get("fiscal_year")
+                fq = row.get("fiscal_quarter")
+                doc_type = row.get("document_type", "other")
+                if not fy or not fq or fy == "N/A" or fq == "N/A" or doc_type == "N/A":
+                    return False
+
+                period_key = f"{fy}_{fq}"
+                if period_key not in state.reports:
+                    return False
+
+                report = state.reports[period_key]
+                is_formal = doc_type in (
+                    "quarterly_filing",
+                    "annual_filing",
+                    "earnings_announcement",
+                )
+                if is_formal:
+                    if (
+                        report.balance_sheet_status != "completed"
+                        or report.income_statement_status != "completed"
+                    ):
+                        return False
+                return True
+
+            file_statuses = []
+            extracted_count = 0
+            new_count = 0
+            for p in all_files:
+                extracted = is_file_extracted(p)
+                if extracted:
+                    file_statuses.append((p, "Extracted"))
+                    extracted_count += 1
+                else:
+                    file_statuses.append((p, "New"))
+                    new_count += 1
+
+            total_count = len(all_files)
+
+            if total_count == 0:
+                formatting.speak(
+                    "No parsed files found to extract in our workspace directory, my good sir!"
+                )
+                return
+
+            if not non_interactive:
+                # Sir Pennyworth speaks
+                formatting.speak(
+                    f"I found {total_count} total file(s) in our workspace directory, my good sir!\n"
+                    f"{extracted_count} of which are already extracted, and {new_count} of which are new."
+                )
+
+                # Render file menu
+                from src.utils.formatting import console
+
+                for idx, (p, status) in enumerate(file_statuses):
+                    letter = index_to_letter(idx)
+                    status_color = "green" if status == "New" else "bright_black"
+                    console.print(
+                        f"  [bold #FFB6C1]\\[{letter}][/bold #FFB6C1] {p.name} [{status_color}]\\[{status}][/{status_color}]"
+                    )
+                console.print()
+
+                # Prompt
+                response = typer.prompt(
+                    "How many files would you like to process?", default="all"
+                )
+
+                val = response.strip().lower()
+                if not val or val == "all":
+                    limit_val = None
+                    force_val = False
+                    target_files = None
+                elif val.isalpha():
+                    try:
+                        idx = letter_to_index(val)
+                        if 0 <= idx < len(all_files):
+                            target_files = [all_files[idx].name]
+                            force_val = True
+                            limit_val = None
+                        else:
+                            formatting.print_warning(
+                                f"Label '{val}' is out of range. Defaulting to all new files."
+                            )
+                            limit_val = None
+                            force_val = False
+                            target_files = None
+                    except ValueError:
+                        formatting.print_warning(
+                            f"Invalid label '{val}'. Defaulting to all new files."
+                        )
+                        limit_val = None
+                        force_val = False
+                        target_files = None
+                else:
+                    try:
+                        limit_val = int(val)
+                        force_val = False
+                        target_files = None
+                    except ValueError:
+                        formatting.print_warning(
+                            "Invalid input entered. Defaulting to all new files."
+                        )
+                        limit_val = None
+                        force_val = False
+                        target_files = None
+
     formatting.print_info(f"Starting extraction stage for {active_ticker}...")
     try:
         from src.agents.blackboard_orchestrator import BlackboardOrchestrator
@@ -457,6 +645,9 @@ def run_extract(
                 stage="extract",
                 agent=agent,
                 non_interactive=non_interactive,
+                limit=limit_val,
+                force=force_val,
+                target_files=target_files,
             )
         )
         formatting.print_success(

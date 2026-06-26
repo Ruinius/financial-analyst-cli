@@ -479,7 +479,13 @@ def test_cli_run_extract(mock_orchestrator_cls, temp_config):
     assert "Successfully extracted financial data" in result.stdout
 
     mock_orchestrator.run_pipeline.assert_called_once_with(
-        "AAPL", stage="extract", agent=None, non_interactive=False
+        "AAPL",
+        stage="extract",
+        agent=None,
+        non_interactive=False,
+        limit=None,
+        force=False,
+        target_files=None,
     )
 
 

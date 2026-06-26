@@ -123,3 +123,62 @@ def test_run_subcommand_bypasses_full_pipeline(
 
     # Verify that run_pipeline (the full pipeline) was NOT called
     mock_run_pipeline.assert_not_called()
+
+
+@patch("src.cli.main.load_config")
+@patch("src.agents.blackboard_orchestrator.BlackboardOrchestrator.run_pipeline")
+def test_run_extract_menu_choices(mock_run_pipeline, mock_load_config, mock_settings):
+    mock_load_config.return_value = mock_settings
+
+    # Create dummy parsed files in 2_parsed_data/
+    parsed_dir = Path(mock_settings.active_workspace_path) / "2_parsed_data"
+    parsed_dir.mkdir(parents=True, exist_ok=True)
+    # create files in reverse-chronological order (descending by filename)
+    (parsed_dir / "2026_q2_crm.md").write_text("q2 crm content")
+    (parsed_dir / "2026_q1_crm.md").write_text("q1 crm content")
+
+    # 1. Hitting Enter / default
+    result = runner.invoke(app, ["run", "extract"], input="\n")
+    assert result.exit_code == 0
+    assert "I found 2 total file(s) in our workspace directory" in result.stdout
+    # Check that letters [a] and [b] are printed (2026_q2_crm.md is first, so 'a', 2026_q1_crm.md is 'b')
+    assert "[a]" in result.stdout
+    assert "[b]" in result.stdout
+    assert "2026_q2_crm.md" in result.stdout
+    assert "2026_q1_crm.md" in result.stdout
+
+    mock_run_pipeline.assert_called_with(
+        "CRM",
+        stage="extract",
+        agent=None,
+        non_interactive=False,
+        limit=None,
+        force=False,
+        target_files=None,
+    )
+
+    # 2. Entering a letter label "a" to target first file
+    result = runner.invoke(app, ["run", "extract"], input="a\n")
+    assert result.exit_code == 0
+    mock_run_pipeline.assert_called_with(
+        "CRM",
+        stage="extract",
+        agent=None,
+        non_interactive=False,
+        limit=None,
+        force=True,
+        target_files=["2026_q2_crm.md"],
+    )
+
+    # 3. Entering a number limit "1"
+    result = runner.invoke(app, ["run", "extract"], input="1\n")
+    assert result.exit_code == 0
+    mock_run_pipeline.assert_called_with(
+        "CRM",
+        stage="extract",
+        agent=None,
+        non_interactive=False,
+        limit=1,
+        force=False,
+        target_files=None,
+    )

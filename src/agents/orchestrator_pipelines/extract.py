@@ -2,7 +2,7 @@ import asyncio
 import logging
 import json
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 
 from src.core.exceptions import WorkspaceError
 from src.core.blackboard import (
@@ -119,6 +119,9 @@ async def orchestrate_extract(
     ticker: str,
     agent: Optional[str] = None,
     non_interactive: bool = False,
+    limit: Optional[int] = None,
+    force: bool = False,
+    target_files: Optional[List[str]] = None,
 ) -> None:
     import src.agents.blackboard_orchestrator as bo
     from src.agents.orchestrator_pipelines.ingest import Ingester
@@ -127,27 +130,106 @@ async def orchestrate_extract(
     settings = orchestrator.settings
     workspace = Path(settings.active_workspace_path)
 
-    # Load parsed documents context first
+    # Load registry
+    ingester_inst = Ingester()
+    registry = ingester_inst.load_parsed_registry()
+
     parsed_dir = workspace / "2_parsed_data"
-    parsed_documents = {}
+    all_files = []
     if parsed_dir.exists():
-        for p in parsed_dir.iterdir():
-            if (
-                p.is_file()
-                and p.suffix.lower() == ".md"
-                and p.name.lower() != "readme.md"
-                and not p.name.startswith(".")
-            ):
-                try:
-                    parsed_documents[p.name] = p.read_text(encoding="utf-8")
-                except Exception:
-                    pass
+        all_files = [
+            p
+            for p in parsed_dir.iterdir()
+            if p.is_file()
+            and p.suffix.lower() == ".md"
+            and p.name.lower() != "readme.md"
+            and not p.name.startswith(".")
+        ]
+
+    # Find which files are already extracted
+    needing_extraction = []
+    if not force and agent is None:
+        extracted_files = set()
+        for report in state.reports.values():
+            for sf in report.source_files:
+                extracted_files.add(sf)
+
+        for p in all_files:
+            fn = p.name
+            # Find registry row
+            row = None
+            for r in registry.values():
+                if r.get("new_filename") == fn:
+                    row = r
+                    break
+
+            if not row:
+                needing_extraction.append(p)
+                continue
+
+            fy = row.get("fiscal_year")
+            fq = row.get("fiscal_quarter")
+            doc_type = row.get("document_type", "other")
+
+            if not fy or not fq or fy == "N/A" or fq == "N/A" or doc_type == "N/A":
+                needing_extraction.append(p)
+                continue
+
+            period_key = f"{fy}_{fq}"
+            if period_key not in state.reports:
+                needing_extraction.append(p)
+                continue
+
+            report = state.reports[period_key]
+            if fn not in report.source_files:
+                needing_extraction.append(p)
+                continue
+
+            is_formal = doc_type in (
+                "quarterly_filing",
+                "annual_filing",
+                "earnings_announcement",
+            )
+            if is_formal:
+                if (
+                    report.balance_sheet_status != "completed"
+                    or report.income_statement_status != "completed"
+                ):
+                    needing_extraction.append(p)
+                    continue
+    else:
+        # If force is True or single agent targeted, treat all files as candidates
+        needing_extraction = all_files
+
+    # Sort files in reverse-chronological order (descending by filename)
+    needing_extraction = sorted(needing_extraction, key=lambda p: p.name, reverse=True)
+
+    if target_files is not None:
+        # Explicit target files requested
+        files_to_process = [p for p in all_files if p.name in target_files]
+    else:
+        # Apply limit to needing_extraction
+        files_to_process = needing_extraction
+        if limit is not None:
+            skipped_files = needing_extraction[limit:]
+            files_to_process = needing_extraction[:limit]
+            import src.utils.formatting as formatting
+
+            for f in skipped_files:
+                formatting.print_info(f"Skipped extraction due to limit: {f.name}")
+
+    selected_filenames = {p.name for p in files_to_process}
+
+    parsed_documents = {}
+    for p in files_to_process:
+        try:
+            parsed_documents[p.name] = p.read_text(encoding="utf-8")
+        except Exception:
+            pass
 
     if not parsed_documents:
-        raise WorkspaceError(
-            f"No parsed/ingested files found for ticker '{ticker}' in workspace. "
-            "Please download filings (e.g. 'fa run edgar') and ingest them ('fa run ingest') first."
-        )
+        # No files to extract, return early
+        return
 
     extract_agent_map = {
         "metadata": "metadata",
@@ -211,10 +293,36 @@ async def orchestrate_extract(
                 "Missing dependency: Company metadata extraction must be completed first."
             )
 
-    # 1. Run MetadataAgent if pending or failed, or explicitly targeted
-    if (normalized_agent == "metadata") or (
-        state.metadata_status in ("pending", "failed") and normalized_agent is None
-    ):
+    # 1. Run MetadataAgent if pending or failed, or explicitly targeted, or if any selected files lack metadata
+    has_unidentified_metadata = False
+    for fn in selected_filenames:
+        row = None
+        for r in registry.values():
+            if r.get("new_filename") == fn:
+                row = r
+                break
+        if (
+            not row
+            or row.get("fiscal_year") == "N/A"
+            or row.get("fiscal_quarter") == "N/A"
+            or row.get("document_type") == "N/A"
+        ):
+            has_unidentified_metadata = True
+            break
+
+    run_metadata = (
+        (normalized_agent == "metadata")
+        or (
+            normalized_agent is None
+            and (
+                state.metadata_status in ("pending", "failed")
+                or has_unidentified_metadata
+            )
+        )
+        or force
+    )
+
+    if run_metadata:
         orchestrator.checkout_status(ticker, "metadata")
         try:
             metadata_result = await asyncio.to_thread(
@@ -287,6 +395,14 @@ async def orchestrate_extract(
             continue
         period_key = f"{fy}_{fq}"
         periods_docs.setdefault(period_key, []).append(row)
+
+    # Find which periods contain at least one of the selected files
+    periods_to_update = set()
+    for period_key, doc_rows in periods_docs.items():
+        for row in doc_rows:
+            if row["new_filename"] in selected_filenames:
+                periods_to_update.add(period_key)
+                break
 
     # For each period, initialize reports on blackboard
     for period_key in periods_docs:
@@ -853,11 +969,13 @@ async def orchestrate_extract(
     # Execution Gating & Concurrency
     # ----------------------------------------------------
 
-    # 1. Extraction Phase (Parallel)
     extract_tasks = []
     for period_key, doc_rows in periods_docs.items():
         for row in doc_rows:
             fn = row["new_filename"]
+            if fn not in selected_filenames:
+                continue
+
             doc_type = row.get("document_type", "other")
             is_q = "Q" in period_key
 
@@ -963,7 +1081,8 @@ async def orchestrate_extract(
         # A. Diluted Shares Agent
         if normalized_agent is None or normalized_agent == "shares":
             if (
-                report.shares_status in ("pending", "failed")
+                period_key in periods_to_update
+                or report.shares_status in ("pending", "failed")
                 or normalized_agent == "shares"
             ):
                 if report.income_statement_status == "completed":
@@ -979,7 +1098,8 @@ async def orchestrate_extract(
         # B. Organic Growth Agent
         if normalized_agent is None or normalized_agent == "organic_growth":
             if (
-                report.organic_growth_status in ("pending", "failed")
+                period_key in periods_to_update
+                or report.organic_growth_status in ("pending", "failed")
                 or normalized_agent == "organic_growth"
             ):
                 if report.income_statement_status == "completed":
@@ -994,18 +1114,19 @@ async def orchestrate_extract(
 
         # C. Interpretation Agent
         if normalized_agent is None or normalized_agent == "interpretation":
-            if (
-                report.balance_sheet_status == "completed"
-                and report.income_statement_status == "completed"
-            ):
-                metrics_l1_tasks.append(
-                    orchestrator.wrap_task(
-                        "interpretation",
-                        period_key,
-                        None,
-                        lambda pk=period_key: run_interpretation_task(pk),
+            if period_key in periods_to_update or normalized_agent == "interpretation":
+                if (
+                    report.balance_sheet_status == "completed"
+                    and report.income_statement_status == "completed"
+                ):
+                    metrics_l1_tasks.append(
+                        orchestrator.wrap_task(
+                            "interpretation",
+                            period_key,
+                            None,
+                            lambda pk=period_key: run_interpretation_task(pk),
+                        )
                     )
-                )
 
     if metrics_l1_tasks:
         await asyncio.gather(*metrics_l1_tasks, return_exceptions=True)
@@ -1022,7 +1143,8 @@ async def orchestrate_extract(
         # Run operating_ebita
         if normalized_agent is None or normalized_agent == "ebita":
             if (
-                report.ebita_status in ("pending", "failed")
+                period_key in periods_to_update
+                or report.ebita_status in ("pending", "failed")
                 or normalized_agent == "ebita"
             ):
                 if report.income_statement_status == "completed":
@@ -1037,7 +1159,11 @@ async def orchestrate_extract(
 
         # Run adjusted_taxes
         if normalized_agent is None or normalized_agent == "tax":
-            if report.tax_status in ("pending", "failed") or normalized_agent == "tax":
+            if (
+                period_key in periods_to_update
+                or report.tax_status in ("pending", "failed")
+                or normalized_agent == "tax"
+            ):
                 if report.income_statement_status == "completed":
                     metrics_l2_tasks.append(
                         orchestrator.wrap_task(

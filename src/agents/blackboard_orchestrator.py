@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import Any, Optional, Literal
+from typing import Any, Optional, Literal, List
 
 from src.core.config import load_config
 from src.core.exceptions import WorkspaceError
@@ -343,6 +343,8 @@ class BlackboardOrchestrator:
         agent: Optional[str] = None,
         non_interactive: bool = False,
         limit: Optional[int] = None,
+        force: bool = False,
+        target_files: Optional[List[str]] = None,
     ) -> None:
         """Executes full or stage-level execution of the blackboard coordinator."""
         self._failure_queue.clear()
@@ -360,7 +362,15 @@ class BlackboardOrchestrator:
                     orchestrate_extract,
                 )
 
-                await orchestrate_extract(self, ticker, agent, non_interactive)
+                await orchestrate_extract(
+                    self,
+                    ticker,
+                    agent=agent,
+                    non_interactive=non_interactive,
+                    limit=limit,
+                    force=force,
+                    target_files=target_files,
+                )
 
             if stage is None or stage == "analyze":
                 from src.agents.orchestrator_pipelines.analyze import (
