@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Optional
+from typing import Optional, List, Any
 from src.services.llm_client import LLMClient
 from src.core.blackboard import CompanyMetadata, WorkspaceContext, LineItem
 from src.agents.agent_executor import run_agent_loop
@@ -99,7 +99,7 @@ def run_interpretation_agent(
             period=period,
         )
 
-    def finalize(line_items: list) -> str:
+    def finalize(line_items: List[Any]) -> str:
         """Finalize the line item interpretation, providing the updated/verified list of line items."""
         return "Line items interpretation finalized."
 

@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 from src.services.llm_client import LLMClient
 from src.core.blackboard import CompanyMetadata, WorkspaceContext
 from src.agents.agent_executor import run_agent_loop
@@ -57,7 +57,7 @@ def run_organic_growth_agent(
 
     # Define tools as inner functions closed over state
     def keyword_search(
-        keywords: list, filename: Optional[str] = None, window: int = 200
+        keywords: List[str], filename: Optional[str] = None, window: int = 200
     ) -> str:
         """
         Search for occurrences of keywords within a window of characters.

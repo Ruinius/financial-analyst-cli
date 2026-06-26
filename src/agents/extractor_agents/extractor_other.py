@@ -1,5 +1,5 @@
 import logging
-from typing import Optional
+from typing import Optional, List
 from src.core.blackboard import CompanyMetadata, OtherExtraction
 from src.services.llm_client import LLMClient
 from src.agents.agent_executor import run_agent_loop
@@ -47,7 +47,7 @@ def run_other_doc_agent(
             return f"Chunk {chunk_id} not found or empty."
         return chunk_str
 
-    def keyword_search(keywords: list, window: int = 200) -> str:
+    def keyword_search(keywords: List[str], window: int = 200) -> str:
         """Search the document content for occurrences of keywords within a window of characters."""
         return str(find_keyword_contexts(content, keywords, window))
 

@@ -1,10 +1,11 @@
 import re
 import bisect
+from typing import List
 
 
 def find_keyword_contexts(
-    content: str, keywords: list, window: int = 200, max_matches: int = 15
-) -> list:
+    content: str, keywords: List[str], window: int = 200, max_matches: int = 15
+) -> List[dict]:
     """Find occurrences of keywords in content and return snippets of 200 chars before and after, along with the chunk ID they were found in."""
     if window < 100:
         window = 100

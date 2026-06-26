@@ -1,7 +1,7 @@
 import json
 import logging
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, List, Any
 from src.services.llm_client import LLMClient
 from src.core.blackboard import CompanyMetadata, WorkspaceContext
 from src.agents.agent_executor import run_agent_loop
@@ -79,7 +79,7 @@ def run_ebita_agent(
 
     # Define tools as inner functions closed over state
     def keyword_search(
-        keywords: list, filename: Optional[str] = None, window: int = 250
+        keywords: List[str], filename: Optional[str] = None, window: int = 250
     ) -> str:
         """
         Search for occurrences of keywords within a window of characters.
@@ -120,7 +120,7 @@ def run_ebita_agent(
         )
 
     def finalize(
-        operating_income: float, operating_ebita: float, ebita_adjustments: list
+        operating_income: float, operating_ebita: float, ebita_adjustments: List[Any]
     ) -> str:
         """Finalize the EBITA extraction, specifying operating_income, operating_ebita, and the adjustments list."""
         return "EBITA extraction finalized."

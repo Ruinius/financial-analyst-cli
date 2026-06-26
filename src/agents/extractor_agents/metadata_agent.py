@@ -1,7 +1,7 @@
 import logging
 import json
 from pathlib import Path
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, Any, List
 from pydantic import BaseModel
 
 from src.services.llm_client import LLMClient
@@ -38,7 +38,7 @@ def run_metadata_agent(
             return f"Error: Document {filename} not found or empty."
         return get_chunk_by_id(content, 0) or content[:4000]
 
-    def keyword_search(filename: str, keywords: list, window: int = 200) -> str:
+    def keyword_search(filename: str, keywords: List[str], window: int = 200) -> str:
         """Search the target parsed document content for occurrences of keywords within a window of characters."""
         content = parsed_documents.get(filename, "")
         if not content:
