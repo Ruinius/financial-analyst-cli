@@ -81,9 +81,6 @@ def test_initialize_workspace():
 
         # Verify root files exist
         assert (ws_path / "AAPL_wiki.md").exists()
-        assert (ws_path / "AAPL_extract_learning.md").exists()
-        assert (ws_path / "AAPL_analyze_learning.md").exists()
-        assert (ws_path / "AAPL_model_learning.md").exists()
 
 
 def test_cli_config_show(temp_config):

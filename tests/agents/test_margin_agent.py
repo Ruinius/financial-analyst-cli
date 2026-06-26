@@ -1,6 +1,6 @@
 import pytest
 import json
-from unittest.mock import patch, MagicMock, ANY
+from unittest.mock import patch, MagicMock
 
 from src.agents.modeler_agents.margin_agent import run_margin_agent
 from src.core.exceptions import LLMError
@@ -99,12 +99,6 @@ def test_run_margin_agent(mock_llm_class, mock_curator_class, tmp_path):
     assert (
         res["explanation"]
         == "Decided based on recent stable operating trends and cost cutting."
-    )
-
-    # Verify CuratorAgent was instantiated and curate_model_agent called
-    mock_curator_class.assert_called_once()
-    mock_curator_class.return_value.curate_model_agent.assert_called_once_with(
-        "MOCK", "Margin", ANY
     )
 
 

@@ -87,9 +87,6 @@ def test_run_non_operating_agent(mock_llm_class, mock_curator_class, tmp_path):
     assert res["other_financial"] == -2.0
     assert res["explanation"] == "Mocked successful extraction."
 
-    mock_curator_class.assert_called_once()
-    mock_curator_class.return_value.curate_model_agent.assert_called_once()
-
 
 @patch("src.agents.curator_agent.CuratorAgent")
 def test_run_non_operating_agent_missing_files(mock_curator, tmp_path):

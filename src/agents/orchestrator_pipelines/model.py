@@ -201,13 +201,6 @@ class Modeler:
             return
 
         learning_context = ""
-        learning_path = workspace / f"{active_ticker}_model_learning.md"
-        if learning_path.exists():
-            try:
-                learning_context = learning_path.read_text(encoding="utf-8")
-            except Exception:
-                pass
-
         assumptions = self.calculate_default_assumptions(
             active_ticker, workspace, learning_context
         )
@@ -229,12 +222,6 @@ class Modeler:
             logger.error(f"Failed to run curator before DCF Modeling Agent: {e}")
 
         curated_learning_context = ""
-        if learning_path.exists():
-            try:
-                curated_learning_context = learning_path.read_text(encoding="utf-8")
-            except Exception:
-                pass
-
         assumptions = self.estimate_llm_assumptions(
             active_ticker, workspace, assumptions, curated_learning_context
         )
@@ -470,88 +457,34 @@ class Modeler:
 
         base_margin = margin_results["base_margin"]
 
-        model_learning_path = workspace / f"{ticker}_model_learning.md"
-        extract_learning_path = workspace / f"{ticker}_extract_learning.md"
-
-        def get_metadata_from_learning(path: Path, pattern: str) -> Optional[str]:
-            if not path.exists():
-                return None
-            try:
-                # ⚡ Bolt Optimization: Use iterator and compile regex to avoid loading/splitting entire file into memory (~20x speedup)
-                compiled_pattern = re.compile(pattern, re.IGNORECASE)
-                with path.open("r", encoding="utf-8") as f:
-                    for line in f:
-                        match = compiled_pattern.search(line.strip())
-                        if match:
-                            return match.group(1).strip()
-            except Exception:
-                pass
-            return None
-
-        currency = None
-        for p in [model_learning_path, extract_learning_path]:
-            currency = get_metadata_from_learning(
-                p, r"(?:Preferred\s*)?Currency:\s*([A-Za-z]{3})"
-            )
-            if currency:
-                break
-        if not currency:
-            currency = market_data.get("currency")
-        if not currency:
-            currency = "USD"
-        currency = currency.upper()
-
-        fx_rate_str = get_metadata_from_learning(
-            model_learning_path,
-            r"(?:FX\s*Rate|FX\s*Rate\s*Applied|Exchange\s*Rate):\s*([0-9.]+)",
+        # Get currency, fx_rate, adr_ratio directly from blackboard metadata
+        currency = (workspace_state.metadata.reporting_currency or "USD").upper()
+        fx_rate = workspace_state.metadata.fx_rate
+        adr_ratio = (
+            workspace_state.metadata.adr_ratio
+            if workspace_state.metadata.adr_ratio is not None
+            else 1.0
         )
-        if not fx_rate_str:
-            fx_rate_str = get_metadata_from_learning(
-                model_learning_path, r"^-\s*FX:\s*([0-9.]+)\s*$"
-            )
 
-        fx_rate = None
-        if fx_rate_str:
+        # If fx_rate is default (1.0) and currency differs from trading_currency, try to dynamically fetch it
+        trading_currency = (market_data.get("currency") or "USD").upper()
+        if fx_rate == 1.0 and currency != trading_currency:
+            from src.services.market_data import get_exchange_rate
+
             try:
-                fx_rate = float(fx_rate_str)
-            except ValueError:
-                pass
-
-        if fx_rate is None:
-            trading_currency = (market_data.get("currency") or "USD").upper()
-            if currency != trading_currency:
-                from src.services.market_data import get_exchange_rate
-
-                try:
-                    fx_data = get_exchange_rate(currency, trading_currency)
-                    if fx_data.get("rate"):
-                        fx_rate = fx_data["rate"]
-                        formatting.print_info(
-                            f"Dynamically fetched exchange rate {currency} -> {trading_currency}: {fx_rate}"
-                        )
-                except Exception as e:
-                    formatting.print_warning(
-                        f"Failed to dynamically fetch exchange rate for {currency} -> {trading_currency}: {e}"
+                fx_data = get_exchange_rate(currency, trading_currency)
+                if fx_data.get("rate"):
+                    fx_rate = fx_data["rate"]
+                    formatting.print_info(
+                        f"Dynamically fetched exchange rate {currency} -> {trading_currency}: {fx_rate}"
                     )
+            except Exception as e:
+                formatting.print_warning(
+                    f"Failed to dynamically fetch exchange rate for {currency} -> {trading_currency}: {e}"
+                )
 
         if fx_rate is None:
             fx_rate = 1.0
-
-        adr_ratio_str = get_metadata_from_learning(
-            model_learning_path,
-            r"(?:ADR\s*Ratio|ADR\s*Ratio\s*Applied|ADR):\s*([0-9.]+)",
-        )
-        if not adr_ratio_str:
-            adr_ratio_str = get_metadata_from_learning(
-                model_learning_path, r"^-\s*ADR:\s*([0-9.]+)\s*$"
-            )
-
-        adr_ratio = 1.0
-        if adr_ratio_str:
-            try:
-                adr_ratio = float(adr_ratio_str)
-            except ValueError:
-                pass
 
         assumptions = {
             "wacc": wacc,

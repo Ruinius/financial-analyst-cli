@@ -294,14 +294,7 @@ async def orchestrate_extract(
             )
     save_workspace_state(ticker, state)
 
-    # Get learnings string context
-    learnings_path = workspace / f"{ticker}_extract_learning.md"
     learnings = ""
-    if learnings_path.exists():
-        try:
-            learnings = learnings_path.read_text(encoding="utf-8")
-        except Exception:
-            pass
 
     updated_periods = set()
 
@@ -888,9 +881,11 @@ async def orchestrate_extract(
                                 "income_statement",
                                 period_key,
                                 fn,
-                                lambda pk=period_key, f=fn, c=content, iq=is_q, dt=doc_type: (
-                                    run_income_statement(pk, f, c, iq, dt)
-                                ),
+                                lambda pk=period_key,
+                                f=fn,
+                                c=content,
+                                iq=is_q,
+                                dt=doc_type: (run_income_statement(pk, f, c, iq, dt)),
                             )
                         )
 
@@ -906,9 +901,11 @@ async def orchestrate_extract(
                                 "balance_sheet",
                                 period_key,
                                 fn,
-                                lambda pk=period_key, f=fn, c=content, iq=is_q, dt=doc_type: (
-                                    run_balance_sheet(pk, f, c, iq, dt)
-                                ),
+                                lambda pk=period_key,
+                                f=fn,
+                                c=content,
+                                iq=is_q,
+                                dt=doc_type: (run_balance_sheet(pk, f, c, iq, dt)),
                             )
                         )
             else:

@@ -41,7 +41,7 @@ When a workspace path is set or initialized, the CLI automatically verifies and 
 - `5_historical_analysis/`: Longitudinal historical models and qualitative trends.
 - `6_financial_model/`: Markdown representations of projected DCF valuation models.
 - `7_historical_model_json/`: JSON model versions for the interactive web viewer.
-- Root wiki/learning files (`[TICKER]_wiki.md`, `[TICKER]_extract_learning.md`, `[TICKER]_analyze_learning.md`, `[TICKER]_model_learning.md`): Continuously refined via the Curator Agent.
+- Root wiki file (`[TICKER]_wiki.md`): Continuously refined via the Curator Agent to compile qualitative perspectives.
 
 ---
 
@@ -81,10 +81,7 @@ flowchart TD
   - If the document is a `10-Q`, `10-K`, or `earnings_announcement`, the LLM also identifies the fiscal quarter.
   - Rename the markdown and raw files to `YYYYMMDD_document_type.md` (and corresponding raw extension) using the identified document date, and update `parsed_data.csv`.
 - **Step 2E: Self-Healing Ingestion Context**:
-  - The Curator Agent compiles details and updates `[TICKER]_extract_learning.md` and `[TICKER]_wiki.md` in the root with identified company details:
-    - Fiscal year-end month and the mapping of calendar months to fiscal quarters.
-    - Company-specific formatting preferences.
-  - Verify and correct fiscal quarter/document date mappings retroactively.
+  - The Curator Agent compiles details and updates `[TICKER]_wiki.md` in the root with identified company details, verifying and correcting fiscal quarter/document date mappings retroactively.
 
 ### 3.3 Step 3: Metric Extraction (`fa run extract`)
 - **Queue**: Compare files in `2_parsed_data/` against `4_extracted_data/` registries and queue unprocessed files.
@@ -110,8 +107,7 @@ flowchart TD
   - **Operating EBITA Agent**: Identifies non-recurring adjustments (restructuring, amortization, impairment, write-offs) in footnotes and backs them out to compute clean Operating EBITA.
   - **Adjusted Taxes Agent**: Backs out the tax effects of non-operating adjustments at a standard statutory tax rate (25%) and reviews footnotes for non-recurring tax benefits.
   - **Rust Performance Boundary**: Passes the Pydantic-validated JSON of classified items to the **Rust Core Engine** to calculate Invested Capital, NOPAT, ROIC, and Capital Turnover. All calculated metrics propagate the audit linkage metadata back to their respective raw source numbers.
-- **Step 3D: Manual User Extraction Context**:
-  - The file `[TICKER]_extract_learning.md` in the root is used to provide manual user feedback to override/configure custom classifications for operating/non-operating items under the `## User Feedback` section. The Curator Agent reads and rewrites/compacts this feedback into lessons and clears the feedback section.
+
 
 ### 3.4 Step 4: Historical Analysis (`fa run analyze`)
 - **Queue**: Identify files in `4_extracted_data/` not yet integrated into `5_historical_analysis/`.
@@ -123,23 +119,22 @@ flowchart TD
   - **`10-K` / `20-F`**: Update `5_historical_analysis/financials_annual.md` (annual metrics).
 - **Self-Healing Integration**:
   - If annual reports are processed, the LLM checks if it can deduce a missing fourth quarter's financials by subtracting the first three quarters from the annual total, and writes the calculated Q4 metrics to `financials_quarter.md`.
-  - At the end of the analysis stage, the Curator Agent runs to consolidate qualitative views into `[TICKER]_wiki.md` and historical trend lessons into `[TICKER]_analyze_learning.md`, clearing the feedback section.
+  - At the end of the analysis stage, the Curator Agent runs to consolidate qualitative views into `[TICKER]_wiki.md`.
 
 
 ### 3.5 Step 5: Financial Modeling (`fa run model`)
 - **Step 5A: Base Assumption Derivation & Modeler Agents**:
   - Run deterministic calculations to determine default values for: `base_WACC`, `base_capital_turnover`, `base_revenue`, `base_ebita_margin`, `base_adjusted_tax_rate`, `base_growth_rate`, and `base_terminal_growth`.
   - Delegate assumption estimation to specialized multi-turn agents orchestrated by `modeler_orchestrator.py`:
-    - **WACC Agent**: A 4-turn agent that delevers and relevers the beta using a full corporate finance WACC formula, finding and pulling necessary values via helper tools. It writes WACC calculations to the model markdown and triggers curator updates under `## WACC` in `[TICKER]_model_learning.md`.
-    - **Growth Agent**: A 4-turn agent that proposes near-term, mid-term, and terminal growth rates with rationales, curating results under `## Growth` in `[TICKER]_model_learning.md`.
-    - **Margin Agent**: A 4-turn agent that estimates three future margins (base, Year 5 target, and terminal) with rationale, curating lessons under `## Margin` in `[TICKER]_model_learning.md`.
+    - **WACC Agent**: A 4-turn agent that delevers and relevers the beta using a full corporate finance WACC formula, finding and pulling necessary values via helper tools, writing calculations to the model projections.
+    - **Growth Agent**: A 4-turn agent that proposes near-term, mid-term, and terminal growth rates with rationales.
+    - **Margin Agent**: A 4-turn agent that estimates three future margins (base, Year 5 target, and terminal) with rationale.
     - **Non-Operating Agent**: A single-turn agent that extracts 6 non-operating categories from the latest balance sheet to replace net debt.
 - **Step 5B: LLM Estimation & Inputs**:
   - Use `analyst_views.md`, `financials_quarter.md`, and `financials_annual.md` as initial context.
   - Determine `shares_outstanding` from the latest quarter's basic or diluted shares outstanding (the most recent period containing a number).
 - **Step 5C: User Validation & Self-Healing**:
-  - Present the assumptions table to the user for feedback.
-  - Record any overrides or adjustments in `[TICKER]_model_learning.md`.
+  - Present the assumptions table to the user for feedback. Custom overrides can be supplied programmatically or directly in the blackboard.
 - **Step 5D: Execution**:
   - Generate the projected financial model. Output the readable markdown file to `6_financial_model/` (featuring a comprehensive Valuation table with Enterprise Value, detailed non-operating items, Equity Value, shares outstanding, intrinsic value per share in trading currency, currency, FX rate, ADR ratio, current market price, upside/downside, and calculation date) and the structured JSON to `7_historical_model_json/` as `YYYYMMDD_ticker_0.json`.
 

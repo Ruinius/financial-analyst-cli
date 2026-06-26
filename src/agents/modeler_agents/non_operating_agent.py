@@ -150,19 +150,4 @@ def run_non_operating_agent(
     except Exception as e:
         raise LLMError(f"Non-Operating Agent failed during LLM generation: {e}")
 
-    # Trigger Curator Agent to capture lessons in model_learning.md
-    try:
-        from src.agents.curator_agent import CuratorAgent
-
-        history_text = ""
-        for h in history:
-            history_text += f"\n\n--- {h['role'].upper()} ---\n{h['content']}"
-
-        curator = CuratorAgent(client.settings)
-        curator.curate_model_agent(
-            company_metadata.ticker, "Non-Operating", history_text
-        )
-    except Exception as e:
-        logger.error(f"Failed to run curator for Non-Operating agent: {e}")
-
     return final_results

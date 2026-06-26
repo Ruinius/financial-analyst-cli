@@ -42,62 +42,6 @@ def initialize_workspace(workspace_dir: Path, ticker: str) -> None:
             )
             wiki_path.write_text(wiki_content, encoding="utf-8")
 
-        extract_learning_path = workspace_dir / f"{ticker}_extract_learning.md"
-        if not extract_learning_path.exists():
-            extract_content = (
-                f"# Ingestion & Extraction Learning: {ticker}\n\n"
-                "## Fiscal Schedule Mappings\n"
-                "- Q1: N/A\n"
-                "- Q2: N/A\n"
-                "- Q3: N/A\n"
-                "- FY: N/A\n\n"
-                "## Preferred Currency & Unit\n"
-                "- Currency: N/A\n"
-                "- Unit: Millions\n\n"
-                "## Lessons to Better Ingest & Extract\n- None\n\n"
-                "## balance_sheet\n"
-                "- Which key words that worked well in the search: None\n"
-                "- What are line items to watch out for and why: None\n\n"
-                "## income_statement\n"
-                "- Which key words that worked well in the search: None\n"
-                "- What are line items to watch out for and why: None\n\n"
-                "## diluted_shares\n"
-                "- Which key words that worked well in the search: None\n"
-                "- What are line items to watch out for and why: None\n\n"
-                "## organic growth\n"
-                "- Which key words that worked well in the search: None\n"
-                "- What are line items to watch out for and why: None\n\n"
-                "## ebita\n"
-                "- Which key words that worked well in the search: None\n"
-                "- What are line items to watch out for and why: None\n\n"
-                "## tax\n"
-                "- Which key words that worked well in the search: None\n"
-                "- What are line items to watch out for and why: None\n\n"
-                "## User Feedback\n"
-                "<!-- Write your feedback here. The Curator Agent will compile it into lessons and clear this section. -->\n"
-            )
-            extract_learning_path.write_text(extract_content, encoding="utf-8")
-
-        analyze_learning_path = workspace_dir / f"{ticker}_analyze_learning.md"
-        if not analyze_learning_path.exists():
-            analyze_content = (
-                f"# Analysis Learning: {ticker}\n\n"
-                "## Lessons to Better Analyze\n- None\n\n"
-                "## User Feedback\n"
-                "<!-- Write your feedback here. The Curator Agent will compile it into lessons and clear this section. -->\n"
-            )
-            analyze_learning_path.write_text(analyze_content, encoding="utf-8")
-
-        model_learning_path = workspace_dir / f"{ticker}_model_learning.md"
-        if not model_learning_path.exists():
-            model_content = (
-                f"# Modeling Learning: {ticker}\n\n"
-                "## Lessons to Better Model\n- None\n\n"
-                "## User Feedback\n"
-                "<!-- Write your feedback here. The Curator Agent will compile it into lessons and clear this section. -->\n"
-            )
-            model_learning_path.write_text(model_content, encoding="utf-8")
-
     except Exception as e:
         raise RuntimeError(f"Failed to initialize workspace folders: {str(e)}")
 

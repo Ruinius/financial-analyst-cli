@@ -153,10 +153,6 @@ def test_run_wacc_agent(mock_llm_class, mock_curator_class, tmp_path):
     assert res["unlevered_beta"] == 0.95
     assert res["explanation"] == "Calculated successfully using agent tool pipeline."
 
-    # Verify CuratorAgent was instantiated and curate_model_agent called
-    mock_curator_class.assert_called_once()
-    mock_curator_class.return_value.curate_model_agent.assert_called_once()
-
 
 @patch("src.agents.curator_agent.CuratorAgent")
 def test_run_wacc_agent_llm_failure(mock_curator, tmp_path):
