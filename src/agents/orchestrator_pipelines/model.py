@@ -771,6 +771,35 @@ async def orchestrate_model(
 ) -> None:
     import src.agents.blackboard_orchestrator as bo
 
+    def run_modeler_with_learning(agent_fn, agent_name, *args, **kwargs):
+        from src.agents.agent_executor import last_agent_run
+
+        # Clear any prior run state
+        last_agent_run.set(None)
+
+        res = agent_fn(*args, **kwargs)
+
+        # Try to run learning
+        run_info = last_agent_run.get()
+        if run_info:
+            turn_count, run_logs = run_info
+            try:
+                from src.agents.learning_agent import LearningAgent
+
+                learning_agent = LearningAgent(
+                    settings=orchestrator.settings, client=orchestrator.client
+                )
+                learning_agent.run_learning(
+                    ticker=ticker,
+                    agent_name=agent_name,
+                    document_type="model",
+                    turn_count=turn_count,
+                    run_logs=run_logs,
+                )
+            except Exception as le:
+                logger.error(f"LearningAgent run failed for {agent_name}: {le}")
+        return res
+
     state = load_workspace_state(ticker)
 
     extract_agent_map = {
@@ -909,7 +938,9 @@ async def orchestrate_model(
                         )
                         try:
                             wacc_res = await asyncio.to_thread(
-                                bo.run_wacc_agent,
+                                run_modeler_with_learning,
+                                agent_fn=bo.run_wacc_agent,
+                                agent_name="wacc",
                                 client=orchestrator.client,
                                 company_metadata=state.metadata,
                                 workspace_state=state,
@@ -948,7 +979,9 @@ async def orchestrate_model(
                         )
                         try:
                             growth_res = await asyncio.to_thread(
-                                bo.run_growth_agent,
+                                run_modeler_with_learning,
+                                agent_fn=bo.run_growth_agent,
+                                agent_name="growth",
                                 client=orchestrator.client,
                                 company_metadata=state.metadata,
                                 workspace_state=state,
@@ -965,10 +998,7 @@ async def orchestrate_model(
                         except Exception as e:
                             logger.error(f"Growth Agent failed: {e}")
                             orchestrator.checkin_status(
-                                ticker,
-                                "growth_agent",
-                                "failed",
-                                period=latest_period,
+                                ticker, "growth_agent", "failed", period=latest_period
                             )
                             raise
 
@@ -992,7 +1022,9 @@ async def orchestrate_model(
                         )
                         try:
                             margin_res = await asyncio.to_thread(
-                                bo.run_margin_agent,
+                                run_modeler_with_learning,
+                                agent_fn=bo.run_margin_agent,
+                                agent_name="margin",
                                 client=orchestrator.client,
                                 company_metadata=state.metadata,
                                 workspace_state=state,
@@ -1009,10 +1041,7 @@ async def orchestrate_model(
                         except Exception as e:
                             logger.error(f"Margin Agent failed: {e}")
                             orchestrator.checkin_status(
-                                ticker,
-                                "margin_agent",
-                                "failed",
-                                period=latest_period,
+                                ticker, "margin_agent", "failed", period=latest_period
                             )
                             raise
 
@@ -1036,7 +1065,9 @@ async def orchestrate_model(
                         )
                         try:
                             non_op_res = await asyncio.to_thread(
-                                bo.run_non_operating_agent,
+                                run_modeler_with_learning,
+                                agent_fn=bo.run_non_operating_agent,
+                                agent_name="non_operating",
                                 client=orchestrator.client,
                                 company_metadata=state.metadata,
                                 workspace_state=state,
@@ -1123,8 +1154,14 @@ async def orchestrate_model(
         async def run_dcf_modeling():
             orchestrator.checkout_status(ticker, "dcf_modeling", period=latest_period)
             try:
-                final_assumptions = modeler.estimate_llm_assumptions(
-                    ticker, workspace, base_assumptions, curated_learning_context
+                final_assumptions = await asyncio.to_thread(
+                    run_modeler_with_learning,
+                    modeler.estimate_llm_assumptions,
+                    "dcf_modeling",
+                    ticker,
+                    workspace,
+                    base_assumptions,
+                    curated_learning_context,
                 )
 
                 # Recalculate projections and output

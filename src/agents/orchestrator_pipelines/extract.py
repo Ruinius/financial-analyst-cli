@@ -126,6 +126,44 @@ async def orchestrate_extract(
     import src.agents.blackboard_orchestrator as bo
     from src.agents.orchestrator_pipelines.ingest import Ingester
 
+    def run_extractor_with_learning(agent_fn, agent_name, doc_type, *args, **kwargs):
+        from src.agents.agent_executor import last_agent_run
+
+        # Clear any prior run state
+        last_agent_run.set(None)
+
+        res = agent_fn(*args, **kwargs)
+
+        # Try to run learning
+        run_info = last_agent_run.get()
+        if run_info:
+            turn_count, run_logs = run_info
+            try:
+                from src.agents.learning_agent import LearningAgent
+
+                learning_agent = LearningAgent(
+                    settings=orchestrator.settings, client=orchestrator.client
+                )
+                learning_agent.run_learning(
+                    ticker=ticker,
+                    agent_name=agent_name,
+                    document_type=doc_type,
+                    turn_count=turn_count,
+                    run_logs=run_logs,
+                )
+            except Exception as le:
+                logger.error(f"LearningAgent run failed for {agent_name}: {le}")
+        return res
+
+    def get_doc_type_for_period(period_key: str) -> str:
+        is_q = "Q" in period_key
+        registry_rows = periods_docs.get(period_key, [])
+        for r in registry_rows:
+            dt = r.get("document_type")
+            if dt in ("annual_filing", "quarterly_filing", "earnings_announcement"):
+                return dt
+        return "quarterly_filing" if is_q else "annual_filing"
+
     state = load_workspace_state(ticker)
     settings = orchestrator.settings
     workspace = Path(settings.active_workspace_path)
@@ -478,7 +516,10 @@ async def orchestrate_extract(
             orchestrator.checkout_status(ticker, "balance_sheet", period=period_key)
             try:
                 res = await asyncio.to_thread(
-                    bo.run_balance_sheet_agent,
+                    run_extractor_with_learning,
+                    agent_fn=bo.run_balance_sheet_agent,
+                    agent_name="balance_sheet",
+                    doc_type=doc_type,
                     client=orchestrator.client,
                     filename=fn,
                     content=content,
@@ -574,7 +615,10 @@ async def orchestrate_extract(
             orchestrator.checkout_status(ticker, "income_statement", period=period_key)
             try:
                 res = await asyncio.to_thread(
-                    bo.run_income_statement_agent,
+                    run_extractor_with_learning,
+                    agent_fn=bo.run_income_statement_agent,
+                    agent_name="income_statement",
+                    doc_type=doc_type,
                     client=orchestrator.client,
                     filename=fn,
                     content=content,
@@ -715,9 +759,13 @@ async def orchestrate_extract(
                     parsed_documents[fn] = doc_path.read_text(encoding="utf-8")
 
             orchestrator.checkout_status(ticker, "shares", period=period_key)
+            doc_type = get_doc_type_for_period(period_key)
             try:
                 basic, diluted = await asyncio.to_thread(
-                    bo.run_diluted_shares_agent,
+                    run_extractor_with_learning,
+                    agent_fn=bo.run_diluted_shares_agent,
+                    agent_name="diluted_shares",
+                    doc_type=doc_type,
                     client=orchestrator.client,
                     parsed_documents=parsed_documents,
                     company_metadata=state.metadata,
@@ -755,13 +803,17 @@ async def orchestrate_extract(
                     parsed_documents[fn] = doc_path.read_text(encoding="utf-8")
 
             orchestrator.checkout_status(ticker, "organic_growth", period=period_key)
+            doc_type = get_doc_type_for_period(period_key)
             try:
                 (
                     simple_growth,
                     organic_growth,
                     revenue,
                 ) = await asyncio.to_thread(
-                    bo.run_organic_growth_agent,
+                    run_extractor_with_learning,
+                    agent_fn=bo.run_organic_growth_agent,
+                    agent_name="organic_growth",
+                    doc_type=doc_type,
                     client=orchestrator.client,
                     parsed_documents=parsed_documents,
                     company_metadata=state.metadata,
@@ -839,9 +891,13 @@ async def orchestrate_extract(
                     parsed_documents[fn] = doc_path.read_text(encoding="utf-8")
 
             orchestrator.checkout_status(ticker, "ebita", period=period_key)
+            doc_type = get_doc_type_for_period(period_key)
             try:
                 op_inc, ebita, ebita_adjustments = await asyncio.to_thread(
-                    bo.run_ebita_agent,
+                    run_extractor_with_learning,
+                    agent_fn=bo.run_ebita_agent,
+                    agent_name="ebita",
+                    doc_type=doc_type,
                     client=orchestrator.client,
                     parsed_documents=parsed_documents,
                     company_metadata=state.metadata,
@@ -922,13 +978,17 @@ async def orchestrate_extract(
                     else 0.0
                 )
 
+                doc_type = get_doc_type_for_period(period_key)
                 (
                     inc_bt,
                     rep_tax,
                     adj_taxes,
                     tax_adjustments,
                 ) = await asyncio.to_thread(
-                    bo.run_tax_agent,
+                    run_extractor_with_learning,
+                    agent_fn=bo.run_tax_agent,
+                    agent_name="tax",
+                    doc_type=doc_type,
                     client=orchestrator.client,
                     parsed_documents=parsed_documents,
                     company_metadata=state.metadata,

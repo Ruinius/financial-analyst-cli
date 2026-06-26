@@ -51,6 +51,16 @@ class LearningAgent:
             "operating_ebita": "ebita",
             "tax": "tax",
             "adjusted_taxes": "tax",
+            "wacc": "wacc",
+            "wacc_agent": "wacc",
+            "growth": "growth",
+            "growth_agent": "growth",
+            "margin": "margin",
+            "margin_agent": "margin",
+            "non_operating": "non_operating",
+            "non_operating_agent": "non_operating",
+            "dcf_modeling": "dcf_modeling",
+            "dcf_modeling_agent": "dcf_modeling",
         }
         std_agent_name = name_map.get(agent_name.lower().replace(" ", "_"), agent_name)
 
@@ -67,6 +77,9 @@ class LearningAgent:
             "earnings_announcement": "earnings_announcement",
             "earningsannouncement": "earnings_announcement",
             "ea": "earnings_announcement",
+            "model": "model",
+            "modeling": "model",
+            "model_learning": "model",
         }
         std_doc_type = doc_map.get(
             document_type.lower().replace(" ", "_"), document_type

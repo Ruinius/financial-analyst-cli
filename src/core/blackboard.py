@@ -91,6 +91,16 @@ class DocumentTypeLearnings(BaseModel):
     tax: ExtractAgentLearning = Field(default_factory=ExtractAgentLearning)
 
 
+class ModelAgentsLearnings(BaseModel):
+    """Specific learnings gathered for modeling sub-agents to guide future runs."""
+
+    wacc: ExtractAgentLearning = Field(default_factory=ExtractAgentLearning)
+    growth: ExtractAgentLearning = Field(default_factory=ExtractAgentLearning)
+    margin: ExtractAgentLearning = Field(default_factory=ExtractAgentLearning)
+    non_operating: ExtractAgentLearning = Field(default_factory=ExtractAgentLearning)
+    dcf_modeling: ExtractAgentLearning = Field(default_factory=ExtractAgentLearning)
+
+
 class LearningsSchema(BaseModel):
     """Overall self-learning contexts separated by document type to optimize search vectors."""
 
@@ -101,6 +111,7 @@ class LearningsSchema(BaseModel):
     earnings_announcement: DocumentTypeLearnings = Field(
         default_factory=DocumentTypeLearnings
     )
+    model: ModelAgentsLearnings = Field(default_factory=ModelAgentsLearnings)
 
 
 class HistoricalFinancialSummary(BaseModel):

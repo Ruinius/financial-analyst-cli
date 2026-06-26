@@ -1,11 +1,16 @@
 import logging
 import json
+import contextvars
 from typing import List, Callable, Dict, Any
 from types import SimpleNamespace
 from src.core.exceptions import LLMError
 from src.services.llm_client import ChatSession, LLMClient
 
 logger = logging.getLogger(__name__)
+
+# Context variable to store execution metrics of the most recent agent execution loop run.
+# Stores a tuple of: (turn_count, run_logs)
+last_agent_run = contextvars.ContextVar("last_agent_run", default=None)
 
 
 def run_agent_loop(
@@ -164,9 +169,20 @@ def run_agent_loop(
 
             response = chat.send_message(prompt_instruction)
 
+    # Capture execution metrics in context variable unconditionally before exiting
+    history = chat.get_history()
+    turn_count = sum(1 for msg in history if msg.get("role") == "assistant")
+    lines = []
+    for msg in history:
+        role = msg.get("role", "unknown").upper()
+        content = msg.get("content", "")
+        lines.append(f"{role}: {content}")
+    run_logs = "\n\n".join(lines)
+    last_agent_run.set((turn_count, run_logs))
+
     if not finalized:
         raise LLMError(
             f"Agent failed to finalize execution within the limit of {max_turns} turns."
         )
 
-    return finalized_args, chat.get_history()
+    return finalized_args, history
