@@ -121,3 +121,100 @@ def test_pipeline_metadata_gating(mock_run_bs, temp_workspace_env):
         asyncio.run(orchestrator.run_pipeline(ticker, stage="extract"))
 
     mock_run_bs.assert_not_called()
+
+
+@patch("src.agents.blackboard_orchestrator.run_metadata_agent")
+def test_extract_metadata_renaming(mock_run_metadata, temp_workspace_env):
+    from src.agents.extractor_agents.metadata_agent import MetadataAgentResult
+    from src.agents.orchestrator_pipelines.ingest import Ingester
+    from src.core.blackboard import RawDocumentState
+
+    ticker = "AAPL"
+    workspace = Path(temp_workspace_env.active_workspace_path)
+
+    # 1. Setup mock result
+    mock_run_metadata.return_value = MetadataAgentResult(
+        company_metadata=CompanyMetadata(
+            ticker=ticker,
+            company_name="Mock Apple Inc.",
+            description="Mock Apple Description",
+        ),
+        documents_metadata={
+            "dummy_doc.md": {
+                "document_date": "2024-10-31",
+                "document_type": "quarterly_filing",
+                "fiscal_quarter": "Q3",
+                "fiscal_year": "2024",
+                "period_end_date": "2024-09-30",
+            }
+        },
+    )
+
+    # 2. Setup the registry
+    ingester_inst = Ingester()
+    registry = {
+        "hash123": {
+            "file_hash": "hash123",
+            "original_filename": "dummy_doc.pdf",
+            "new_filename": "dummy_doc.md",
+            "document_type": "N/A",
+            "document_date": "N/A",
+            "fiscal_quarter": "N/A",
+            "fiscal_year": "N/A",
+            "period_end_date": "N/A",
+        }
+    }
+    ingester_inst.save_parsed_registry(registry)
+
+    # 3. Setup workspace state to track the raw document
+    state = load_workspace_state(ticker)
+    state.raw_documents = [
+        RawDocumentState(
+            file_name="dummy_doc.pdf",
+            sha256="hash123",
+            ingestion_status="completed",
+        )
+    ]
+    save_workspace_state(ticker, state)
+
+    # 4. Setup mock files on disk
+    parsed_dir = workspace / "2_parsed_data"
+    parsed_dir.mkdir(parents=True, exist_ok=True)
+    dummy_parsed = parsed_dir / "dummy_doc.md"
+    dummy_parsed.write_text("dummy parsed content", encoding="utf-8")
+
+    archive_dir = workspace / "3_archived_data"
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    dummy_archived = archive_dir / "dummy_doc.pdf"
+    dummy_archived.write_text("dummy archived content", encoding="utf-8")
+
+    # 5. Run metadata extraction pipeline
+    orchestrator = BlackboardOrchestrator()
+    asyncio.run(orchestrator.run_pipeline(ticker, stage="extract", agent="metadata"))
+
+    # 6. Verify files renamed
+    new_parsed = parsed_dir / "20241031_10Q_parsed.md"
+    new_archived = archive_dir / "20241031_10Q_parsed.pdf"
+
+    assert not dummy_parsed.exists()
+    assert new_parsed.exists()
+    assert new_parsed.read_text(encoding="utf-8") == "dummy parsed content"
+
+    assert not dummy_archived.exists()
+    assert new_archived.exists()
+    assert new_archived.read_text(encoding="utf-8") == "dummy archived content"
+
+    # 7. Verify registry updated
+    updated_reg = ingester_inst.load_parsed_registry()
+    row = updated_reg["hash123"]
+    assert row["new_filename"] == "20241031_10Q_parsed.md"
+    assert row["original_filename"] == "20241031_10Q_parsed.pdf"
+    assert row["document_date"] == "2024-10-31"
+    assert row["document_type"] == "quarterly_filing"
+    assert row["fiscal_quarter"] == "Q3"
+    assert row["fiscal_year"] == "2024"
+    assert row["period_end_date"] == "2024-09-30"
+
+    # 8. Verify workspace state updated
+    updated_state = load_workspace_state(ticker)
+    assert updated_state.raw_documents[0].file_name == "20241031_10Q_parsed.pdf"

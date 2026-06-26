@@ -398,6 +398,41 @@ async def orchestrate_extract(
             if hasattr(metadata_result, "documents_metadata"):
                 ingester_inst = Ingester()
                 reg = ingester_inst.load_parsed_registry()
+
+                # Document type abbreviation dictionary
+                doc_types_path = (
+                    Path(__file__).parent.parent.parent
+                    / "resources"
+                    / "document_types.json"
+                )
+                doc_type_abbr = {}
+                if doc_types_path.exists():
+                    try:
+                        with open(doc_types_path, "r", encoding="utf-8") as f:
+                            doc_types_data = json.load(f)
+                            for k, v in doc_types_data.get(
+                                "document_types", {}
+                            ).items():
+                                if "abbreviation" in v:
+                                    doc_type_abbr[k] = v["abbreviation"]
+                    except Exception:
+                        pass
+
+                # Fallback if loading failed
+                if not doc_type_abbr:
+                    doc_type_abbr = {
+                        "quarterly_filing": "10Q",
+                        "annual_filing": "10K",
+                        "earnings_announcement": "EA",
+                        "press_release": "PR",
+                        "analyst_report": "AR",
+                        "news_article": "NA",
+                        "transcript": "TR",
+                        "other": "OTH",
+                    }
+
+                renamed_mapping = {}  # old_new_filename -> new_new_filename
+
                 for fn, m in metadata_result.documents_metadata.items():
                     target_hash = None
                     for h, row in reg.items():
@@ -408,20 +443,145 @@ async def orchestrate_extract(
                             target_hash = h
                             break
                     if target_hash:
-                        reg[target_hash]["document_date"] = m.get(
-                            "document_date", "N/A"
+                        doc_date = m.get("document_date", "N/A")
+                        doc_type = m.get("document_type", "other")
+                        fq = m.get("fiscal_quarter", "N/A")
+                        fy = m.get("fiscal_year", "N/A")
+                        period_end = m.get("period_end_date", "N/A")
+
+                        reg[target_hash]["document_date"] = doc_date
+                        reg[target_hash]["document_type"] = doc_type
+                        reg[target_hash]["fiscal_quarter"] = fq
+                        reg[target_hash]["fiscal_year"] = fy
+                        reg[target_hash]["period_end_date"] = period_end
+
+                        # Deterministic rename steps
+                        clean_date = doc_date.replace("-", "").strip()
+                        abbr = doc_type_abbr.get(doc_type)
+                        if not abbr:
+                            if doc_type in doc_type_abbr.values():
+                                abbr = doc_type
+                            else:
+                                abbr = (
+                                    doc_type.replace(" ", "_").upper()
+                                    if doc_type
+                                    else "OTH"
+                                )
+
+                        old_new_filename = reg[target_hash].get("new_filename")
+                        old_original_filename = reg[target_hash].get(
+                            "original_filename"
                         )
-                        reg[target_hash]["document_type"] = m.get(
-                            "document_type", "other"
-                        )
-                        reg[target_hash]["fiscal_quarter"] = m.get(
-                            "fiscal_quarter", "N/A"
-                        )
-                        reg[target_hash]["fiscal_year"] = m.get("fiscal_year", "N/A")
-                        reg[target_hash]["period_end_date"] = m.get(
-                            "period_end_date", "N/A"
-                        )
+
+                        if clean_date and clean_date != "N/A" and len(clean_date) == 8:
+                            new_stem = f"{clean_date}_{abbr}_parsed"
+                        else:
+                            old_stem = (
+                                Path(old_new_filename).stem
+                                if old_new_filename
+                                else "document"
+                            )
+                            new_stem = f"{old_stem}_{abbr}_parsed"
+
+                        new_new_filename = f"{new_stem}.md"
+
+                        # Rename parsed markdown file
+                        parsed_dir = workspace / "2_parsed_data"
+                        old_parsed_path = parsed_dir / old_new_filename
+                        new_parsed_path = parsed_dir / new_new_filename
+
+                        if (
+                            old_parsed_path.exists()
+                            and old_parsed_path != new_parsed_path
+                        ):
+                            try:
+                                if new_parsed_path.exists():
+                                    new_parsed_path.unlink()
+                                old_parsed_path.rename(new_parsed_path)
+                                logger.info(
+                                    f"Renamed parsed file: {old_new_filename} -> {new_new_filename}"
+                                )
+                                import src.utils.formatting as formatting
+
+                                formatting.print_success(
+                                    f"Renamed parsed file: {old_new_filename} -> {new_new_filename}"
+                                )
+                            except Exception as re:
+                                logger.error(
+                                    f"Failed to rename parsed file {old_new_filename}: {re}"
+                                )
+
+                        # Rename archived raw file
+                        archive_dir = workspace / "3_archived_data"
+                        if old_original_filename:
+                            old_archive_path = archive_dir / old_original_filename
+                            suffix = Path(old_original_filename).suffix
+                            new_original_filename = f"{new_stem}{suffix}"
+                            new_archive_path = archive_dir / new_original_filename
+
+                            if (
+                                old_archive_path.exists()
+                                and old_archive_path != new_archive_path
+                            ):
+                                try:
+                                    if new_archive_path.exists():
+                                        new_archive_path.unlink()
+                                    old_archive_path.rename(new_archive_path)
+                                    logger.info(
+                                        f"Renamed archived file: {old_original_filename} -> {new_original_filename}"
+                                    )
+                                    import src.utils.formatting as formatting
+
+                                    formatting.print_success(
+                                        f"Renamed archived file: {old_original_filename} -> {new_original_filename}"
+                                    )
+                                    reg[target_hash]["original_filename"] = (
+                                        new_original_filename
+                                    )
+                                except Exception as ae:
+                                    logger.error(
+                                        f"Failed to rename archived file {old_original_filename}: {ae}"
+                                    )
+
+                        reg[target_hash]["new_filename"] = new_new_filename
+                        renamed_mapping[old_new_filename] = new_new_filename
+
+                        # Update blackboard state references to the filenames
+                        try:
+                            w_state = load_workspace_state(ticker)
+                            state_updated = False
+                            for doc in w_state.raw_documents:
+                                if doc.file_name == old_original_filename:
+                                    doc.file_name = reg[target_hash][
+                                        "original_filename"
+                                    ]
+                                    state_updated = True
+                            for report in w_state.reports.values():
+                                if old_new_filename in report.source_files:
+                                    report.source_files = [
+                                        new_new_filename
+                                        if sf == old_new_filename
+                                        else sf
+                                        for sf in report.source_files
+                                    ]
+                                    state_updated = True
+                            if state_updated:
+                                save_workspace_state(ticker, w_state)
+                        except Exception as se:
+                            logger.error(
+                                f"Failed to update workspace state filename references: {se}"
+                            )
+
                 ingester_inst.save_parsed_registry(reg)
+
+                # Update selected_filenames in memory
+                new_selected_filenames = set()
+                for fn in selected_filenames:
+                    if fn in renamed_mapping:
+                        new_selected_filenames.add(renamed_mapping[fn])
+                    else:
+                        new_selected_filenames.add(fn)
+                selected_filenames = new_selected_filenames
 
         except Exception as e:
             logger.error(f"MetadataAgent execution failed: {e}")
