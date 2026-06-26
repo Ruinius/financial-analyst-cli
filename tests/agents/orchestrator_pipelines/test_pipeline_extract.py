@@ -1,5 +1,6 @@
 import pytest
 import asyncio
+from pathlib import Path
 from unittest.mock import patch
 
 from src.agents.blackboard_orchestrator import BlackboardOrchestrator
@@ -10,6 +11,15 @@ from src.core.blackboard import (
     TemporalBlackboard,
 )
 from src.core.exceptions import WorkspaceError
+
+
+@pytest.fixture(autouse=True)
+def setup_dummy_parsed_file(temp_workspace_env):
+    workspace = Path(temp_workspace_env.active_workspace_path)
+    parsed_dir = workspace / "2_parsed_data"
+    parsed_dir.mkdir(parents=True, exist_ok=True)
+    dummy_file = parsed_dir / "dummy_doc.md"
+    dummy_file.write_text("Dummy content for testing", encoding="utf-8")
 
 
 @patch("src.agents.blackboard_orchestrator.run_metadata_agent")

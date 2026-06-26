@@ -127,6 +127,28 @@ async def orchestrate_extract(
     settings = orchestrator.settings
     workspace = Path(settings.active_workspace_path)
 
+    # Load parsed documents context first
+    parsed_dir = workspace / "2_parsed_data"
+    parsed_documents = {}
+    if parsed_dir.exists():
+        for p in parsed_dir.iterdir():
+            if (
+                p.is_file()
+                and p.suffix.lower() == ".md"
+                and p.name.lower() != "readme.md"
+                and not p.name.startswith(".")
+            ):
+                try:
+                    parsed_documents[p.name] = p.read_text(encoding="utf-8")
+                except Exception:
+                    pass
+
+    if not parsed_documents:
+        raise WorkspaceError(
+            f"No parsed/ingested files found for ticker '{ticker}' in workspace. "
+            "Please download filings (e.g. 'fa run edgar') and ingest them ('fa run ingest') first."
+        )
+
     extract_agent_map = {
         "metadata": "metadata",
         "metadata_agent": "metadata",
@@ -193,22 +215,6 @@ async def orchestrate_extract(
     if (normalized_agent == "metadata") or (
         state.metadata_status in ("pending", "failed") and normalized_agent is None
     ):
-        # Load parsed documents context
-        parsed_dir = workspace / "2_parsed_data"
-        parsed_documents = {}
-        if parsed_dir.exists():
-            for p in parsed_dir.iterdir():
-                if (
-                    p.is_file()
-                    and p.suffix.lower() == ".md"
-                    and p.name.lower() != "readme.md"
-                    and not p.name.startswith(".")
-                ):
-                    try:
-                        parsed_documents[p.name] = p.read_text(encoding="utf-8")
-                    except Exception:
-                        pass
-
         orchestrator.checkout_status(ticker, "metadata")
         try:
             metadata_result = await asyncio.to_thread(

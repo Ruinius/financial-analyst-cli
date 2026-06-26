@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, List
+from typing import Optional
 from src.core.blackboard import CompanyMetadata, AnalystReportExtraction
 from src.services.llm_client import LLMClient
 from src.agents.agent_executor import run_agent_loop
@@ -59,9 +59,15 @@ def run_analyst_report_agent(
             return f"Chunk {chunk_id} not found or empty."
         return chunk_str
 
-    def keyword_search(keywords: List[str], window: int = 200) -> str:
-        """Search the document content for occurrences of keywords within a window of characters."""
-        return str(find_keyword_contexts(content, keywords, window))
+    def keyword_search(keywords: str, window: int = 200) -> str:
+        """Search the document content for occurrences of keywords within a window of characters.
+
+        Args:
+            keywords: Comma-separated list of keywords to search for.
+            window: Character window around matching keywords.
+        """
+        keywords_list = [k.strip() for k in keywords.split(",") if k.strip()]
+        return str(find_keyword_contexts(content, keywords_list, window))
 
     def finalize(
         economic_moat: str,

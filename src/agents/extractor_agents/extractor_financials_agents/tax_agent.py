@@ -102,24 +102,25 @@ def run_tax_agent(
 
     # Define tools as inner functions closed over state
     def keyword_search(
-        keywords: List[str], filename: Optional[str] = None, window: int = 250
+        keywords: str, filename: Optional[str] = None, window: int = 250
     ) -> str:
         """
-        Search for occurrences of keywords within a window of characters.
+        Search for occurrences of keywords (comma-separated list) within a window of characters.
         If filename is specified, search only that document. Otherwise, searches all fanned-in documents.
         """
+        keywords_list = [k.strip() for k in keywords.split(",") if k.strip()]
         if filename:
             doc_content = parsed_documents.get(filename, "")
             if not doc_content:
                 return f"Error: Document '{filename}' not found or empty."
             return str(
-                orchestrator_find_keyword_contexts(doc_content, keywords, window)
+                orchestrator_find_keyword_contexts(doc_content, keywords_list, window)
             )
         else:
             results = {}
             for name, doc_content in parsed_documents.items():
                 contexts = orchestrator_find_keyword_contexts(
-                    doc_content, keywords, window
+                    doc_content, keywords_list, window
                 )
                 if contexts:
                     results[name] = contexts
