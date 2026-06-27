@@ -29,3 +29,6 @@
 ## 2024-11-25 - [Native str.count vs Regex for Frequency Counting]
 **Learning:** For analyzing the frequency of character classes (like digits or common symbols) in large text chunks, using a generator expression with native `str.count` (e.g., `sum(chunk.count(d) for d in "0123456789")`) executes roughly 2x faster than a regular expression like `len(re.findall(r"\d", chunk))`. Native python operations bypass regex engine overhead entirely.
 **Action:** Default to generator expressions combining `str.count` with predefined character strings when counting specific simple characters, rather than defaulting to `re.findall`.
+## 2024-11-26 - Fast JSON Cleansing before Regex
+**Learning:** For cleaning JSON strings by removing comments and trailing commas, native python string checks for the specific substrings ('//', '/*', ',') can function as a fast-fail path to skip expensive `re.sub` regex compilation and evaluation entirely when no modifications are required. For clean JSON inputs without comments, this leads to roughly 15-25x performance improvement.
+**Action:** When utilizing `re.sub` on a codebase, determine if specific target sub-strings must exist to be a valid match, and use native python `in` operators to bypass regex completely if they do not exist.
