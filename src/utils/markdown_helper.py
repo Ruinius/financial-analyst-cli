@@ -8,15 +8,24 @@ def clean_json_text(text: str) -> str:
     """
     if not text:
         return ""
-    # Strip comments safely without affecting string literals
-    cleaned = re.sub(
-        r'("(?:\\.|[^"\\])*")|/\*.*?\*/|//[^\r\n]*',
-        lambda m: m.group(1) or "",
-        text,
-        flags=re.DOTALL,
-    )
+
+    # ⚡ Bolt Optimization: Fast-fail comment stripping if no comment chars exist
+    if "//" in text or "/*" in text:
+        # Strip comments safely without affecting string literals
+        cleaned = re.sub(
+            r'("(?:\\.|[^"\\])*")|/\*.*?\*/|//[^\r\n]*',
+            lambda m: m.group(1) or "",
+            text,
+            flags=re.DOTALL,
+        )
+    else:
+        cleaned = text
+
+    # ⚡ Bolt Optimization: Fast-fail trailing comma removal if no commas exist
     # Strip trailing commas before closing braces/brackets
-    cleaned = re.sub(r",\s*([\]}])", r"\1", cleaned)
+    if "," in cleaned:
+        cleaned = re.sub(r",\s*([\]}])", r"\1", cleaned)
+
     return cleaned
 
 
