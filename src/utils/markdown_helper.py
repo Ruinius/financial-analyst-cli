@@ -5,6 +5,8 @@ from pathlib import Path
 # ⚡ Bolt Optimization: Pre-compile regex patterns for JSON cleaning
 COMMENT_RE = re.compile(r'("(?:\\.|[^"\\])*")|/\*.*?\*/|//[^\r\n]*', flags=re.DOTALL)
 TRAILING_COMMA_RE = re.compile(r",\s*([\]}])")
+MD_TABLE_SEP_RE = re.compile(r"^:?-+:?$")
+
 
 def clean_json_text(text: str) -> str:
     """Clean a JSON string by removing single-line and multi-line comments,
@@ -112,7 +114,8 @@ def validate_markdown_table_syntax(content: str) -> str | None:
 
         for cell in sep_cells:
             # Separator cells must match e.g. '---', ':---', '---:', ':---:' or even just '-'
-            if not re.match(r"^:?-+:?$", cell):
+            # ⚡ Bolt Optimization: Fast-fail to bypass regex overhead
+            if "-" not in cell or not MD_TABLE_SEP_RE.match(cell):
                 return (
                     f"Error: Invalid markdown table separator row at line {sep_line_num}. "
                     f"Found: '{sep_text}'. The second row must only contain dashes and optional colons to separate column headers (e.g. '| --- | --- |')."
