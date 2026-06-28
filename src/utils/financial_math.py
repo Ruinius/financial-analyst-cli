@@ -1,6 +1,8 @@
 from typing import Tuple
 import re
 
+NUMBER_EXTRACT_RE = re.compile(r"(-?\d+\.?\d*)")
+
 
 def calculate_ebita(
     starting_val: float,
@@ -90,7 +92,7 @@ def clean_val(val: str) -> float:
         pass
 
     # Fallback to regex for noisy strings (e.g. "12.3 abc")
-    match = re.search(r"(-?\d+\.?\d*)", cleaned)
+    match = NUMBER_EXTRACT_RE.search(cleaned)
     if match:
         try:
             num = float(match.group(1))

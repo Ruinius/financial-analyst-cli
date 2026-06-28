@@ -2,6 +2,9 @@ import re
 import bisect
 from typing import List
 
+CHUNK_START_RE = re.compile(r"<!--\s*CHUNK_START:\s*(\d+)\s*-->")
+CHUNK_END_RE = re.compile(r"<!--\s*CHUNK_END:\s*(\d+)\s*-->")
+
 
 def find_keyword_contexts(
     content: str, keywords: List[str], window: int = 200, max_matches: int = 15
@@ -13,12 +16,12 @@ def find_keyword_contexts(
     # Parse chunk spans
     chunk_spans = []  # list of tuples: (chunk_id, start_idx, end_idx)
     starts = {}
-    for m in re.finditer(r"<!--\s*CHUNK_START:\s*(\d+)\s*-->", content):
+    for m in CHUNK_START_RE.finditer(content):
         cid = int(m.group(1))
         starts[cid] = m.end()
 
     ends = {}
-    for m in re.finditer(r"<!--\s*CHUNK_END:\s*(\d+)\s*-->", content):
+    for m in CHUNK_END_RE.finditer(content):
         cid = int(m.group(1))
         ends[cid] = m.start()
 
