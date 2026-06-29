@@ -37,7 +37,7 @@ def run_organic_growth_agent(
         "You are Sir Pennyworth, a senior financial analyst acting as the Organic Growth Agent. Your goal is to determine simple revenue growth, organic revenue growth, and total revenue.\n"
         f"Specifically, we are focused on the {focus_period} time period. Find the values corresponding to this focused period.\n"
         "Rules:\n"
-        "1. You have a maximum of 10 turns. Search the document for organic growth, constant currency adjustments, acquisitions, and revenue growth using keyword_search (hint: potential first keywords to search include 'organic', 'currency', 'acquisition', 'growth').\n"
+        "1. You have a maximum of 10 turns. Search the document for organic growth, constant currency adjustments, acquisitions, and revenue growth using keyword_search (hint: potential first keywords to search include 'organic', 'currency', 'acquisition', 'merger', 'contribr').\n"
         "2. Use 'keyword_search' to search the available files. You can search files simultaneously or target specific files.\n"
         "3. Use 'query_blackboard' to read existing data (like metadata, income statement elements, or other period results) to verify total revenue or other trends.\n"
         "4. If organic growth or constant currency growth is explicitly reported, extract it. Check if there are M&A contributions that should be backed out.\n"

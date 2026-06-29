@@ -1239,8 +1239,11 @@ async def orchestrate_extract(
                 # Income Statement
                 if normalized_agent is None or normalized_agent == "income_statement":
                     if (
-                        report.income_statement_status
+                        force
+                        or target_files is not None
+                        or report.income_statement_status
                         in ("pending", "failed", "running")
+                        or not report.financial_data.raw_income_statement_markdown
                         or (is_formal and fn not in report.source_files)
                         or normalized_agent == "income_statement"
                     ):
@@ -1260,7 +1263,11 @@ async def orchestrate_extract(
                 # Balance Sheet
                 if normalized_agent is None or normalized_agent == "balance_sheet":
                     if (
-                        report.balance_sheet_status in ("pending", "failed", "running")
+                        force
+                        or target_files is not None
+                        or report.balance_sheet_status
+                        in ("pending", "failed", "running")
+                        or not report.financial_data.raw_balance_sheet_markdown
                         or (is_formal and fn not in report.source_files)
                         or normalized_agent == "balance_sheet"
                     ):
@@ -1331,7 +1338,10 @@ async def orchestrate_extract(
                 or report.shares_status in ("pending", "failed", "running")
                 or normalized_agent == "shares"
             ):
-                if report.income_statement_status == "completed":
+                if (
+                    report.income_statement_status == "completed"
+                    or normalized_agent == "shares"
+                ):
                     metrics_l1_tasks.append(
                         orchestrator.wrap_task(
                             "shares",
@@ -1348,7 +1358,10 @@ async def orchestrate_extract(
                 or report.organic_growth_status in ("pending", "failed", "running")
                 or normalized_agent == "organic_growth"
             ):
-                if report.income_statement_status == "completed":
+                if (
+                    report.income_statement_status == "completed"
+                    or normalized_agent == "organic_growth"
+                ):
                     metrics_l1_tasks.append(
                         orchestrator.wrap_task(
                             "organic_growth",
@@ -1364,7 +1377,7 @@ async def orchestrate_extract(
                 if (
                     report.balance_sheet_status == "completed"
                     and report.income_statement_status == "completed"
-                ):
+                ) or normalized_agent == "interpretation":
                     metrics_l1_tasks.append(
                         orchestrator.wrap_task(
                             "interpretation",
@@ -1395,7 +1408,10 @@ async def orchestrate_extract(
                 or report.ebita_status in ("pending", "failed", "running")
                 or normalized_agent == "ebita"
             ):
-                if report.income_statement_status == "completed":
+                if (
+                    report.income_statement_status == "completed"
+                    or normalized_agent == "ebita"
+                ):
                     metrics_l2_tasks.append(
                         orchestrator.wrap_task(
                             "ebita",
@@ -1412,7 +1428,10 @@ async def orchestrate_extract(
                 or report.tax_status in ("pending", "failed", "running")
                 or normalized_agent == "tax"
             ):
-                if report.income_statement_status == "completed":
+                if (
+                    report.income_statement_status == "completed"
+                    or normalized_agent == "tax"
+                ):
                     metrics_l2_tasks.append(
                         orchestrator.wrap_task(
                             "tax",
