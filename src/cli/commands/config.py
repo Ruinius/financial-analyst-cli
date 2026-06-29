@@ -209,6 +209,10 @@ async def _initialize_config_flow_async() -> Settings:
     concurrency_limit_phase = (
         existing_settings.concurrency_limit_phase if existing_settings else 3
     )
+    litellm_log = existing_settings.litellm_log if existing_settings else "ERROR"
+    litellm_drop_params = (
+        existing_settings.litellm_drop_params if existing_settings else True
+    )
 
     settings = Settings(
         full_name=full_name,
@@ -230,6 +234,8 @@ async def _initialize_config_flow_async() -> Settings:
         concurrency_limit_company=concurrency_limit_company,
         concurrency_limit_document=concurrency_limit_document,
         concurrency_limit_phase=concurrency_limit_phase,
+        litellm_log=litellm_log,
+        litellm_drop_params=litellm_drop_params,
     )
 
     save_config(settings)
@@ -290,6 +296,14 @@ def config_show():
         table.add_row(
             "Stream Thinking",
             str(getattr(settings, "stream_thinking", True)),
+        )
+        table.add_row(
+            "LiteLLM Log Level",
+            str(getattr(settings, "litellm_log", "ERROR")),
+        )
+        table.add_row(
+            "LiteLLM Auto Drop Params",
+            str(getattr(settings, "litellm_drop_params", True)),
         )
         table.add_row("Base Workspace Dir", settings.base_workspace_dir)
 

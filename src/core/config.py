@@ -59,6 +59,12 @@ class Settings(BaseModel):
     concurrency_limit_phase: int = Field(
         3, description="Concurrency limit for stage/phase execution"
     )
+    litellm_log: Optional[str] = Field(
+        "ERROR", description="LiteLLM log level verbosity"
+    )
+    litellm_drop_params: bool = Field(
+        True, description="Automatically drop unsupported parameters in LiteLLM"
+    )
 
     @model_validator(mode="before")
     @classmethod
