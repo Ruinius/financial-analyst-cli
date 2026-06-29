@@ -310,6 +310,48 @@ class BlackboardOrchestrator:
             save_workspace_state(ticker, state)
             logger.info("Recovered dangling 'running' states on blackboard startup.")
 
+    def _format_task_description(
+        self,
+        task_type: str,
+        period: Optional[str] = None,
+        file_name: Optional[str] = None,
+    ) -> str:
+        agent_names = {
+            "metadata": "MetadataAgent",
+            "balance_sheet": "BalanceSheetAgent",
+            "income_statement": "IncomeStatementAgent",
+            "shares": "DilutedSharesAgent",
+            "organic_growth": "OrganicGrowthAgent",
+            "ebita": "EBITAAgent",
+            "tax": "TaxAgent",
+            "interpretation": "InterpretationAgent",
+            "analyst_report": "AnalystReportAgent",
+            "other": "OtherDocAgent",
+            "wacc": "WACCAgent",
+            "wacc_agent": "WACCAgent",
+            "growth": "GrowthAgent",
+            "growth_agent": "GrowthAgent",
+            "margin": "MarginAgent",
+            "margin_agent": "MarginAgent",
+            "non_operating": "NonOperatingAgent",
+            "non_operating_agent": "NonOperatingAgent",
+            "dcf_modeling": "DCFModelingAgent",
+            "analyzer": "CuratorAgent",
+            "ingestion": "IngestionAgent",
+        }
+        name = agent_names.get(
+            task_type, task_type.replace("_", " ").title() + " Agent"
+        )
+        details = []
+        if period:
+            details.append(f"Period: {period}")
+        if file_name:
+            details.append(f"File: {file_name}")
+
+        if details:
+            return f"{name} ({', '.join(details)})"
+        return name
+
     def checkout_status(
         self,
         ticker: str,
@@ -321,6 +363,11 @@ class BlackboardOrchestrator:
         state = load_workspace_state(ticker)
         state.checkout_status(task_type, period, file_name)
         save_workspace_state(ticker, state)
+
+        import src.utils.formatting as formatting
+
+        desc = self._format_task_description(task_type, period, file_name)
+        formatting.print_info(f"Starting sub-agent: {desc}...")
 
     def checkin_status(
         self,
@@ -335,6 +382,14 @@ class BlackboardOrchestrator:
         state = load_workspace_state(ticker)
         state.checkin_status(task_type, status, period, file_name, payload)
         save_workspace_state(ticker, state)
+
+        import src.utils.formatting as formatting
+
+        desc = self._format_task_description(task_type, period, file_name)
+        if status == "completed":
+            formatting.print_success(f"Sub-agent completed: {desc}")
+        elif status == "failed":
+            formatting.print_error(f"Sub-agent failed: {desc}")
 
     async def run_pipeline(
         self,

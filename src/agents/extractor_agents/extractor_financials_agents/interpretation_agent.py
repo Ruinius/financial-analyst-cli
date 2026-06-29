@@ -63,7 +63,7 @@ def run_interpretation_agent(
         "   {\n"
         "     'line_name': 'Line Item Name',\n"
         "     'value': 12345.0,\n"
-        "     'category': 'current_assets | current_liabilities | noncurrent_assets | noncurrent_liabilities | income_statement | other',\n"
+        "     'category': 'current_assets | current_liabilities | noncurrent_assets | noncurrent_liabilities | equity | income_statement',\n"
         "     'operating': true/false,\n"
         "     'calculated': true/false\n"
         "   }"
@@ -152,7 +152,10 @@ def run_interpretation_agent(
         elif raw_cat and "equity" in raw_cat:
             cat = "equity"
         else:
-            cat = matching_orig.category if matching_orig else "income_statement"
+            if matching_orig and matching_orig.category in valid_cats:
+                cat = matching_orig.category
+            else:
+                cat = "income_statement"
 
         if matching_orig:
             matching_orig.operating = up_item.get("operating", matching_orig.operating)

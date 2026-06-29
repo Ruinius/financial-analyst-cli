@@ -22,6 +22,7 @@ def run_agent_loop(
     model: str = None,
     temperature: float = 0.1,
     average_turn_count: float = None,
+    agent_name: str = None,
 ) -> tuple[Dict[str, Any], list]:
     """
     Executes a structured turn-based agent execution loop via LiteLLMChatSession.
@@ -108,8 +109,15 @@ def run_agent_loop(
                     break
 
                 if name in tool_map:
+                    import src.utils.formatting as formatting
+
+                    agent_prefix = f"[{agent_name}] " if agent_name else ""
+                    formatting.print_info(
+                        f"  ↳ {agent_prefix}Executing tool '{name}'..."
+                    )
                     try:
                         result = tool_map[name](**args)
+
                         tool_responses.append(
                             {
                                 "tool_call_id": call_id,

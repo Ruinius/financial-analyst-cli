@@ -59,7 +59,7 @@ Markdown statement content:
 {content}
 \"\"\"
 {dict_guidance}
-Extract all financial statement line items (Line Name, Value, Category (current_assets | current_liabilities | noncurrent_assets | noncurrent_liabilities | income_statement | other)).
+Extract all financial statement line items (Line Name, Value, Category (current_assets | current_liabilities | noncurrent_assets | noncurrent_liabilities | equity | income_statement)).
 Return a valid JSON object matching this structure:
 {{
   "line_items": [

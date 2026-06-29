@@ -164,6 +164,7 @@ class LiteLLMChatSession(ChatSession):
             kwargs["stream"] = True
             response_stream = litellm.completion(**kwargs)
 
+            printed_dots = False
             for chunk in response_stream:
                 chunks.append(chunk)
                 if not chunk.choices:
@@ -194,6 +195,11 @@ class LiteLLMChatSession(ChatSession):
                     or ""
                 )
                 content = getattr(delta, "content", None) or ""
+                tool_calls = getattr(delta, "tool_calls", None) or (
+                    delta.model_dump().get("tool_calls")
+                    if hasattr(delta, "model_dump")
+                    else None
+                )
 
                 if reasoning:
                     if not started_thinking:
@@ -208,13 +214,14 @@ class LiteLLMChatSession(ChatSession):
                         console, reasoning, end="", style="italic dim", flush=True
                     )
 
-                if content:
+                if content or tool_calls:
                     if started_thinking:
                         safe_console_print(console, "")
                         started_thinking = False
                     safe_console_print(console, ".", end="", flush=True)
+                    printed_dots = True
 
-            if started_thinking:
+            if started_thinking or printed_dots:
                 safe_console_print(console, "")
 
             response = litellm.stream_chunk_builder(chunks, messages=self.messages)
