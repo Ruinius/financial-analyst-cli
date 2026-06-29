@@ -1,5 +1,9 @@
+import json
 import logging
 import os
+import random
+import threading
+import time
 from pathlib import Path
 from typing import List, Dict, Optional, Literal, Any
 from pydantic import BaseModel, Field, field_validator
@@ -560,6 +564,12 @@ class WorkspaceContext(BaseModel):
                 elif task_type == "ebita":
                     report.financial_data.operating_income = payload[0]
                     report.financial_data.ebita = payload[1]
+                    if len(payload) > 2 and payload[2] is not None:
+                        report.financial_data.raw_notes_markdown = (
+                            json.dumps(payload[2])
+                            if not isinstance(payload[2], str)
+                            else payload[2]
+                        )
                 elif task_type == "tax":
                     report.financial_data.reported_tax_provision = payload[1]
                     report.financial_data.adjusted_taxes = payload[2]
@@ -673,47 +683,86 @@ class WorkspaceContext(BaseModel):
 # =====================================================================
 
 
+_WORKSPACE_LOCKS: Dict[str, threading.Lock] = {}
+_LOCKS_GUARD = threading.Lock()
+
+
+def _get_ticker_lock(ticker: str) -> threading.Lock:
+    with _LOCKS_GUARD:
+        if ticker not in _WORKSPACE_LOCKS:
+            _WORKSPACE_LOCKS[ticker] = threading.Lock()
+        return _WORKSPACE_LOCKS[ticker]
+
+
 def load_workspace_state(ticker: str) -> WorkspaceContext:
     """Load workspace context state for a given ticker."""
-    try:
-        settings = load_config()
-        if not settings.base_workspace_dir:
-            raise WorkspaceError("base_workspace_dir is not configured in settings")
-        workspace_dir = Path(settings.base_workspace_dir) / ticker
-        state_file = workspace_dir / "workspace_state.json"
+    lock = _get_ticker_lock(ticker)
+    with lock:
+        try:
+            settings = load_config()
+            if not settings.base_workspace_dir:
+                raise WorkspaceError("base_workspace_dir is not configured in settings")
+            workspace_dir = Path(settings.base_workspace_dir) / ticker
+            state_file = workspace_dir / "workspace_state.json"
 
-        if not state_file.exists():
-            logger.info(
-                f"Workspace state file {state_file} does not exist. Initializing a default state."
+            if not state_file.exists():
+                logger.info(
+                    f"Workspace state file {state_file} does not exist. Initializing a default state."
+                )
+                return WorkspaceContext(metadata=CompanyMetadata(ticker=ticker))
+
+            max_attempts = 10
+            content = None
+            for attempt in range(max_attempts):
+                try:
+                    with open(state_file, "r", encoding="utf-8") as f:
+                        content = f.read()
+                    break
+                except (PermissionError, OSError) as pe:
+                    if attempt == max_attempts - 1:
+                        raise pe
+                    time.sleep(0.05 * (2**attempt) + random.uniform(0, 0.02))
+
+            return WorkspaceContext.model_validate_json(content)
+        except Exception as e:
+            if isinstance(e, WorkspaceError):
+                raise e
+            raise WorkspaceError(
+                f"Failed to load workspace state for {ticker}: {str(e)}"
             )
-            return WorkspaceContext(metadata=CompanyMetadata(ticker=ticker))
-
-        with open(state_file, "r", encoding="utf-8") as f:
-            content = f.read()
-        return WorkspaceContext.model_validate_json(content)
-    except Exception as e:
-        if isinstance(e, WorkspaceError):
-            raise e
-        raise WorkspaceError(f"Failed to load workspace state for {ticker}: {str(e)}")
 
 
 def save_workspace_state(ticker: str, state: WorkspaceContext) -> None:
-    """Save workspace context state for a given ticker atomically using Single-Writer Pattern."""
-    try:
-        settings = load_config()
-        if not settings.base_workspace_dir:
-            raise WorkspaceError("base_workspace_dir is not configured in settings")
-        workspace_dir = Path(settings.base_workspace_dir) / ticker
-        workspace_dir.mkdir(parents=True, exist_ok=True)
+    """Save workspace context state for a given ticker atomically using Single-Writer Pattern with thread locking and retries."""
+    lock = _get_ticker_lock(ticker)
+    with lock:
+        try:
+            settings = load_config()
+            if not settings.base_workspace_dir:
+                raise WorkspaceError("base_workspace_dir is not configured in settings")
+            workspace_dir = Path(settings.base_workspace_dir) / ticker
+            workspace_dir.mkdir(parents=True, exist_ok=True)
 
-        state_file = workspace_dir / "workspace_state.json"
-        tmp_file = workspace_dir / "workspace_state.json.tmp"
+            state_file = workspace_dir / "workspace_state.json"
+            tmp_file = workspace_dir / "workspace_state.json.tmp"
 
-        # Serialize to tmp file
-        with open(tmp_file, "w", encoding="utf-8") as f:
-            f.write(state.model_dump_json(indent=2))
+            data_str = state.model_dump_json(indent=2)
 
-        # Atomically replace
-        os.replace(str(tmp_file), str(state_file))
-    except Exception as e:
-        raise WorkspaceError(f"Failed to save workspace state for {ticker}: {str(e)}")
+            # Serialize to tmp file
+            with open(tmp_file, "w", encoding="utf-8") as f:
+                f.write(data_str)
+
+            # Atomically replace with retry loop for Windows file locking contention
+            max_attempts = 10
+            for attempt in range(max_attempts):
+                try:
+                    os.replace(str(tmp_file), str(state_file))
+                    break
+                except (PermissionError, OSError) as pe:
+                    if attempt == max_attempts - 1:
+                        raise pe
+                    time.sleep(0.05 * (2**attempt) + random.uniform(0, 0.02))
+        except Exception as e:
+            raise WorkspaceError(
+                f"Failed to save workspace state for {ticker}: {str(e)}"
+            )

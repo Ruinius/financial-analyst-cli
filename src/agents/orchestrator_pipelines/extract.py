@@ -941,7 +941,8 @@ async def orchestrate_extract(
                 if doc_path.exists():
                     parsed_documents[fn] = doc_path.read_text(encoding="utf-8")
 
-            orchestrator.checkout_status(ticker, "shares", period=period_key)
+            async with orchestrator.state_lock:
+                orchestrator.checkout_status(ticker, "shares", period=period_key)
             doc_type = get_doc_type_for_period(period_key)
             try:
                 basic, diluted = await asyncio.to_thread(
@@ -957,19 +958,21 @@ async def orchestrate_extract(
                     is_quarterly=is_q,
                     learnings=learnings,
                 )
-                orchestrator.checkin_status(
-                    ticker,
-                    "shares",
-                    "completed",
-                    period=period_key,
-                    payload=(basic, diluted),
-                )
+                async with orchestrator.state_lock:
+                    orchestrator.checkin_status(
+                        ticker,
+                        "shares",
+                        "completed",
+                        period=period_key,
+                        payload=(basic, diluted),
+                    )
                 updated_periods.add(period_key)
             except Exception as e:
                 logger.error(f"SharesAgent failed for {period_key}: {e}")
-                orchestrator.checkin_status(
-                    ticker, "shares", "failed", period=period_key
-                )
+                async with orchestrator.state_lock:
+                    orchestrator.checkin_status(
+                        ticker, "shares", "failed", period=period_key
+                    )
                 raise
 
     async def run_organic_growth_task(period_key: str):
@@ -985,7 +988,10 @@ async def orchestrate_extract(
                 if doc_path.exists():
                     parsed_documents[fn] = doc_path.read_text(encoding="utf-8")
 
-            orchestrator.checkout_status(ticker, "organic_growth", period=period_key)
+            async with orchestrator.state_lock:
+                orchestrator.checkout_status(
+                    ticker, "organic_growth", period=period_key
+                )
             doc_type = get_doc_type_for_period(period_key)
             try:
                 (
@@ -1015,19 +1021,21 @@ async def orchestrate_extract(
                 ) and old_org_growth != 0.0:
                     resolved_organic_growth = old_org_growth
 
-                orchestrator.checkin_status(
-                    ticker,
-                    "organic_growth",
-                    "completed",
-                    period=period_key,
-                    payload=(simple_growth, resolved_organic_growth, revenue),
-                )
+                async with orchestrator.state_lock:
+                    orchestrator.checkin_status(
+                        ticker,
+                        "organic_growth",
+                        "completed",
+                        period=period_key,
+                        payload=(simple_growth, resolved_organic_growth, revenue),
+                    )
                 updated_periods.add(period_key)
             except Exception as e:
                 logger.error(f"OrganicGrowthAgent failed for {period_key}: {e}")
-                orchestrator.checkin_status(
-                    ticker, "organic_growth", "failed", period=period_key
-                )
+                async with orchestrator.state_lock:
+                    orchestrator.checkin_status(
+                        ticker, "organic_growth", "failed", period=period_key
+                    )
                 raise
 
     async def run_interpretation_task(period_key: str):
@@ -1073,7 +1081,8 @@ async def orchestrate_extract(
                 if doc_path.exists():
                     parsed_documents[fn] = doc_path.read_text(encoding="utf-8")
 
-            orchestrator.checkout_status(ticker, "ebita", period=period_key)
+            async with orchestrator.state_lock:
+                orchestrator.checkout_status(ticker, "ebita", period=period_key)
             doc_type = get_doc_type_for_period(period_key)
             try:
                 op_inc, ebita, ebita_adjustments = await asyncio.to_thread(
@@ -1108,26 +1117,21 @@ async def orchestrate_extract(
                     except Exception:
                         pass
 
-                orchestrator.checkin_status(
-                    ticker,
-                    "ebita",
-                    "completed",
-                    period=period_key,
-                    payload=(op_inc, resolved_ebita),
-                )
-
-                # Store adjustments in notes/metadata for next agent
-                cur_state = load_workspace_state(ticker)
-                cur_state.reports[
-                    period_key
-                ].financial_data.raw_notes_markdown = json.dumps(resolved_adjustments)
-                save_workspace_state(ticker, cur_state)
+                async with orchestrator.state_lock:
+                    orchestrator.checkin_status(
+                        ticker,
+                        "ebita",
+                        "completed",
+                        period=period_key,
+                        payload=(op_inc, resolved_ebita, resolved_adjustments),
+                    )
                 updated_periods.add(period_key)
             except Exception as e:
                 logger.error(f"EbitaAgent failed for {period_key}: {e}")
-                orchestrator.checkin_status(
-                    ticker, "ebita", "failed", period=period_key
-                )
+                async with orchestrator.state_lock:
+                    orchestrator.checkin_status(
+                        ticker, "ebita", "failed", period=period_key
+                    )
                 raise
 
     async def run_tax_task(period_key: str):
@@ -1144,7 +1148,8 @@ async def orchestrate_extract(
                 if doc_path.exists():
                     parsed_documents[fn] = doc_path.read_text(encoding="utf-8")
 
-            orchestrator.checkout_status(ticker, "tax", period=period_key)
+            async with orchestrator.state_lock:
+                orchestrator.checkout_status(ticker, "tax", period=period_key)
             try:
                 # Get ebita adjustments from notes
                 ebita_adjustments = []
@@ -1195,17 +1200,21 @@ async def orchestrate_extract(
                 if not has_new_tax_adj and has_old_tax_adj:
                     resolved_adj_taxes = old_adj_tax
 
-                orchestrator.checkin_status(
-                    ticker,
-                    "tax",
-                    "completed",
-                    period=period_key,
-                    payload=(inc_bt, rep_tax, resolved_adj_taxes),
-                )
+                async with orchestrator.state_lock:
+                    orchestrator.checkin_status(
+                        ticker,
+                        "tax",
+                        "completed",
+                        period=period_key,
+                        payload=(inc_bt, rep_tax, resolved_adj_taxes),
+                    )
                 updated_periods.add(period_key)
             except Exception as e:
                 logger.error(f"TaxAgent failed for {period_key}: {e}")
-                orchestrator.checkin_status(ticker, "tax", "failed", period=period_key)
+                async with orchestrator.state_lock:
+                    orchestrator.checkin_status(
+                        ticker, "tax", "failed", period=period_key
+                    )
                 raise
 
     # ----------------------------------------------------
