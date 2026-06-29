@@ -1403,7 +1403,7 @@ async def orchestrate_extract(
     # Reload state to have interpretation outputs available for Metrics Level 2
     state = load_workspace_state(ticker)
 
-    # 3. Metrics Level 2 (Parallel)
+    # 3. Metrics Level 2 (Operating EBITA)
     metrics_l2_tasks = []
     for period_key in periods_docs:
         if target_files is not None and period_key not in periods_to_update:
@@ -1430,6 +1430,20 @@ async def orchestrate_extract(
                         )
                     )
 
+    if metrics_l2_tasks:
+        await asyncio.gather(*metrics_l2_tasks, return_exceptions=True)
+        await orchestrator._process_failure_queue(ticker, non_interactive)
+
+    # Reload state to have EBITA outputs and adjustments available for Metrics Level 3 (Adjusted Taxes)
+    state = load_workspace_state(ticker)
+
+    # 4. Metrics Level 3 (Adjusted Taxes)
+    metrics_l3_tasks = []
+    for period_key in periods_docs:
+        if target_files is not None and period_key not in periods_to_update:
+            continue
+        report = state.reports[period_key]
+
         # Run adjusted_taxes
         if normalized_agent is None or normalized_agent == "tax":
             if (
@@ -1441,7 +1455,7 @@ async def orchestrate_extract(
                     report.income_statement_status == "completed"
                     or normalized_agent == "tax"
                 ):
-                    metrics_l2_tasks.append(
+                    metrics_l3_tasks.append(
                         orchestrator.wrap_task(
                             "tax",
                             period_key,
@@ -1450,8 +1464,8 @@ async def orchestrate_extract(
                         )
                     )
 
-    if metrics_l2_tasks:
-        await asyncio.gather(*metrics_l2_tasks, return_exceptions=True)
+    if metrics_l3_tasks:
+        await asyncio.gather(*metrics_l3_tasks, return_exceptions=True)
         await orchestrator._process_failure_queue(ticker, non_interactive)
 
     # 5. Deterministic Calculations for capital and ROIC
