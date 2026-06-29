@@ -1245,7 +1245,8 @@ async def orchestrate_extract(
                 # Income Statement
                 if normalized_agent is None or normalized_agent == "income_statement":
                     if (
-                        report.income_statement_status in ("pending", "failed")
+                        report.income_statement_status
+                        in ("pending", "failed", "running")
                         or (is_formal and fn not in report.source_files)
                         or normalized_agent == "income_statement"
                     ):
@@ -1265,7 +1266,7 @@ async def orchestrate_extract(
                 # Balance Sheet
                 if normalized_agent is None or normalized_agent == "balance_sheet":
                     if (
-                        report.balance_sheet_status in ("pending", "failed")
+                        report.balance_sheet_status in ("pending", "failed", "running")
                         or (is_formal and fn not in report.source_files)
                         or normalized_agent == "balance_sheet"
                     ):
@@ -1331,7 +1332,7 @@ async def orchestrate_extract(
         if normalized_agent is None or normalized_agent == "shares":
             if (
                 period_key in periods_to_update
-                or report.shares_status in ("pending", "failed")
+                or report.shares_status in ("pending", "failed", "running")
                 or normalized_agent == "shares"
             ):
                 if report.income_statement_status == "completed":
@@ -1348,7 +1349,7 @@ async def orchestrate_extract(
         if normalized_agent is None or normalized_agent == "organic_growth":
             if (
                 period_key in periods_to_update
-                or report.organic_growth_status in ("pending", "failed")
+                or report.organic_growth_status in ("pending", "failed", "running")
                 or normalized_agent == "organic_growth"
             ):
                 if report.income_statement_status == "completed":
@@ -1393,7 +1394,7 @@ async def orchestrate_extract(
         if normalized_agent is None or normalized_agent == "ebita":
             if (
                 period_key in periods_to_update
-                or report.ebita_status in ("pending", "failed")
+                or report.ebita_status in ("pending", "failed", "running")
                 or normalized_agent == "ebita"
             ):
                 if report.income_statement_status == "completed":
@@ -1410,7 +1411,7 @@ async def orchestrate_extract(
         if normalized_agent is None or normalized_agent == "tax":
             if (
                 period_key in periods_to_update
-                or report.tax_status in ("pending", "failed")
+                or report.tax_status in ("pending", "failed", "running")
                 or normalized_agent == "tax"
             ):
                 if report.income_statement_status == "completed":

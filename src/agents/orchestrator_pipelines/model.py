@@ -928,7 +928,7 @@ async def orchestrate_model(
         # A. WACC Agent
         if normalized_agent is None or normalized_agent == "wacc_agent":
             if (
-                report.wacc_agent_status in ("pending", "failed")
+                report.wacc_agent_status in ("pending", "failed", "running")
                 or normalized_agent == "wacc_agent"
             ):
 
@@ -969,7 +969,7 @@ async def orchestrate_model(
         # B. Growth Agent
         if normalized_agent is None or normalized_agent == "growth_agent":
             if (
-                report.growth_agent_status in ("pending", "failed")
+                report.growth_agent_status in ("pending", "failed", "running")
                 or normalized_agent == "growth_agent"
             ):
 
@@ -1012,7 +1012,7 @@ async def orchestrate_model(
         # C. Margin Agent
         if normalized_agent is None or normalized_agent == "margin_agent":
             if (
-                report.margin_agent_status in ("pending", "failed")
+                report.margin_agent_status in ("pending", "failed", "running")
                 or normalized_agent == "margin_agent"
             ):
 
@@ -1055,7 +1055,7 @@ async def orchestrate_model(
         # D. Non-Operating Agent
         if normalized_agent is None or normalized_agent == "non_operating_agent":
             if (
-                report.non_operating_agent_status in ("pending", "failed")
+                report.non_operating_agent_status in ("pending", "failed", "running")
                 or normalized_agent == "non_operating_agent"
             ):
 
@@ -1122,6 +1122,7 @@ async def orchestrate_model(
     if not cur_report.base_model or cur_report.dcf_modeling_status in (
         "pending",
         "failed",
+        "running",
     ):
         modeler = Modeler()
 

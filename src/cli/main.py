@@ -524,6 +524,8 @@ def run_extract(
         )
         raise typer.Exit(1)
 
+    from src.core.blackboard import load_workspace_state
+
     limit_val = limit
     force_val = force
     target_files = None
@@ -532,10 +534,17 @@ def run_extract(
         workspace_path = Path(settings.active_workspace_path)
         parsed_dir = workspace_path / "2_parsed_data"
         if parsed_dir.exists():
-            from src.core.blackboard import load_workspace_state
             import sys
 
             mod = sys.modules[__name__]
+
+            try:
+                from src.agents.blackboard_orchestrator import BlackboardOrchestrator
+
+                orch_init = BlackboardOrchestrator(settings=settings)
+                orch_init.recover_dangling_states(active_ticker)
+            except Exception:
+                pass
 
             try:
                 state = load_workspace_state(active_ticker)
@@ -708,9 +717,35 @@ def run_extract(
                 target_files=target_files,
             )
         )
-        formatting.print_success(
-            "Successfully extracted financial data and calculated metrics."
-        )
+        state_after = load_workspace_state(active_ticker)
+        incomplete_details = []
+        for pk, rep in state_after.reports.items():
+            failed_agents = []
+            for sub_field in [
+                "balance_sheet_status",
+                "income_statement_status",
+                "shares_status",
+                "organic_growth_status",
+                "ebita_status",
+                "tax_status",
+            ]:
+                st = getattr(rep, sub_field, "pending")
+                if st != "completed":
+                    agent_name_clean = sub_field.replace("_status", "")
+                    failed_agents.append(f"{agent_name_clean} ({st})")
+            if failed_agents:
+                incomplete_details.append(f"Period {pk}: {', '.join(failed_agents)}")
+
+        if incomplete_details:
+            formatting.print_warning(
+                "Extraction completed with incomplete/failed agent task(s):"
+            )
+            for det in incomplete_details:
+                formatting.print_warning(f"  - {det}")
+        else:
+            formatting.print_success(
+                "Successfully extracted financial data and calculated metrics."
+            )
     except Exception as e:
         formatting.print_error(f"Extraction failed: {str(e)}")
         raise typer.Exit(1)
