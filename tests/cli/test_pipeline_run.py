@@ -197,3 +197,58 @@ def test_run_extract_menu_choices(mock_run_pipeline, mock_load_config, mock_sett
         force=False,
         target_files=None,
     )
+
+
+@patch("src.cli.main.load_config")
+@patch("src.agents.blackboard_orchestrator.BlackboardOrchestrator.run_pipeline")
+@patch("src.core.blackboard.load_workspace_state")
+@patch("src.cli.main.Ingester.load_parsed_registry")
+def test_run_extract_menu_pending_status(
+    mock_load_registry,
+    mock_load_state,
+    mock_run_pipeline,
+    mock_load_config,
+    mock_settings,
+):
+    mock_settings.active_ticker = "CRM"
+    mock_load_config.return_value = mock_settings
+    mock_run_pipeline.return_value = True
+
+    parsed_dir = Path(mock_settings.active_workspace_path) / "2_parsed_data"
+    parsed_dir.mkdir(parents=True, exist_ok=True)
+    (parsed_dir / "20250822_10K_parsed.md").write_text("10k content")
+
+    from src.core.blackboard import (
+        CompanyMetadata,
+        TemporalBlackboard,
+        WorkspaceContext,
+    )
+
+    st = WorkspaceContext(metadata=CompanyMetadata(ticker="CRM"))
+    rep = TemporalBlackboard(
+        fiscal_year=2025,
+        fiscal_period="FY",
+        is_quarterly=False,
+        source_files=["20250822_10K_parsed.md"],
+    )
+    rep.balance_sheet_status = "completed"
+    rep.income_statement_status = "completed"
+    rep.shares_status = "completed"
+    rep.organic_growth_status = "completed"
+    rep.ebita_status = "completed"
+    rep.tax_status = "completed"
+    st.reports["2025_FY"] = rep
+    mock_load_state.return_value = st
+    mock_load_registry.return_value = {
+        "hash1": {
+            "new_filename": "20250822_10K_parsed.md",
+            "fiscal_year": "2025",
+            "fiscal_quarter": "FY",
+            "document_type": "annual_filing",
+        }
+    }
+
+    result = runner.invoke(app, ["run", "extract"], input="\n")
+    assert result.exit_code == 0, result.output
+    assert "[Pending]" in result.stdout
+    assert "1 pending" in result.stdout

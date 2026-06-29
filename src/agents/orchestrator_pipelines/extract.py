@@ -1228,6 +1228,21 @@ async def orchestrate_extract(
     # Execution Gating & Concurrency
     # ----------------------------------------------------
 
+    def _has_completed_formal_statement(report, statement_type: str) -> bool:
+        status = getattr(report, f"{statement_type}_status", None)
+        raw_md = getattr(report.financial_data, f"raw_{statement_type}_markdown", None)
+        if status != "completed" or not raw_md:
+            return False
+        formal_types = {"quarterly_filing", "annual_filing", "earnings_announcement"}
+        for sf in report.source_files:
+            for r in registry.values():
+                if (
+                    r.get("new_filename") == sf
+                    and r.get("document_type") in formal_types
+                ):
+                    return True
+        return False
+
     extract_tasks = []
     for period_key, doc_rows in periods_docs.items():
         for row in doc_rows:
@@ -1254,14 +1269,16 @@ async def orchestrate_extract(
             if is_formal:
                 # Income Statement
                 if normalized_agent is None or normalized_agent == "income_statement":
+                    already_has_formal_is = _has_completed_formal_statement(
+                        report, "income_statement"
+                    )
                     if (
                         force
-                        or target_files is not None
+                        or normalized_agent == "income_statement"
                         or report.income_statement_status
                         in ("pending", "failed", "running")
                         or not report.financial_data.raw_income_statement_markdown
-                        or (is_formal and fn not in report.source_files)
-                        or normalized_agent == "income_statement"
+                        or (not already_has_formal_is and fn not in report.source_files)
                     ):
                         extract_tasks.append(
                             orchestrator.wrap_task(
@@ -1275,17 +1292,26 @@ async def orchestrate_extract(
                                 dt=doc_type: (run_income_statement(pk, f, c, iq, dt)),
                             )
                         )
+                    else:
+                        if fn not in report.source_files:
+                            report.source_files.append(fn)
+                            save_workspace_state(ticker, state)
+                        logger.info(
+                            f"Skipping income statement extraction for {fn} as formal version is already present."
+                        )
 
                 # Balance Sheet
                 if normalized_agent is None or normalized_agent == "balance_sheet":
+                    already_has_formal_bs = _has_completed_formal_statement(
+                        report, "balance_sheet"
+                    )
                     if (
                         force
-                        or target_files is not None
+                        or normalized_agent == "balance_sheet"
                         or report.balance_sheet_status
                         in ("pending", "failed", "running")
                         or not report.financial_data.raw_balance_sheet_markdown
-                        or (is_formal and fn not in report.source_files)
-                        or normalized_agent == "balance_sheet"
+                        or (not already_has_formal_bs and fn not in report.source_files)
                     ):
                         extract_tasks.append(
                             orchestrator.wrap_task(
@@ -1298,6 +1324,13 @@ async def orchestrate_extract(
                                 iq=is_q,
                                 dt=doc_type: (run_balance_sheet(pk, f, c, iq, dt)),
                             )
+                        )
+                    else:
+                        if fn not in report.source_files:
+                            report.source_files.append(fn)
+                            save_workspace_state(ticker, state)
+                        logger.info(
+                            f"Skipping balance sheet extraction for {fn} as formal version is already present."
                         )
             else:
                 # Qualitative extractions
@@ -1340,6 +1373,14 @@ async def orchestrate_extract(
     # Reload state to have all latest extractions available for metrics
     state = load_workspace_state(ticker)
 
+    has_formal_in_selected = any(
+        r.get("document_type")
+        in ("quarterly_filing", "annual_filing", "earnings_announcement")
+        for fn in selected_filenames
+        for r in registry.values()
+        if r.get("new_filename") == fn
+    )
+
     # 2. Metrics Level 1 (Parallel)
     metrics_l1_tasks = []
     for period_key in periods_docs:
@@ -1351,7 +1392,10 @@ async def orchestrate_extract(
         if normalized_agent is None or normalized_agent == "shares":
             if (
                 period_key in periods_to_update
-                or report.shares_status in ("pending", "failed", "running")
+                or (
+                    has_formal_in_selected
+                    and report.shares_status in ("pending", "failed", "running")
+                )
                 or normalized_agent == "shares"
             ):
                 if (
@@ -1371,7 +1415,10 @@ async def orchestrate_extract(
         if normalized_agent is None or normalized_agent == "organic_growth":
             if (
                 period_key in periods_to_update
-                or report.organic_growth_status in ("pending", "failed", "running")
+                or (
+                    has_formal_in_selected
+                    and report.organic_growth_status in ("pending", "failed", "running")
+                )
                 or normalized_agent == "organic_growth"
             ):
                 if (
@@ -1421,7 +1468,10 @@ async def orchestrate_extract(
         if normalized_agent is None or normalized_agent == "ebita":
             if (
                 period_key in periods_to_update
-                or report.ebita_status in ("pending", "failed", "running")
+                or (
+                    has_formal_in_selected
+                    and report.ebita_status in ("pending", "failed", "running")
+                )
                 or normalized_agent == "ebita"
             ):
                 if (
@@ -1455,7 +1505,10 @@ async def orchestrate_extract(
         if normalized_agent is None or normalized_agent == "tax":
             if (
                 period_key in periods_to_update
-                or report.tax_status in ("pending", "failed", "running")
+                or (
+                    has_formal_in_selected
+                    and report.tax_status in ("pending", "failed", "running")
+                )
                 or normalized_agent == "tax"
             ):
                 if (

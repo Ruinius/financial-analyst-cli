@@ -588,25 +588,31 @@ def run_extract(
                         row = r
                         break
                 if not row:
-                    return False
+                    return True
 
-                fy = row.get("fiscal_year")
-                fq = row.get("fiscal_quarter")
                 doc_type = row.get("document_type", "other")
-                if not fy or not fq or fy == "N/A" or fq == "N/A" or doc_type == "N/A":
-                    return False
-
-                period_key = f"{fy}_{fq}"
-                if period_key not in state.reports:
-                    return False
-
-                report = state.reports[period_key]
                 is_formal = doc_type in (
                     "quarterly_filing",
                     "annual_filing",
                     "earnings_announcement",
                 )
                 if is_formal:
+                    fy = row.get("fiscal_year")
+                    fq = row.get("fiscal_quarter")
+                    if (
+                        not fy
+                        or not fq
+                        or fy == "N/A"
+                        or fq == "N/A"
+                        or doc_type == "N/A"
+                    ):
+                        return False
+
+                    period_key = f"{fy}_{fq}"
+                    if period_key not in state.reports:
+                        return False
+
+                    report = state.reports[period_key]
                     if (
                         report.balance_sheet_status != "completed"
                         or report.income_statement_status != "completed"
@@ -620,14 +626,27 @@ def run_extract(
                         return False
                 return True
 
+            def is_file_pending(p: Path) -> bool:
+                fn = p.name
+                if fn in extracted_files:
+                    return True
+                for r in registry.values():
+                    if r.get("new_filename") == fn or r.get("original_filename") == fn:
+                        if r.get("fiscal_year") and r.get("fiscal_year") != "N/A":
+                            return True
+                return False
+
             file_statuses = []
             extracted_count = 0
+            pending_count = 0
             new_count = 0
             for p in all_files:
-                extracted = is_file_extracted(p)
-                if extracted:
+                if is_file_extracted(p):
                     file_statuses.append((p, "Extracted"))
                     extracted_count += 1
+                elif is_file_pending(p):
+                    file_statuses.append((p, "Pending"))
+                    pending_count += 1
                 else:
                     file_statuses.append((p, "New"))
                     new_count += 1
@@ -642,9 +661,20 @@ def run_extract(
 
             if not non_interactive:
                 # Sir Pennyworth speaks
+                if pending_count > 0:
+                    status_msg = (
+                        f"{extracted_count} of which are already extracted, "
+                        f"{pending_count} pending, and {new_count} of which are new."
+                    )
+                else:
+                    status_msg = (
+                        f"{extracted_count} of which are already extracted, "
+                        f"and {new_count} of which are new."
+                    )
+
                 formatting.speak(
                     f"I found {total_count} total file(s) in our workspace directory, my good sir!\n"
-                    f"{extracted_count} of which are already extracted, and {new_count} of which are new."
+                    f"{status_msg}"
                 )
 
                 # Render file menu
@@ -652,7 +682,12 @@ def run_extract(
 
                 for idx, (p, status) in enumerate(file_statuses):
                     letter = index_to_letter(idx)
-                    status_color = "green" if status == "New" else "bright_black"
+                    if status == "New":
+                        status_color = "green"
+                    elif status == "Pending":
+                        status_color = "yellow"
+                    else:
+                        status_color = "bright_black"
                     console.print(
                         f"  [bold #FFB6C1]\\[{letter}][/bold #FFB6C1] {p.name} [{status_color}]\\[{status}][/{status_color}]"
                     )
