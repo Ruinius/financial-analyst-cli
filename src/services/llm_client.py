@@ -1,6 +1,9 @@
 import json
 import logging
+import random
 import re
+import threading
+import time
 from abc import ABC, abstractmethod
 from types import SimpleNamespace
 from typing import Type, TypeVar, Union
@@ -17,6 +20,48 @@ logging.getLogger("LiteLLM Router").setLevel(logging.ERROR)
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T", bound=BaseModel)
+
+# Global semaphore to throttle concurrent LLM API requests
+_API_SEMAPHORE = threading.Semaphore(4)
+
+
+def _execute_with_backoff(
+    func, max_retries: int = 5, base_delay: float = 2.0, backoff_factor: float = 2.0
+):
+    """Executes a callable with thread-safe rate concurrency gating and exponential backoff on transient errors."""
+    with _API_SEMAPHORE:
+        for attempt in range(max_retries + 1):
+            try:
+                return func()
+            except Exception as e:
+                msg = str(e).lower()
+                is_retryable = any(
+                    term in msg
+                    for term in [
+                        "rate limit",
+                        "429",
+                        "500",
+                        "502",
+                        "503",
+                        "504",
+                        "overloaded",
+                        "timeout",
+                        "connection",
+                        "resource_exhausted",
+                        "api error",
+                        "service unavailable",
+                    ]
+                )
+                if not is_retryable or attempt == max_retries:
+                    raise e
+                delay = (base_delay * (backoff_factor**attempt)) + random.uniform(
+                    0.1, 1.0
+                )
+                logger.warning(
+                    f"LLM API request encountered transient error ({e}). Retrying attempt {attempt + 1}/{max_retries} in {delay:.2f}s..."
+                )
+                time.sleep(delay)
+
 
 # Pre-compile regex at module level to avoid recompilation overhead
 SERIALIZED_PROMPT_RE = re.compile(r"(?:^|\n+)\-\-\-\s*([A-Za-z]+)\s*\-\-\-\n+")
@@ -158,75 +203,77 @@ class LiteLLMChatSession(ChatSession):
             from rich.console import Console
 
             console = Console()
-            chunks = []
-            started_thinking = False
-
             kwargs["stream"] = True
-            response_stream = litellm.completion(**kwargs)
 
-            printed_dots = False
-            for chunk in response_stream:
-                chunks.append(chunk)
-                if not chunk.choices:
-                    continue
-                delta = chunk.choices[0].delta
-                if not delta:
-                    continue
+            def _do_stream_call():
+                chunks = []
+                started_thinking = False
+                printed_dots = False
+                response_stream = litellm.completion(**kwargs)
+                for chunk in response_stream:
+                    chunks.append(chunk)
+                    if not chunk.choices:
+                        continue
+                    delta = chunk.choices[0].delta
+                    if not delta:
+                        continue
 
-                reasoning = (
-                    getattr(delta, "reasoning_content", None)
-                    or getattr(delta, "reasoning", None)
-                    or getattr(delta, "thinking", None)
-                    or (
-                        delta.model_dump().get("reasoning_content")
-                        if hasattr(delta, "model_dump")
-                        else None
-                    )
-                    or (
-                        delta.model_dump().get("reasoning")
-                        if hasattr(delta, "model_dump")
-                        else None
-                    )
-                    or (
-                        delta.model_dump().get("thinking")
-                        if hasattr(delta, "model_dump")
-                        else None
-                    )
-                    or ""
-                )
-                content = getattr(delta, "content", None) or ""
-                tool_calls = getattr(delta, "tool_calls", None) or (
-                    delta.model_dump().get("tool_calls")
-                    if hasattr(delta, "model_dump")
-                    else None
-                )
-
-                if reasoning:
-                    if not started_thinking:
-                        safe_console_print(
-                            console,
-                            "[italic dim]Sir Pennyworth is pondering... [/italic dim]\n",
-                            end="",
-                            markup=True,
+                    reasoning = (
+                        getattr(delta, "reasoning_content", None)
+                        or getattr(delta, "reasoning", None)
+                        or getattr(delta, "thinking", None)
+                        or (
+                            delta.model_dump().get("reasoning_content")
+                            if hasattr(delta, "model_dump")
+                            else None
                         )
-                        started_thinking = True
-                    safe_console_print(
-                        console, reasoning, end="", style="italic dim", flush=True
+                        or (
+                            delta.model_dump().get("reasoning")
+                            if hasattr(delta, "model_dump")
+                            else None
+                        )
+                        or (
+                            delta.model_dump().get("thinking")
+                            if hasattr(delta, "model_dump")
+                            else None
+                        )
+                        or ""
+                    )
+                    content = getattr(delta, "content", None) or ""
+                    tool_calls = getattr(delta, "tool_calls", None) or (
+                        delta.model_dump().get("tool_calls")
+                        if hasattr(delta, "model_dump")
+                        else None
                     )
 
-                if content or tool_calls:
-                    if started_thinking:
-                        safe_console_print(console, "")
-                        started_thinking = False
-                    safe_console_print(console, ".", end="", flush=True)
-                    printed_dots = True
+                    if reasoning:
+                        if not started_thinking:
+                            safe_console_print(
+                                console,
+                                "[italic dim]Sir Pennyworth is pondering... [/italic dim]\n",
+                                end="",
+                                markup=True,
+                            )
+                            started_thinking = True
+                        safe_console_print(
+                            console, reasoning, end="", style="italic dim", flush=True
+                        )
 
-            if started_thinking or printed_dots:
-                safe_console_print(console, "")
+                    if content or tool_calls:
+                        if started_thinking:
+                            safe_console_print(console, "")
+                            started_thinking = False
+                        safe_console_print(console, ".", end="", flush=True)
+                        printed_dots = True
 
-            response = litellm.stream_chunk_builder(chunks, messages=self.messages)
+                if started_thinking or printed_dots:
+                    safe_console_print(console, "")
+
+                return litellm.stream_chunk_builder(chunks, messages=self.messages)
+
+            response = _execute_with_backoff(_do_stream_call)
         else:
-            response = litellm.completion(**kwargs)
+            response = _execute_with_backoff(lambda: litellm.completion(**kwargs))
 
         assistant_msg = response.choices[0].message
 
@@ -380,80 +427,85 @@ class LiteLLMClient(LLMClient):
             from rich.console import Console
 
             console = Console()
-            full_content = []
-            started_thinking = False
 
-            response = litellm.completion(
-                model=target_model,
-                messages=messages,
-                temperature=temperature,
-                api_key=api_key,
-                timeout=self.timeout,
-                stream=True,
-            )
-
-            for chunk in response:
-                if not chunk.choices:
-                    continue
-                delta = chunk.choices[0].delta
-                if not delta:
-                    continue
-
-                reasoning = (
-                    getattr(delta, "reasoning_content", None)
-                    or getattr(delta, "reasoning", None)
-                    or getattr(delta, "thinking", None)
-                    or (
-                        delta.model_dump().get("reasoning_content")
-                        if hasattr(delta, "model_dump")
-                        else None
-                    )
-                    or (
-                        delta.model_dump().get("reasoning")
-                        if hasattr(delta, "model_dump")
-                        else None
-                    )
-                    or (
-                        delta.model_dump().get("thinking")
-                        if hasattr(delta, "model_dump")
-                        else None
-                    )
-                    or ""
+            def _do_stream_generate():
+                full_content = []
+                started_thinking = False
+                response = litellm.completion(
+                    model=target_model,
+                    messages=messages,
+                    temperature=temperature,
+                    api_key=api_key,
+                    timeout=self.timeout,
+                    stream=True,
                 )
-                content = getattr(delta, "content", None) or ""
 
-                if reasoning:
-                    if not started_thinking:
-                        safe_console_print(
-                            console,
-                            "[italic dim]Sir Pennyworth is pondering... [/italic dim]\n",
-                            end="",
-                            markup=True,
+                for chunk in response:
+                    if not chunk.choices:
+                        continue
+                    delta = chunk.choices[0].delta
+                    if not delta:
+                        continue
+
+                    reasoning = (
+                        getattr(delta, "reasoning_content", None)
+                        or getattr(delta, "reasoning", None)
+                        or getattr(delta, "thinking", None)
+                        or (
+                            delta.model_dump().get("reasoning_content")
+                            if hasattr(delta, "model_dump")
+                            else None
                         )
-                        started_thinking = True
-                    safe_console_print(
-                        console, reasoning, end="", style="italic dim", flush=True
+                        or (
+                            delta.model_dump().get("reasoning")
+                            if hasattr(delta, "model_dump")
+                            else None
+                        )
+                        or (
+                            delta.model_dump().get("thinking")
+                            if hasattr(delta, "model_dump")
+                            else None
+                        )
+                        or ""
                     )
+                    content = getattr(delta, "content", None) or ""
 
-                if content:
-                    if started_thinking:
-                        safe_console_print(console, "")
-                        started_thinking = False
+                    if reasoning:
+                        if not started_thinking:
+                            safe_console_print(
+                                console,
+                                "[italic dim]Sir Pennyworth is pondering... [/italic dim]\n",
+                                end="",
+                                markup=True,
+                            )
+                            started_thinking = True
+                        safe_console_print(
+                            console, reasoning, end="", style="italic dim", flush=True
+                        )
 
-                    full_content.append(content)
-                    safe_console_print(console, ".", end="", flush=True)
+                    if content:
+                        if started_thinking:
+                            safe_console_print(console, "")
+                            started_thinking = False
 
-            if started_thinking or len(full_content) > 0:
-                safe_console_print(console, "")
-            return "".join(full_content)
+                        full_content.append(content)
+                        safe_console_print(console, ".", end="", flush=True)
+
+                if started_thinking or len(full_content) > 0:
+                    safe_console_print(console, "")
+                return "".join(full_content)
+
+            return _execute_with_backoff(_do_stream_generate)
         else:
-            response = litellm.completion(
-                model=target_model,
-                messages=messages,
-                temperature=temperature,
-                api_key=api_key,
-                timeout=self.timeout,
-                stream=False,
+            response = _execute_with_backoff(
+                lambda: litellm.completion(
+                    model=target_model,
+                    messages=messages,
+                    temperature=temperature,
+                    api_key=api_key,
+                    timeout=self.timeout,
+                    stream=False,
+                )
             )
             return response.choices[0].message.content or ""
 
@@ -469,13 +521,15 @@ class LiteLLMClient(LLMClient):
         messages = self._format_messages(prompt, system_prompt)
 
         try:
-            response = litellm.completion(
-                model=target_model,
-                messages=messages,
-                temperature=temperature,
-                api_key=api_key,
-                timeout=self.timeout,
-                response_format=response_schema,
+            response = _execute_with_backoff(
+                lambda: litellm.completion(
+                    model=target_model,
+                    messages=messages,
+                    temperature=temperature,
+                    api_key=api_key,
+                    timeout=self.timeout,
+                    response_format=response_schema,
+                )
             )
             content = response.choices[0].message.content
             return response_schema.model_validate_json(content)
@@ -490,12 +544,14 @@ class LiteLLMClient(LLMClient):
                 f"Respond ONLY with the raw JSON object, without any Markdown wrappers or explanations."
             )
             messages_with_schema = self._format_messages(prompt, simulated_system)
-            response = litellm.completion(
-                model=target_model,
-                messages=messages_with_schema,
-                temperature=temperature,
-                api_key=api_key,
-                timeout=self.timeout,
+            response = _execute_with_backoff(
+                lambda: litellm.completion(
+                    model=target_model,
+                    messages=messages_with_schema,
+                    temperature=temperature,
+                    api_key=api_key,
+                    timeout=self.timeout,
+                )
             )
             content = response.choices[0].message.content
             from src.utils.markdown_helper import extract_json_from_text

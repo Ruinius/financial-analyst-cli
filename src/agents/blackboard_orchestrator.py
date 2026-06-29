@@ -156,9 +156,11 @@ class BlackboardOrchestrator:
                 if self._is_network_failure(failed_task.exception):
                     if failed_task.retry_count < 3:
                         failed_task.retry_count += 1
+                        delay = 2.0 * (2.0 ** (failed_task.retry_count - 1))
                         formatting.print_info(
-                            f"Retrying network failure (attempt {failed_task.retry_count}/3)..."
+                            f"Retrying network failure (attempt {failed_task.retry_count}/3) after {delay:.1f}s delay..."
                         )
+                        await asyncio.sleep(delay)
                         try:
                             # Re-submit the task
                             self.checkout_status(

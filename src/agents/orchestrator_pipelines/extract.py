@@ -1100,7 +1100,8 @@ async def orchestrate_extract(
                 )
 
                 # Non-GAAP Preservation
-                old_report = cur_state.reports[period_key]
+                fresh_state = load_workspace_state(ticker)
+                old_report = fresh_state.reports[period_key]
                 old_ebita = old_report.financial_data.ebita
                 old_op_inc = old_report.financial_data.operating_income
                 has_old_adjustments = (old_ebita != 0.0) and (old_ebita != old_op_inc)
@@ -1190,7 +1191,8 @@ async def orchestrate_extract(
                 )
 
                 # Non-GAAP Preservation
-                old_report = cur_state.reports[period_key]
+                fresh_state = load_workspace_state(ticker)
+                old_report = fresh_state.reports[period_key]
                 old_rep_tax = old_report.financial_data.reported_tax_provision
                 old_adj_tax = old_report.financial_data.adjusted_taxes
                 has_old_tax_adj = (old_adj_tax != 0.0) and (old_adj_tax != old_rep_tax)
