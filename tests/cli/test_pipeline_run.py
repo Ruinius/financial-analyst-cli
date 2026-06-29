@@ -137,6 +137,21 @@ def test_run_extract_menu_choices(mock_run_pipeline, mock_load_config, mock_sett
     (parsed_dir / "2026_q2_crm.md").write_text("q2 crm content")
     (parsed_dir / "2026_q1_crm.md").write_text("q1 crm content")
 
+    from src.core.blackboard import load_workspace_state, save_workspace_state
+
+    def mock_run_side_effect(*args, **kwargs):
+        st = load_workspace_state("CRM")
+        for rep in st.reports.values():
+            rep.balance_sheet_status = "completed"
+            rep.income_statement_status = "completed"
+            rep.shares_status = "completed"
+            rep.organic_growth_status = "completed"
+            rep.ebita_status = "completed"
+            rep.tax_status = "completed"
+        save_workspace_state("CRM", st)
+
+    mock_run_pipeline.side_effect = mock_run_side_effect
+
     # 1. Hitting Enter / default
     result = runner.invoke(app, ["run", "extract"], input="\n")
     assert result.exit_code == 0

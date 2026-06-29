@@ -702,7 +702,8 @@ async def orchestrate_extract(
         period_key: str, fn: str, content: str, is_q: bool, doc_type: str
     ):
         async with orchestrator.doc_sem:
-            orchestrator.checkout_status(ticker, "balance_sheet", period=period_key)
+            async with orchestrator.state_lock:
+                orchestrator.checkout_status(ticker, "balance_sheet", period=period_key)
             try:
                 res = await asyncio.to_thread(
                     run_extractor_with_learning,
@@ -734,15 +735,7 @@ async def orchestrate_extract(
                                 break
 
                 should_overwrite = is_formal or not has_formal_in_source
-
-                orchestrator.checkin_status(
-                    ticker,
-                    "balance_sheet",
-                    "completed",
-                    period=period_key,
-                    payload=res if should_overwrite else None,
-                )
-
+                bs_items = []
                 if should_overwrite:
                     # Parse table to line items
                     bs_items = parse_markdown_to_line_items(
@@ -751,57 +744,64 @@ async def orchestrate_extract(
                         "current_assets",
                     )
 
-                    # Append to blackboard line items (replacing previous Balance Sheet items)
-                    cur_state = load_workspace_state(ticker)
-                    report = cur_state.reports[period_key]
-                    report.financial_data.line_items = [
-                        item
-                        for item in report.financial_data.line_items
-                        if item.category
-                        not in (
-                            "current_assets",
-                            "noncurrent_assets",
-                            "current_liabilities",
-                            "noncurrent_liabilities",
-                            "equity",
-                        )
-                    ]
-                    report.financial_data.line_items.extend(bs_items)
-                    if fn not in report.source_files:
-                        report.source_files.append(fn)
-                    save_workspace_state(ticker, cur_state)
-                else:
-                    cur_state = load_workspace_state(ticker)
-                    report = cur_state.reports[period_key]
-                    if fn not in report.source_files:
-                        report.source_files.append(fn)
-                    save_workspace_state(ticker, cur_state)
-                    logger.info(
-                        f"Skipping GAAP override for {fn} as formal filing data is already present."
+                async with orchestrator.state_lock:
+                    orchestrator.checkin_status(
+                        ticker,
+                        "balance_sheet",
+                        "completed",
+                        period=period_key,
+                        payload=res if should_overwrite else None,
                     )
+                    cur_state = load_workspace_state(ticker)
+                    report = cur_state.reports[period_key]
+                    if should_overwrite:
+                        report.financial_data.line_items = [
+                            item
+                            for item in report.financial_data.line_items
+                            if item.category
+                            not in (
+                                "current_assets",
+                                "noncurrent_assets",
+                                "current_liabilities",
+                                "noncurrent_liabilities",
+                                "equity",
+                            )
+                        ]
+                        report.financial_data.line_items.extend(bs_items)
+                    if fn not in report.source_files:
+                        report.source_files.append(fn)
+                    save_workspace_state(ticker, cur_state)
+                    if not should_overwrite:
+                        logger.info(
+                            f"Skipping GAAP override for {fn} as formal filing data is already present."
+                        )
 
                 updated_periods.add(period_key)
 
             except Exception as e:
                 logger.error(f"Balance sheet agent failed for {fn}: {e}")
-                orchestrator.checkin_status(
-                    ticker, "balance_sheet", "failed", period=period_key
-                )
-                cur_state = load_workspace_state(ticker)
-                err_msg = str(e)
-                cur_state.reports[period_key].arithmetic_errors.append(
-                    f"Balance Sheet Agent failure for {fn}: {err_msg}"
-                )
-                if fn not in cur_state.reports[period_key].source_files:
-                    cur_state.reports[period_key].source_files.append(fn)
-                save_workspace_state(ticker, cur_state)
+                async with orchestrator.state_lock:
+                    orchestrator.checkin_status(
+                        ticker, "balance_sheet", "failed", period=period_key
+                    )
+                    cur_state = load_workspace_state(ticker)
+                    err_msg = str(e)
+                    cur_state.reports[period_key].arithmetic_errors.append(
+                        f"Balance Sheet Agent failure for {fn}: {err_msg}"
+                    )
+                    if fn not in cur_state.reports[period_key].source_files:
+                        cur_state.reports[period_key].source_files.append(fn)
+                    save_workspace_state(ticker, cur_state)
                 raise
 
     async def run_income_statement(
         period_key: str, fn: str, content: str, is_q: bool, doc_type: str
     ):
         async with orchestrator.doc_sem:
-            orchestrator.checkout_status(ticker, "income_statement", period=period_key)
+            async with orchestrator.state_lock:
+                orchestrator.checkout_status(
+                    ticker, "income_statement", period=period_key
+                )
             try:
                 res = await asyncio.to_thread(
                     run_extractor_with_learning,
@@ -833,15 +833,7 @@ async def orchestrate_extract(
                                 break
 
                 should_overwrite = is_formal or not has_formal_in_source
-
-                orchestrator.checkin_status(
-                    ticker,
-                    "income_statement",
-                    "completed",
-                    period=period_key,
-                    payload=res if should_overwrite else None,
-                )
-
+                is_items = []
                 if should_overwrite:
                     # Parse table to line items
                     is_items = parse_markdown_to_line_items(
@@ -850,43 +842,47 @@ async def orchestrate_extract(
                         "income_statement",
                     )
 
-                    # Append to blackboard line items (replacing previous Income Statement items)
-                    cur_state = load_workspace_state(ticker)
-                    report = cur_state.reports[period_key]
-                    report.financial_data.line_items = [
-                        item
-                        for item in report.financial_data.line_items
-                        if item.category != "income_statement"
-                    ]
-                    report.financial_data.line_items.extend(is_items)
-                    if fn not in report.source_files:
-                        report.source_files.append(fn)
-                    save_workspace_state(ticker, cur_state)
-                else:
-                    cur_state = load_workspace_state(ticker)
-                    report = cur_state.reports[period_key]
-                    if fn not in report.source_files:
-                        report.source_files.append(fn)
-                    save_workspace_state(ticker, cur_state)
-                    logger.info(
-                        f"Skipping GAAP override for {fn} as formal filing data is already present."
+                async with orchestrator.state_lock:
+                    orchestrator.checkin_status(
+                        ticker,
+                        "income_statement",
+                        "completed",
+                        period=period_key,
+                        payload=res if should_overwrite else None,
                     )
+                    cur_state = load_workspace_state(ticker)
+                    report = cur_state.reports[period_key]
+                    if should_overwrite:
+                        report.financial_data.line_items = [
+                            item
+                            for item in report.financial_data.line_items
+                            if item.category != "income_statement"
+                        ]
+                        report.financial_data.line_items.extend(is_items)
+                    if fn not in report.source_files:
+                        report.source_files.append(fn)
+                    save_workspace_state(ticker, cur_state)
+                    if not should_overwrite:
+                        logger.info(
+                            f"Skipping GAAP override for {fn} as formal filing data is already present."
+                        )
 
                 updated_periods.add(period_key)
 
             except Exception as e:
                 logger.error(f"Income statement agent failed for {fn}: {e}")
-                orchestrator.checkin_status(
-                    ticker, "income_statement", "failed", period=period_key
-                )
-                cur_state = load_workspace_state(ticker)
-                err_msg = str(e)
-                cur_state.reports[period_key].arithmetic_errors.append(
-                    f"Income Statement Agent failure for {fn}: {err_msg}"
-                )
-                if fn not in cur_state.reports[period_key].source_files:
-                    cur_state.reports[period_key].source_files.append(fn)
-                save_workspace_state(ticker, cur_state)
+                async with orchestrator.state_lock:
+                    orchestrator.checkin_status(
+                        ticker, "income_statement", "failed", period=period_key
+                    )
+                    cur_state = load_workspace_state(ticker)
+                    err_msg = str(e)
+                    cur_state.reports[period_key].arithmetic_errors.append(
+                        f"Income Statement Agent failure for {fn}: {err_msg}"
+                    )
+                    if fn not in cur_state.reports[period_key].source_files:
+                        cur_state.reports[period_key].source_files.append(fn)
+                    save_workspace_state(ticker, cur_state)
                 raise
 
     async def run_analyst_report(period_key: str, fn: str, content: str):

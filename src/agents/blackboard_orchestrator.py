@@ -87,6 +87,7 @@ class BlackboardOrchestrator:
 
         self._failure_queue = []
         self._active_tasks = set()
+        self.state_lock = asyncio.Lock()
 
     def _is_network_failure(self, exc: Exception) -> bool:
         """Differentiate network/API failures from validation/quality issues."""
@@ -406,35 +407,41 @@ class BlackboardOrchestrator:
         self._active_tasks.clear()
         async with self.company_sem:
             self.recover_dangling_states(ticker)
+            try:
+                if stage is None or stage == "ingest":
+                    from src.agents.orchestrator_pipelines.ingest import (
+                        orchestrate_ingest,
+                    )
 
-            if stage is None or stage == "ingest":
-                from src.agents.orchestrator_pipelines.ingest import orchestrate_ingest
+                    await orchestrate_ingest(self, ticker, limit=limit)
 
-                await orchestrate_ingest(self, ticker, limit=limit)
+                if stage is None or stage == "extract":
+                    from src.agents.orchestrator_pipelines.extract import (
+                        orchestrate_extract,
+                    )
 
-            if stage is None or stage == "extract":
-                from src.agents.orchestrator_pipelines.extract import (
-                    orchestrate_extract,
-                )
+                    await orchestrate_extract(
+                        self,
+                        ticker,
+                        agent=agent,
+                        non_interactive=non_interactive,
+                        limit=limit,
+                        force=force,
+                        target_files=target_files,
+                    )
 
-                await orchestrate_extract(
-                    self,
-                    ticker,
-                    agent=agent,
-                    non_interactive=non_interactive,
-                    limit=limit,
-                    force=force,
-                    target_files=target_files,
-                )
+                if stage is None or stage == "analyze":
+                    from src.agents.orchestrator_pipelines.analyze import (
+                        orchestrate_analyze,
+                    )
 
-            if stage is None or stage == "analyze":
-                from src.agents.orchestrator_pipelines.analyze import (
-                    orchestrate_analyze,
-                )
+                    await orchestrate_analyze(self, ticker)
 
-                await orchestrate_analyze(self, ticker)
+                if stage is None or stage == "model":
+                    from src.agents.orchestrator_pipelines.model import (
+                        orchestrate_model,
+                    )
 
-            if stage is None or stage == "model":
-                from src.agents.orchestrator_pipelines.model import orchestrate_model
-
-                await orchestrate_model(self, ticker, agent, non_interactive)
+                    await orchestrate_model(self, ticker, agent, non_interactive)
+            finally:
+                self.recover_dangling_states(ticker)

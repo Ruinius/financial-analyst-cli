@@ -737,11 +737,12 @@ def run_extract(
                 incomplete_details.append(f"Period {pk}: {', '.join(failed_agents)}")
 
         if incomplete_details:
-            formatting.print_warning(
+            formatting.print_error(
                 "Extraction completed with incomplete/failed agent task(s):"
             )
             for det in incomplete_details:
-                formatting.print_warning(f"  - {det}")
+                formatting.print_error(f"  - {det}")
+            raise typer.Exit(1)
         else:
             formatting.print_success(
                 "Successfully extracted financial data and calculated metrics."
