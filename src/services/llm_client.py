@@ -235,7 +235,7 @@ class LiteLLMClient(LLMClient):
             target = (
                 model
                 or getattr(self.settings, "gemini_model", None)
-                or "gemini-2.5-flash"
+                or "gemini-3.1-flash-lite"
             )
             if "/" not in target:
                 target = f"gemini/{target}"
@@ -244,7 +244,7 @@ class LiteLLMClient(LLMClient):
             target = (
                 model
                 or getattr(self.settings, "deepseek_model", None)
-                or "deepseek-chat"
+                or "deepseek-v4-flash"
             )
             if "/" not in target:
                 target = f"deepseek/{target}"
@@ -255,7 +255,7 @@ class LiteLLMClient(LLMClient):
             target = (
                 model
                 or getattr(self.settings, "openrouter_model", None)
-                or "google/gemma-4-31b-it:free"
+                or "google/gemma-4-31b-it"
             )
             if "/" not in target:
                 target = f"openrouter/{target}"

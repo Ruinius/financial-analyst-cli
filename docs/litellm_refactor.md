@@ -58,7 +58,7 @@ Permanently delete the following provider-specific modules from `src/services/`:
 ### Step 3: Refactor Core Service Layer (`src/services/llm_client.py`)
 - **Purge Legacy Classes**: Remove `OpenAICompatibleClient`, `SimulatedChatSession`, and legacy provider imports.
 - **Implement `LiteLLMClient(LLMClient)`**:
-  - Map configuration settings (`settings.api_provider`, API keys, model names) to standard LiteLLM provider model identifiers (e.g., `gemini/gemini-2.5-flash`, `deepseek/deepseek-chat`, `openrouter/google/gemma-4-31b-it:free`).
+  - Map configuration settings (`settings.api_provider`, API keys, model names) to standard LiteLLM provider model identifiers (e.g., `gemini/gemini-3.1-flash-lite`, `deepseek/deepseek-v4-flash`, `openrouter/google/gemma-4-31b-it`).
   - Implement `.generate()` utilizing `litellm.completion(..., stream=True)` with Rich console streaming formatting.
   - Implement `.generate_structured()` utilizing LiteLLM's native Pydantic structured output validation (`response_format=response_schema`).
 - **Implement `LiteLLMChatSession(ChatSession)`**:

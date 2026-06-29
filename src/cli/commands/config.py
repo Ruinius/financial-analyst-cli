@@ -95,13 +95,11 @@ async def _initialize_config_flow_async() -> Settings:
             openrouter_api_key = val if val else None
 
         if existing_settings and existing_settings.api_provider == "openrouter":
-            default_model = (
-                existing_settings.text_model_id or "google/gemma-4-31b-it:free"
-            )
+            default_model = existing_settings.text_model_id or "google/gemma-4-31b-it"
         else:
             default_model = (
                 existing_settings.openrouter_model if existing_settings else None
-            ) or "google/gemma-4-31b-it:free"
+            ) or "google/gemma-4-31b-it"
 
     elif api_provider == "gemini":
         prompt_text = "Gemini API Key: "
@@ -274,7 +272,7 @@ def config_show():
         table.add_row("Gemini Model", settings.gemini_model or "gemini-3.1-flash-lite")
         table.add_row(
             "OpenRouter Model",
-            settings.openrouter_model or "google/gemma-4-31b-it:free",
+            settings.openrouter_model or "google/gemma-4-31b-it",
         )
         table.add_row("DeepSeek Model", settings.deepseek_model or "deepseek-v4-flash")
         table.add_row("Text-to-Text Model ID (Active)", settings.text_model_id)
@@ -338,7 +336,7 @@ def config_set(
             settings.text_model_id = settings.gemini_model or "gemini-3.1-flash-lite"
         elif p == "openrouter":
             settings.text_model_id = (
-                settings.openrouter_model or "google/gemma-4-31b-it:free"
+                settings.openrouter_model or "google/gemma-4-31b-it"
             )
         elif p == "deepseek":
             settings.text_model_id = settings.deepseek_model or "deepseek-v4-flash"

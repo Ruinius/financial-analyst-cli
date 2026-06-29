@@ -23,14 +23,14 @@ class Settings(BaseModel):
     deepseek_api_key: Optional[str] = Field(None, description="DeepSeek API key")
 
     text_model_id: str = Field(
-        "google/gemma-4-31b-it:free", description="Text-to-Text Model ID"
+        "google/gemma-4-31b-it", description="Text-to-Text Model ID"
     )
 
     gemini_model: Optional[str] = Field(
         "gemini-3.1-flash-lite", description="Gemini model preference"
     )
     openrouter_model: Optional[str] = Field(
-        "google/gemma-4-31b-it:free", description="OpenRouter model preference"
+        "google/gemma-4-31b-it", description="OpenRouter model preference"
     )
     deepseek_model: Optional[str] = Field(
         "deepseek-v4-flash", description="DeepSeek model preference"
@@ -58,7 +58,7 @@ class Settings(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def migrate_and_sync_models(cls, data: dict) -> dict:
+    def set_default_models(cls, data: dict) -> dict:
         if not isinstance(data, dict):
             return data
 
@@ -70,7 +70,7 @@ class Settings(BaseModel):
 
         # Determine defaults for each provider model
         default_gemini = "gemini-3.1-flash-lite"
-        default_openrouter = "google/gemma-4-31b-it:free"
+        default_openrouter = "google/gemma-4-31b-it"
         default_deepseek = "deepseek-v4-flash"
 
         # Populate provider-specific models if they are not explicitly specified

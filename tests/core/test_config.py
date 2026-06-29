@@ -30,9 +30,9 @@ def test_settings_model():
     )
     assert settings.full_name == "Alice"
     assert settings.email == "alice@example.com"
-    assert settings.text_model_id == "google/gemma-4-31b-it:free"
+    assert settings.text_model_id == "google/gemma-4-31b-it"
     assert settings.gemini_model == "gemini-3.1-flash-lite"
-    assert settings.openrouter_model == "google/gemma-4-31b-it:free"
+    assert settings.openrouter_model == "google/gemma-4-31b-it"
     assert settings.deepseek_model == "deepseek-v4-flash"
 
 

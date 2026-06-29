@@ -174,7 +174,7 @@ Config      Ingestion   Extraction  History     Modeling    Interactive  Blackbo
   - [x] Enable `fa run edgar` to default to the active ticker workspace, showing an error if none is selected.
   - [x] Enable command-specific welcoming messages using the static version of the pig art.
   - [x] Enhance `fa run ingest` to show the count of raw files and prompt the user for the number of files to process (defaulting to all).
-  - [x] Standardize configuration text/vision LLM models to `google/gemma-4-31b-it:free`.
+  - [x] Standardize configuration text/vision LLM models to `google/gemma-4-31b-it`.
   - [x] In `fa run ingest`, add logs to show which files are ingested and which ones are not (skipped as duplicates or due to limit).
   - [x] In `fa run extract`, show the count of parsed files and prompt the user for the number of files to process (defaulting to all).
   - [x] In `fa run analyze`, show the count of extracted files and process all files by default without prompting (supporting an optional `--limit` flag).

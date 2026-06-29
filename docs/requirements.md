@@ -22,7 +22,7 @@ When the CLI is executed for the first time (or if configuration is missing), it
 2. **LLM API Credentials**: Prompt for at least one API Key (e.g., OpenRouter, Gemini, OpenAI, Anthropic, Fireworks AI).
 3. **Model Selection**:
    - The user must configure:
-     - A **text-to-text model** (e.g., `google/gemma-4-31b-it:free`).
+     - A **text-to-text model** (e.g., `google/gemma-4-31b-it`).
      - A **vision-to-text model** (for charts/tables).
    - *Alternative*: Option to use a unified multimodal model (e.g., **Gemma**) natively for both text and vision tasks.
 4. **Workspace Path**: Prompt for the location of the active workspace.
