@@ -201,9 +201,14 @@ run_app = typer.Typer(help="Execute data pipeline stages.")
 def run_callback(
     ctx: typer.Context,
     ticker: str = typer.Option(
-        None, "--ticker", "-t", help="Company ticker symbol (e.g. AAPL)"
+        None, "--ticker", "-t", help="Company ticker symbol (e.g. AAPL, CRM)"
     ),
-    non_interactive: bool = typer.Option(False, "--non-interactive", "-n"),
+    non_interactive: bool = typer.Option(
+        False,
+        "--non-interactive",
+        "-n",
+        help="Run non-interactively without user prompts",
+    ),
 ):
     """Execute data pipeline stages. Calling 'fa run' directly runs the full pipeline (ingest -> extract -> analyze -> model)."""
     if ctx.invoked_subcommand is not None:
@@ -288,10 +293,17 @@ app.add_typer(run_app, name="run")
 
 @run_app.command("edgar")
 def run_edgar(
-    ticker: str = typer.Argument(None, help="Company ticker symbol (e.g. AAPL)"),
+    ticker: str = typer.Argument(None, help="Company ticker symbol (e.g. AAPL, CRM)"),
     years: int = typer.Option(5, "--years", "-y", help="Years to download"),
-    non_interactive: bool = typer.Option(False, "--non-interactive", "-n"),
-    agent: str = typer.Option(None, "--agent", "-a"),
+    non_interactive: bool = typer.Option(
+        False,
+        "--non-interactive",
+        "-n",
+        help="Run non-interactively without user prompts",
+    ),
+    agent: str = typer.Option(
+        None, "--agent", "-a", help="Target a specific sub-agent"
+    ),
 ):
     """Download filings from SEC EDGAR."""
     try:
@@ -335,14 +347,23 @@ def run_edgar(
 
 @run_app.command("ingest")
 def run_ingest(
-    ticker: str = typer.Option(None, "--ticker", "-t"),
+    ticker: str = typer.Option(
+        None, "--ticker", "-t", help="Company ticker symbol (e.g. AAPL, CRM)"
+    ),
     heal: bool = typer.Option(
         False,
         "--heal",
         help="Run metadata self-healing and Quality Check Agent on existing parsed files",
     ),
-    non_interactive: bool = typer.Option(False, "--non-interactive", "-n"),
-    agent: str = typer.Option(None, "--agent", "-a"),
+    non_interactive: bool = typer.Option(
+        False,
+        "--non-interactive",
+        "-n",
+        help="Run non-interactively without user prompts",
+    ),
+    agent: str = typer.Option(
+        None, "--agent", "-a", help="Target a specific sub-agent"
+    ),
 ):
     """Parse and ingest raw files."""
     try:
@@ -444,9 +465,21 @@ def letter_to_index(letter: str) -> int:
 
 @run_app.command("extract")
 def run_extract(
-    ticker: str = typer.Option(None, "--ticker", "-t"),
-    non_interactive: bool = typer.Option(False, "--non-interactive", "-n"),
-    agent: str = typer.Option(None, "--agent", "-a"),
+    ticker: str = typer.Option(
+        None, "--ticker", "-t", help="Company ticker symbol (e.g. AAPL, CRM)"
+    ),
+    non_interactive: bool = typer.Option(
+        False,
+        "--non-interactive",
+        "-n",
+        help="Run non-interactively without user prompts",
+    ),
+    agent: str = typer.Option(
+        None,
+        "--agent",
+        "-a",
+        help="Target a specific extraction sub-agent (e.g. metadata, balance_sheet, income_statement, shares, organic_growth, ebita, tax, analyst_report, other)",
+    ),
     force: bool = typer.Option(
         False, "--force", "-f", help="Force re-extraction of already completed files"
     ),
@@ -601,7 +634,7 @@ def run_extract(
                 val = response.strip().lower()
                 if not val or val == "all":
                     limit_val = None
-                    force_val = False
+                    force_val = force
                     target_files = None
                 elif val.isalpha():
                     try:
@@ -615,26 +648,26 @@ def run_extract(
                                 f"Label '{val}' is out of range. Defaulting to all new files."
                             )
                             limit_val = None
-                            force_val = False
+                            force_val = force
                             target_files = None
                     except ValueError:
                         formatting.print_warning(
                             f"Invalid label '{val}'. Defaulting to all new files."
                         )
                         limit_val = None
-                        force_val = False
+                        force_val = force
                         target_files = None
                 else:
                     try:
                         limit_val = int(val)
-                        force_val = False
+                        force_val = force
                         target_files = None
                     except ValueError:
                         formatting.print_warning(
                             "Invalid input entered. Defaulting to all new files."
                         )
                         limit_val = None
-                        force_val = False
+                        force_val = force
                         target_files = None
 
     formatting.print_info(f"Starting extraction stage for {active_ticker}...")
@@ -664,9 +697,18 @@ def run_extract(
 
 @run_app.command("analyze")
 def run_analyze(
-    ticker: str = typer.Option(None, "--ticker", "-t"),
-    non_interactive: bool = typer.Option(False, "--non-interactive", "-n"),
-    agent: str = typer.Option(None, "--agent", "-a"),
+    ticker: str = typer.Option(
+        None, "--ticker", "-t", help="Company ticker symbol (e.g. AAPL, CRM)"
+    ),
+    non_interactive: bool = typer.Option(
+        False,
+        "--non-interactive",
+        "-n",
+        help="Run non-interactively without user prompts",
+    ),
+    agent: str = typer.Option(
+        None, "--agent", "-a", help="Target a specific analysis sub-agent"
+    ),
 ):
     """Synthesize longitudinal trends and analyst views."""
     try:
@@ -712,9 +754,21 @@ def run_analyze(
 
 @run_app.command("model")
 def run_model(
-    ticker: str = typer.Option(None, "--ticker", "-t"),
-    non_interactive: bool = typer.Option(False, "--non-interactive", "-n"),
-    agent: str = typer.Option(None, "--agent", "-a"),
+    ticker: str = typer.Option(
+        None, "--ticker", "-t", help="Company ticker symbol (e.g. AAPL, CRM)"
+    ),
+    non_interactive: bool = typer.Option(
+        False,
+        "--non-interactive",
+        "-n",
+        help="Run non-interactively without user prompts",
+    ),
+    agent: str = typer.Option(
+        None,
+        "--agent",
+        "-a",
+        help="Target a specific modeling sub-agent (e.g. wacc, growth, margin, non_operating, dcf)",
+    ),
 ):
     """Propose assumptions and construct valuation models."""
     try:
@@ -756,7 +810,9 @@ def run_model(
 
 @run_app.command("curate_wiki")
 def run_curate_wiki(
-    ticker: str = typer.Option(None, "--ticker", "-t"),
+    ticker: str = typer.Option(
+        None, "--ticker", "-t", help="Company ticker symbol (e.g. AAPL, CRM)"
+    ),
 ):
     """Run CuratorAgent to compile or update qualitative wiki files under write lock."""
     try:

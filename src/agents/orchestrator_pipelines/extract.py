@@ -186,7 +186,7 @@ async def orchestrate_extract(
 
     # Find which files are already extracted
     needing_extraction = []
-    if not force and agent is None:
+    if not force:
         extracted_files = set()
         for report in state.reports.values():
             for sf in report.source_files:
@@ -1244,9 +1244,11 @@ async def orchestrate_extract(
                                 "income_statement",
                                 period_key,
                                 fn,
-                                lambda pk=period_key, f=fn, c=content, iq=is_q, dt=doc_type: (
-                                    run_income_statement(pk, f, c, iq, dt)
-                                ),
+                                lambda pk=period_key,
+                                f=fn,
+                                c=content,
+                                iq=is_q,
+                                dt=doc_type: (run_income_statement(pk, f, c, iq, dt)),
                             )
                         )
 
@@ -1262,9 +1264,11 @@ async def orchestrate_extract(
                                 "balance_sheet",
                                 period_key,
                                 fn,
-                                lambda pk=period_key, f=fn, c=content, iq=is_q, dt=doc_type: (
-                                    run_balance_sheet(pk, f, c, iq, dt)
-                                ),
+                                lambda pk=period_key,
+                                f=fn,
+                                c=content,
+                                iq=is_q,
+                                dt=doc_type: (run_balance_sheet(pk, f, c, iq, dt)),
                             )
                         )
             else:
