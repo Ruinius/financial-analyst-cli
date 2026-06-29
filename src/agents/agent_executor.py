@@ -60,25 +60,12 @@ def run_agent_loop(
 
     response = chat.send_message(initial_prompt_with_warning)
 
-    # Check for native AFC finalization (e.g. Gemini)
-    if getattr(chat, "finalized", False) is True:
-        history = chat.get_history()
-        turn_count = sum(1 for msg in history if msg.get("role") == "assistant")
-        lines = []
-        for msg in history:
-            role = msg.get("role", "unknown").upper()
-            content = msg.get("content", "")
-            lines.append(f"{role}: {content}")
-        run_logs = "\n\n".join(lines)
-        last_agent_run.set((turn_count, run_logs))
-        return chat.finalized_args, history
-
-    finalized_args = None
-    finalized = False
+    finalized_args = getattr(chat, "finalized_args", None) or {}
+    finalized = getattr(chat, "finalized", False) is True
 
     for turn in range(max_turns):
         if getattr(chat, "finalized", False) is True:
-            finalized_args = chat.finalized_args
+            finalized_args = getattr(chat, "finalized_args", {})
             finalized = True
             break
 
@@ -101,7 +88,7 @@ def run_agent_loop(
             tool_responses = []
             for call in response:
                 name = getattr(call, "name", None)
-                # Arguments could be a dict or a structure (e.g. Map-like for native calls)
+                call_id = getattr(call, "id", None)
                 args = getattr(call, "args", {})
                 if not isinstance(args, dict):
                     try:
@@ -114,7 +101,6 @@ def run_agent_loop(
                 if name == "finalize":
                     finalized_args = args
                     finalized = True
-                    # Still run the local finalize function if registered to perform cleanup/updates
                     if name in tool_map:
                         try:
                             tool_map[name](**args)
@@ -124,15 +110,30 @@ def run_agent_loop(
 
                 if name in tool_map:
                     try:
-                        # Call the tool function with its unpacked arguments
                         result = tool_map[name](**args)
-                        tool_responses.append({"name": name, "content": str(result)})
+                        tool_responses.append(
+                            {
+                                "tool_call_id": call_id,
+                                "name": name,
+                                "content": str(result),
+                            }
+                        )
                     except Exception as e:
                         logger.error(f"Error executing tool '{name}': {e}")
-                        tool_responses.append({"name": name, "content": f"Error: {e}"})
+                        tool_responses.append(
+                            {
+                                "tool_call_id": call_id,
+                                "name": name,
+                                "content": f"Error: {e}",
+                            }
+                        )
                 else:
                     tool_responses.append(
-                        {"name": name, "content": f"Error: Unknown tool '{name}'."}
+                        {
+                            "tool_call_id": call_id,
+                            "name": name,
+                            "content": f"Error: Unknown tool '{name}'.",
+                        }
                     )
 
             if finalized:
@@ -141,7 +142,6 @@ def run_agent_loop(
             # Send tool execution results back to the chat session
             next_turn_num = turn + 2
             if next_turn_num < max_turns:
-                # Add warning to the last tool response so it is visible to the agent
                 tool_responses[-1]["content"] = str(
                     tool_responses[-1]["content"]
                 ) + get_turn_warning(next_turn_num)
@@ -150,14 +150,15 @@ def run_agent_loop(
 
         # 2. Process Plain Text Responses (non-tool calls)
         else:
-            # Check if the text contains a manual tool call string representation (fallback parsing helper)
             from src.utils.markdown_helper import extract_json_from_text
 
-            json_str = extract_json_from_text(response)
+            json_str = (
+                extract_json_from_text(response) if isinstance(response, str) else None
+            )
             if json_str:
                 try:
                     action = json.loads(json_str)
-                    tool_name = action.get("tool")
+                    tool_name = action.get("tool") or action.get("name")
                     tool_args = action.get("arguments", {})
                     if tool_name == "finalize":
                         finalized_args = tool_args
@@ -166,17 +167,20 @@ def run_agent_loop(
                             tool_map[tool_name](**tool_args)
                         break
 
-                    # Convert this to simple namespace and loop again to process it
-                    call = SimpleNamespace(name=tool_name, args=tool_args)
-                    response = [call]
-                    continue
+                    if tool_name:
+                        call = SimpleNamespace(
+                            id=f"call_{tool_name}", name=tool_name, args=tool_args
+                        )
+                        response = [call]
+                        continue
                 except Exception:
                     pass
 
-            if finalized:
+            if finalized or getattr(chat, "finalized", False) is True:
+                finalized_args = getattr(chat, "finalized_args", {})
+                finalized = True
                 break
 
-            # If it returned text but did not call finalize, prompt it to use tools
             prompt_instruction = (
                 "Your response did not execute a tool or call 'finalize'. "
                 "Please call one of the available tools or call 'finalize' if you are ready."

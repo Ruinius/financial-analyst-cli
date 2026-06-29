@@ -14,6 +14,7 @@ Welcome to the `financial-analyst-cli` project.
 - docs/architecture.md: System architecture, folder structure, micro-agent definitions, tool permissions registry, and design decisions.
 - docs/blackboard_design.md: Detailed schema, evolution history, lifecycle, and storage specifications for the blackboard state.
 - docs/cli_spec.md: CLI command hierarchy, options, parameters, and user experience specification.
+- docs/litellm_refactor.md: Architectural evaluation of migrating LLM service layer to LiteLLM (pros, cons, and hybrid migration strategy).
 - docs/requirements.md: Scope of capabilities and product requirements translated from financial-analyst-skills.
 - docs/roadmap.md: Seven-phase development and refactoring roadmap for the Financial Analyst CLI.
 - LICENSE: MIT License.
@@ -60,12 +61,9 @@ Welcome to the `financial-analyst-cli` project.
       - margin_agent.py: Agent specialized in estimating future EBITA margins (base, Year 5 target, terminal).
       - non_operating_agent.py: Agent specialized in extracting the 6 non-operating categories from the latest balance sheet.
       - dcf_modeling_agent.py: Agent specialized in reviewing and sanity-checking valuation parameters, currency, shares outstanding, and outputting comments/critiques.
-  - src/services/: SEC client, LLM wrapper, web search, and AST-sandboxed math solver.
+  - src/services/: SEC client, LiteLLM wrapper, web search, and AST-sandboxed math solver.
     - src/services/edgar_client.py: SEC EDGAR download API client.
-    - src/services/llm_client.py: Abstract base classes for LLM clients, simulated chat sessions, and the main client factory `get_llm_client`.
-    - src/services/gemini_client.py: Gemini client implementation wrapping google-genai SDK.
-    - src/services/deepseek_client.py: DeepSeek client implementation with thinking token options.
-    - src/services/openrouter_client.py: OpenRouter client implementation with standardized headers.
+    - src/services/llm_client.py: Consolidated LiteLLM client implementation (`LiteLLMClient`, `LiteLLMChatSession`) and client factory `get_llm_client`.
     - src/services/market_data.py: Yahoo Finance market data and ticker checker.
     - src/services/ddg_search.py: DuckDuckGo search service.
     - src/services/safe_math_solver.py: AST-sandboxed mathematical equation solver.

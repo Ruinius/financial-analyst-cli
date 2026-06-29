@@ -1,11 +1,11 @@
 import json
-import time
 import logging
-import httpx
 import re
+import litellm
 from abc import ABC, abstractmethod
 from pydantic import BaseModel
 from typing import Type, TypeVar, Union
+from types import SimpleNamespace
 
 from src.core.config import load_config
 
@@ -13,8 +13,7 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar("T", bound=BaseModel)
 
-
-# ⚡ Bolt Optimization: Pre-compile regex at module level to avoid recompilation overhead (~4x speedup on serialized prompts)
+# Pre-compile regex at module level to avoid recompilation overhead
 SERIALIZED_PROMPT_RE = re.compile(r"(?:^|\n+)\-\-\-\s*([A-Za-z]+)\s*\-\-\-\n+")
 
 
@@ -23,7 +22,6 @@ def parse_serialized_prompt(prompt: str) -> list:
     if not isinstance(prompt, str):
         return prompt
 
-    # ⚡ Bolt Optimization: Fast-fail to avoid 100x slower regex split if there are no headers
     if "---" not in prompt:
         return [{"role": "user", "content": prompt}]
 
@@ -35,25 +33,12 @@ def parse_serialized_prompt(prompt: str) -> list:
         messages.append({"role": "user", "content": parts[0].strip()})
     for i in range(1, len(parts), 2):
         role = parts[i].lower()
-        if role == "system":
-            role = "system"
-        elif role == "assistant":
-            role = "assistant"
-        else:
+        if role not in ("system", "assistant", "user"):
             role = "user"
         content = parts[i + 1].strip() if i + 1 < len(parts) else ""
         if content:
             messages.append({"role": role, "content": content})
     return messages
-
-
-def clean_leading_json_wrapper(s: str) -> str:
-    s = s.strip()
-    if s.startswith("```json"):
-        s = s[7:].strip()
-    elif s.startswith("```"):
-        s = s[3:].strip()
-    return s
 
 
 def safe_console_print(console, text: str, *args, **kwargs) -> None:
@@ -87,32 +72,6 @@ def safe_console_print(console, text: str, *args, **kwargs) -> None:
                 pass
 
 
-def _get_tool_descriptions(tools: list) -> str:
-    if not tools:
-        return ""
-    import inspect
-
-    descriptions = []
-    for tool in tools:
-        name = getattr(tool, "__name__", str(tool))
-        doc = getattr(tool, "__doc__", "") or "No description provided."
-        sig = inspect.signature(tool)
-        params = []
-        for param_name, param in sig.parameters.items():
-            ann = param.annotation
-            type_str = getattr(ann, "__name__", str(ann))
-            if type_str == "_empty":
-                type_str = "str"
-            params.append(f"{param_name}: {type_str}")
-        params_desc = ", ".join(params)
-        descriptions.append(
-            f"- Tool Name: '{name}'\n"
-            f"  Arguments: {{{params_desc}}}\n"
-            f"  Description: {doc.strip()}"
-        )
-    return "\n".join(descriptions)
-
-
 class ChatSession(ABC):
     @abstractmethod
     def send_message(
@@ -127,7 +86,7 @@ class ChatSession(ABC):
         pass
 
 
-class SimulatedChatSession(ChatSession):
+class LiteLLMChatSession(ChatSession):
     def __init__(
         self,
         client,
@@ -141,64 +100,90 @@ class SimulatedChatSession(ChatSession):
         self.temperature = temperature
         self.messages = []
         self.tools = tools or []
+        self.last_tool_calls = []
+        self.finalized = False
+        self.finalized_args = {}
 
-        injected_sys = system_prompt or ""
-        if tools:
-            tool_descs = _get_tool_descriptions(tools)
-            injected_sys += (
-                "\n\nYou have access to the following tools:\n"
-                f"{tool_descs}\n\n"
-                "To execute a tool call, respond ONLY with a single valid JSON object of this structure:\n"
-                "{\n"
-                '  "thought": "reasoning for selecting the tool",\n'
-                '  "tool": "tool_name",\n'
-                '  "arguments": {"arg1": val1, ...}\n'
-                "}\n"
-                "Do not add any markdown formatting or surrounding text (like ```json). Respond ONLY with the raw JSON object."
-            )
+        if system_prompt:
+            self.messages.append({"role": "system", "content": system_prompt})
 
-        if injected_sys:
-            self.messages.append({"role": "system", "content": injected_sys})
+        # Process tool definitions for LiteLLM / OpenAI format
+        self.formatted_tools = []
+        if self.tools:
+            for t in self.tools:
+                try:
+                    tool_dict = litellm.utils.function_to_dict(t)
+                    self.formatted_tools.append(tool_dict)
+                except Exception as e:
+                    logger.warning(f"Could not format tool {t} for LiteLLM: {e}")
 
     def send_message(
         self, message: str, tool_responses: list = None
     ) -> Union[str, list]:
-        from src.utils.markdown_helper import extract_json_from_text
-        from types import SimpleNamespace
-
         if tool_responses:
             for resp in tool_responses:
+                call_id = resp.get("tool_call_id") or f"call_{resp['name']}"
                 self.messages.append(
                     {
-                        "role": "user",
-                        "content": f"Observation from {resp['name']}:\n{resp['content']}",
+                        "role": "tool",
+                        "tool_call_id": call_id,
+                        "name": resp["name"],
+                        "content": str(resp["content"]),
                     }
                 )
-        else:
+                if resp["name"] == "finalize":
+                    self.finalized = True
+        elif message:
             self.messages.append({"role": "user", "content": message})
 
-        resp_text = self.client.generate(
-            self.messages,
-            model=self.model,
-            temperature=self.temperature,
-            stream_thinking=True,
-        )
-        self.messages.append({"role": "assistant", "content": resp_text})
+        target_model, api_key = self.client._resolve_model_and_key(self.model)
 
-        # Check if the output contains a tool call request
-        json_str = extract_json_from_text(resp_text)
-        if json_str:
-            try:
-                action = json.loads(json_str)
-                if "tool" in action:
-                    call = SimpleNamespace(
-                        name=action["tool"], args=action.get("arguments", {})
-                    )
-                    return [call]
-            except Exception:
-                pass
+        kwargs = {
+            "model": target_model,
+            "messages": self.messages,
+            "temperature": self.temperature,
+            "api_key": api_key,
+            "timeout": self.client.timeout,
+        }
+        if self.formatted_tools:
+            kwargs["tools"] = self.formatted_tools
 
-        return resp_text
+        response = litellm.completion(**kwargs)
+        assistant_msg = response.choices[0].message
+
+        # Append assistant response to message history
+        msg_dict = {"role": "assistant"}
+        if assistant_msg.content:
+            msg_dict["content"] = assistant_msg.content
+        if getattr(assistant_msg, "tool_calls", None):
+            msg_dict["tool_calls"] = [
+                tc.model_dump() if hasattr(tc, "model_dump") else dict(tc)
+                for tc in assistant_msg.tool_calls
+            ]
+        self.messages.append(msg_dict)
+
+        if getattr(assistant_msg, "tool_calls", None):
+            tool_calls_out = []
+            for tc in assistant_msg.tool_calls:
+                func_name = tc.function.name
+                try:
+                    func_args = json.loads(tc.function.arguments)
+                except Exception:
+                    func_args = {}
+
+                if func_name == "finalize":
+                    self.finalized = True
+                    self.finalized_args = func_args
+
+                call_obj = SimpleNamespace(
+                    id=tc.id,
+                    name=func_name,
+                    args=func_args,
+                )
+                tool_calls_out.append(call_obj)
+            return tool_calls_out
+
+        return assistant_msg.content or ""
 
     def get_history(self) -> list[dict]:
         return self.messages
@@ -243,24 +228,46 @@ class LLMClient(ABC):
         pass
 
 
-class OpenAICompatibleClient(LLMClient):
-    def __init__(self, settings):
-        super().__init__(settings)
-        self.api_key = None
-        self.endpoint = None
-        self.headers = {}
-        self.default_model = None
+class LiteLLMClient(LLMClient):
+    def _resolve_model_and_key(self, model: str = None) -> tuple[str, str]:
+        provider = self.provider
+        if provider == "gemini":
+            target = (
+                model
+                or getattr(self.settings, "gemini_model", None)
+                or "gemini-2.5-flash"
+            )
+            if "/" not in target:
+                target = f"gemini/{target}"
+            api_key = self.settings.gemini_api_key or self.settings.primary_llm_api_key
+        elif provider == "deepseek":
+            target = (
+                model
+                or getattr(self.settings, "deepseek_model", None)
+                or "deepseek-chat"
+            )
+            if "/" not in target:
+                target = f"deepseek/{target}"
+            api_key = (
+                self.settings.deepseek_api_key or self.settings.primary_llm_api_key
+            )
+        else:
+            target = (
+                model
+                or getattr(self.settings, "openrouter_model", None)
+                or "google/gemma-4-31b-it:free"
+            )
+            if "/" not in target:
+                target = f"openrouter/{target}"
+            api_key = (
+                self.settings.openrouter_api_key or self.settings.primary_llm_api_key
+            )
 
-    def generate(
-        self,
-        prompt: Union[str, list],
-        system_prompt: str = None,
-        model: str = None,
-        temperature: float = 0.1,
-        stream_thinking: bool = True,
-    ) -> str:
-        target_model = model or self.default_model
+        return target, api_key
 
+    def _format_messages(
+        self, prompt: Union[str, list], system_prompt: str = None
+    ) -> list:
         messages = []
         if isinstance(prompt, list):
             messages = list(prompt)
@@ -274,121 +281,82 @@ class OpenAICompatibleClient(LLMClient):
         if system_prompt and not any(m.get("role") == "system" for m in messages):
             messages.insert(0, {"role": "system", "content": system_prompt})
 
-        payload = {
-            "model": target_model,
-            "messages": messages,
-            "temperature": temperature,
-        }
+        return messages
 
-        max_retries = 3
-        initial_delay = 1.0
-        backoff = 2.0
+    def generate(
+        self,
+        prompt: Union[str, list],
+        system_prompt: str = None,
+        model: str = None,
+        temperature: float = 0.1,
+        stream_thinking: bool = True,
+    ) -> str:
+        target_model, api_key = self._resolve_model_and_key(model)
+        messages = self._format_messages(prompt, system_prompt)
 
-        for attempt in range(max_retries + 1):
-            try:
-                if stream_thinking:
-                    payload["stream"] = True
-                    self._customize_payload_for_thinking(payload)
+        if stream_thinking:
+            from rich.console import Console
 
-                    from rich.console import Console
+            console = Console()
+            full_content = []
+            started_thinking = False
 
-                    console = Console()
+            response = litellm.completion(
+                model=target_model,
+                messages=messages,
+                temperature=temperature,
+                api_key=api_key,
+                timeout=self.timeout,
+                stream=True,
+            )
 
-                    full_content = []
-                    started_thinking = False
-                    timeout_config = httpx.Timeout(
-                        timeout=self.timeout, connect=10.0, read=self.timeout
-                    )
+            for chunk in response:
+                if not chunk.choices:
+                    continue
+                delta = chunk.choices[0].delta
+                if not delta:
+                    continue
 
-                    with httpx.Client(timeout=timeout_config) as client:
-                        with client.stream(
-                            "POST", self.endpoint, headers=self.headers, json=payload
-                        ) as r:
-                            r.raise_for_status()
-                            for line in r.iter_lines():
-                                if not line.strip():
-                                    continue
-                                if line.startswith("data: "):
-                                    data_str = line[len("data: ") :]
-                                    if data_str.strip() == "[DONE]":
-                                        break
-                                    try:
-                                        chunk = json.loads(data_str)
-                                    except Exception as e:
-                                        logger.exception(
-                                            f"Error parsing stream chunk: {e}"
-                                        )
-                                        continue
-
-                                    if isinstance(chunk, dict) and "error" in chunk:
-                                        error_msg = chunk["error"].get(
-                                            "message"
-                                        ) or str(chunk["error"])
-                                        raise RuntimeError(
-                                            f"LLM API returned error: {error_msg}"
-                                        )
-
-                                    choices = chunk.get("choices")
-                                    if not choices:
-                                        continue
-                                    delta = choices[0].get("delta")
-                                    if not delta:
-                                        continue
-
-                                    reasoning, content = (
-                                        self._extract_reasoning_and_content(delta)
-                                    )
-
-                                    if reasoning:
-                                        if not started_thinking:
-                                            safe_console_print(
-                                                console,
-                                                "[italic dim]Sir Pennyworth is pondering... [/italic dim]",
-                                                end="",
-                                                markup=True,
-                                            )
-                                            started_thinking = True
-                                        safe_console_print(
-                                            console,
-                                            reasoning,
-                                            end="",
-                                            style="italic dim",
-                                        )
-                                        console.file.flush()
-
-                                    if content:
-                                        if started_thinking:
-                                            safe_console_print(console, "")
-                                            started_thinking = False
-
-                                        full_content.append(content)
-                                        safe_console_print(
-                                            console, ".", end="", flush=True
-                                        )
-
-                            if started_thinking or len(full_content) > 0:
-                                safe_console_print(console, "")
-                    return "".join(full_content)
-                else:
-                    timeout_config = httpx.Timeout(
-                        timeout=self.timeout, connect=10.0, read=self.timeout
-                    )
-                    with httpx.Client(timeout=timeout_config) as client:
-                        response = client.post(
-                            self.endpoint, headers=self.headers, json=payload
-                        )
-                        response.raise_for_status()
-                        data = response.json()
-                        return data["choices"][0]["message"]["content"]
-            except Exception as e:
-                if attempt == max_retries:
-                    raise RuntimeError(f"LLM generation failed: {str(e)}")
-
-                delay = initial_delay * (backoff**attempt)
-                logger.warning(
-                    f"LLM API request failed: {e}. Retrying in {delay:.1f}s (Attempt {attempt + 1}/{max_retries + 1})..."
+                reasoning = (
+                    getattr(delta, "reasoning_content", None)
+                    or getattr(delta, "reasoning", None)
+                    or ""
                 )
-                time.sleep(delay)
+                content = getattr(delta, "content", None) or ""
+
+                if reasoning:
+                    if not started_thinking:
+                        safe_console_print(
+                            console,
+                            "[italic dim]Sir Pennyworth is pondering... [/italic dim]",
+                            end="",
+                            markup=True,
+                        )
+                        started_thinking = True
+                    safe_console_print(console, reasoning, end="", style="italic dim")
+                    console.file.flush()
+
+                if content:
+                    if started_thinking:
+                        safe_console_print(console, "")
+                        started_thinking = False
+
+                    full_content.append(content)
+                    safe_console_print(console, ".", end="", flush=True)
+
+            if started_thinking or len(full_content) > 0:
+                safe_console_print(console, "")
+            return "".join(full_content)
+        else:
+            response = litellm.completion(
+                model=target_model,
+                messages=messages,
+                temperature=temperature,
+                api_key=api_key,
+                timeout=self.timeout,
+                stream=False,
+            )
+            return response.choices[0].message.content or ""
 
     def generate_structured(
         self,
@@ -398,28 +366,43 @@ class OpenAICompatibleClient(LLMClient):
         model: str = None,
         temperature: float = 0.1,
     ) -> T:
-        schema_json = json.dumps(response_schema.model_json_schema(), indent=2)
-        simulated_system = (system_prompt or "") + (
-            f"\n\nYou MUST return a JSON object that adheres strictly to the following JSON Schema:\n"
-            f"```json\n{schema_json}\n```\n"
-            f"Respond ONLY with the raw JSON object, without any Markdown wrappers or explanations."
-        )
+        target_model, api_key = self._resolve_model_and_key(model)
+        messages = self._format_messages(prompt, system_prompt)
 
-        raw_response = self.generate(
-            prompt,
-            system_prompt=simulated_system,
-            model=model,
-            temperature=temperature,
-            stream_thinking=False,
-        )
+        try:
+            response = litellm.completion(
+                model=target_model,
+                messages=messages,
+                temperature=temperature,
+                api_key=api_key,
+                timeout=self.timeout,
+                response_format=response_schema,
+            )
+            content = response.choices[0].message.content
+            return response_schema.model_validate_json(content)
+        except Exception as e:
+            logger.warning(
+                f"Native response_format failed, falling back to schema prompt injection: {e}"
+            )
+            schema_json = json.dumps(response_schema.model_json_schema(), indent=2)
+            simulated_system = (system_prompt or "") + (
+                f"\n\nYou MUST return a JSON object that adheres strictly to the following JSON Schema:\n"
+                f"```json\n{schema_json}\n```\n"
+                f"Respond ONLY with the raw JSON object, without any Markdown wrappers or explanations."
+            )
+            messages_with_schema = self._format_messages(prompt, simulated_system)
+            response = litellm.completion(
+                model=target_model,
+                messages=messages_with_schema,
+                temperature=temperature,
+                api_key=api_key,
+                timeout=self.timeout,
+            )
+            content = response.choices[0].message.content
+            from src.utils.markdown_helper import extract_json_from_text
 
-        from src.utils.markdown_helper import extract_json_from_text
-
-        json_str = extract_json_from_text(raw_response)
-        if not json_str:
-            raise ValueError(f"Failed to extract JSON from response: {raw_response}")
-
-        return response_schema.model_validate_json(json_str)
+            json_str = extract_json_from_text(content) or content
+            return response_schema.model_validate_json(json_str)
 
     def create_chat(
         self,
@@ -428,7 +411,7 @@ class OpenAICompatibleClient(LLMClient):
         model: str = None,
         temperature: float = 0.1,
     ) -> ChatSession:
-        return SimulatedChatSession(
+        return LiteLLMChatSession(
             client=self,
             system_prompt=system_prompt,
             tools=tools,
@@ -436,28 +419,7 @@ class OpenAICompatibleClient(LLMClient):
             temperature=temperature,
         )
 
-    def _customize_payload_for_thinking(self, payload: dict) -> None:
-        pass
-
-    def _extract_reasoning_and_content(self, delta: dict) -> tuple[str, str]:
-        return "", delta.get("content") or ""
-
 
 def get_llm_client(provider: str = None, model: str = None) -> LLMClient:
     settings = load_config()
-    if provider is None:
-        provider = getattr(settings, "api_provider", "openrouter")
-    provider = provider.lower()
-
-    if provider == "gemini":
-        from src.services.gemini_client import GeminiLLMClient
-
-        return GeminiLLMClient(settings, model=model)
-    elif provider == "deepseek":
-        from src.services.deepseek_client import DeepSeekLLMClient
-
-        return DeepSeekLLMClient(settings, model=model)
-    else:
-        from src.services.openrouter_client import OpenRouterLLMClient
-
-        return OpenRouterLLMClient(settings, model=model)
+    return LiteLLMClient(settings)

@@ -13,6 +13,7 @@ dependencies = [
     "duckduckgo-search>=8.1.1",
     "google-genai>=2.9.0",
     "httpx>=0.28.1",
+    "litellm>=1.90.0",
     "prompt-toolkit>=3.0.52",
     "pydantic>=2.13.4",
     "pymupdf",
