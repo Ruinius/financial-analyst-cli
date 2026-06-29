@@ -135,8 +135,10 @@ def run_balance_sheet_agent(
             ) from e
         raise e
 
-    if not finalized_args:
-        finalized_args = {}
+    if not finalized_args or not finalized_args.get("raw_balance_sheet_markdown"):
+        raise LLMError(
+            "Balance sheet extraction failed: Agent did not call finalize with extracted table content."
+        )
 
     return BalanceSheetExtraction(
         raw_balance_sheet_markdown=finalized_args.get("raw_balance_sheet_markdown", ""),

@@ -236,6 +236,8 @@ async def orchestrate_extract(
                     or report.organic_growth_status != "completed"
                     or report.ebita_status != "completed"
                     or report.tax_status != "completed"
+                    or not report.financial_data.raw_balance_sheet_markdown
+                    or not report.financial_data.raw_income_statement_markdown
                 ):
                     needing_extraction.append(p)
                     continue
@@ -789,8 +791,6 @@ async def orchestrate_extract(
                     cur_state.reports[period_key].arithmetic_errors.append(
                         f"Balance Sheet Agent failure for {fn}: {err_msg}"
                     )
-                    if fn not in cur_state.reports[period_key].source_files:
-                        cur_state.reports[period_key].source_files.append(fn)
                     save_workspace_state(ticker, cur_state)
                 raise
 
@@ -880,8 +880,6 @@ async def orchestrate_extract(
                     cur_state.reports[period_key].arithmetic_errors.append(
                         f"Income Statement Agent failure for {fn}: {err_msg}"
                     )
-                    if fn not in cur_state.reports[period_key].source_files:
-                        cur_state.reports[period_key].source_files.append(fn)
                     save_workspace_state(ticker, cur_state)
                 raise
 

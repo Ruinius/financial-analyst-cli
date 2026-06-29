@@ -136,8 +136,10 @@ def run_income_statement_agent(
             ) from e
         raise e
 
-    if not finalized_args:
-        finalized_args = {}
+    if not finalized_args or not finalized_args.get("raw_income_statement_markdown"):
+        raise LLMError(
+            "Income statement extraction failed: Agent did not call finalize with extracted table content."
+        )
 
     return IncomeStatementExtraction(
         raw_income_statement_markdown=finalized_args.get(

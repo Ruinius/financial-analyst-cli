@@ -614,6 +614,8 @@ def run_extract(
                         or report.organic_growth_status != "completed"
                         or report.ebita_status != "completed"
                         or report.tax_status != "completed"
+                        or not report.financial_data.raw_balance_sheet_markdown
+                        or not report.financial_data.raw_income_statement_markdown
                     ):
                         return False
                 return True
