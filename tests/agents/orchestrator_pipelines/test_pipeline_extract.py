@@ -218,3 +218,68 @@ def test_extract_metadata_renaming(mock_run_metadata, temp_workspace_env):
     # 8. Verify workspace state updated
     updated_state = load_workspace_state(ticker)
     assert updated_state.raw_documents[0].file_name == "20241031_10Q_parsed.pdf"
+
+
+@patch("src.agents.blackboard_orchestrator.run_organic_growth_agent")
+def test_extract_target_files_scopes_metric_agents(
+    mock_run_org_growth, temp_workspace_env
+):
+    ticker = "AAPL"
+    workspace = Path(temp_workspace_env.active_workspace_path)
+    parsed_dir = workspace / "2_parsed_data"
+    parsed_dir.mkdir(parents=True, exist_ok=True)
+    (parsed_dir / "20240501_10-Q.md").write_text("dummy content", encoding="utf-8")
+    (parsed_dir / "20240801_10-Q.md").write_text("dummy content", encoding="utf-8")
+
+    state = load_workspace_state(ticker)
+    state.metadata_status = "completed"
+    state.metadata = CompanyMetadata(ticker=ticker, company_name="Mock Apple Inc.")
+
+    state.reports["2024_Q2"] = TemporalBlackboard(
+        fiscal_year=2024,
+        fiscal_period="Q2",
+        is_quarterly=True,
+        income_statement_status="completed",
+    )
+    state.reports["2024_Q3"] = TemporalBlackboard(
+        fiscal_year=2024,
+        fiscal_period="Q3",
+        is_quarterly=True,
+        income_statement_status="completed",
+    )
+    save_workspace_state(ticker, state)
+
+    orchestrator = BlackboardOrchestrator()
+    mock_run_org_growth.return_value = (0.05, 0.06, 1000.0)
+
+    with patch(
+        "src.agents.orchestrator_pipelines.ingest.Ingester.load_parsed_registry"
+    ) as mock_registry:
+        mock_registry.return_value = {
+            "h1": {
+                "new_filename": "20240501_10-Q.md",
+                "fiscal_year": 2024,
+                "fiscal_quarter": "Q2",
+                "document_type": "quarterly_filing",
+            },
+            "h2": {
+                "new_filename": "20240801_10-Q.md",
+                "fiscal_year": 2024,
+                "fiscal_quarter": "Q3",
+                "document_type": "quarterly_filing",
+            },
+        }
+
+        asyncio.run(
+            orchestrator.run_pipeline(
+                ticker,
+                stage="extract",
+                agent="organic_growth",
+                target_files=["20240501_10-Q.md"],
+            )
+        )
+
+    assert mock_run_org_growth.call_count == 1
+    # Check that it was called for Q2, not Q3
+    _, kwargs = mock_run_org_growth.call_args
+    assert kwargs.get("period_key") == "2024_Q2"

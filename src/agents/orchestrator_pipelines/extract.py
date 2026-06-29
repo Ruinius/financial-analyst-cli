@@ -1326,6 +1326,8 @@ async def orchestrate_extract(
     # 2. Metrics Level 1 (Parallel)
     metrics_l1_tasks = []
     for period_key in periods_docs:
+        if target_files is not None and period_key not in periods_to_update:
+            continue
         report = state.reports[period_key]
 
         # A. Diluted Shares Agent
@@ -1388,6 +1390,8 @@ async def orchestrate_extract(
     # 3. Metrics Level 2 (Parallel)
     metrics_l2_tasks = []
     for period_key in periods_docs:
+        if target_files is not None and period_key not in periods_to_update:
+            continue
         report = state.reports[period_key]
 
         # Run operating_ebita
