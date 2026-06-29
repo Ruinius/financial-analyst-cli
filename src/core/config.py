@@ -46,9 +46,13 @@ class Settings(BaseModel):
     llm_timeout: float = Field(
         30.0, description="Timeout for LLM API requests in seconds"
     )
+    stream_thinking: bool = Field(
+        True, description="Stream thinking/reasoning output from LLM responses"
+    )
     concurrency_limit_company: int = Field(
         1, description="Concurrency limit for company runs"
     )
+
     concurrency_limit_document: int = Field(
         3, description="Concurrency limit for document processing"
     )

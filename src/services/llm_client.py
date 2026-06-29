@@ -153,7 +153,74 @@ class LiteLLMChatSession(ChatSession):
         if self.formatted_tools:
             kwargs["tools"] = self.formatted_tools
 
-        response = litellm.completion(**kwargs)
+        should_stream = getattr(self.client.settings, "stream_thinking", True)
+        if should_stream:
+            from rich.console import Console
+
+            console = Console()
+            chunks = []
+            started_thinking = False
+
+            kwargs["stream"] = True
+            response_stream = litellm.completion(**kwargs)
+
+            for chunk in response_stream:
+                chunks.append(chunk)
+                if not chunk.choices:
+                    continue
+                delta = chunk.choices[0].delta
+                if not delta:
+                    continue
+
+                reasoning = (
+                    getattr(delta, "reasoning_content", None)
+                    or getattr(delta, "reasoning", None)
+                    or getattr(delta, "thinking", None)
+                    or (
+                        delta.model_dump().get("reasoning_content")
+                        if hasattr(delta, "model_dump")
+                        else None
+                    )
+                    or (
+                        delta.model_dump().get("reasoning")
+                        if hasattr(delta, "model_dump")
+                        else None
+                    )
+                    or (
+                        delta.model_dump().get("thinking")
+                        if hasattr(delta, "model_dump")
+                        else None
+                    )
+                    or ""
+                )
+                content = getattr(delta, "content", None) or ""
+
+                if reasoning:
+                    if not started_thinking:
+                        safe_console_print(
+                            console,
+                            "[italic dim]Sir Pennyworth is pondering... [/italic dim]\n",
+                            end="",
+                            markup=True,
+                        )
+                        started_thinking = True
+                    safe_console_print(
+                        console, reasoning, end="", style="italic dim", flush=True
+                    )
+
+                if content:
+                    if started_thinking:
+                        safe_console_print(console, "")
+                        started_thinking = False
+                    safe_console_print(console, ".", end="", flush=True)
+
+            if started_thinking:
+                safe_console_print(console, "")
+
+            response = litellm.stream_chunk_builder(chunks, messages=self.messages)
+        else:
+            response = litellm.completion(**kwargs)
+
         assistant_msg = response.choices[0].message
 
         # Append assistant response to message history
@@ -299,7 +366,10 @@ class LiteLLMClient(LLMClient):
         target_model, api_key = self._resolve_model_and_key(model)
         messages = self._format_messages(prompt, system_prompt)
 
-        if stream_thinking:
+        should_stream = stream_thinking and getattr(
+            self.settings, "stream_thinking", True
+        )
+        if should_stream:
             from rich.console import Console
 
             console = Console()
@@ -325,6 +395,22 @@ class LiteLLMClient(LLMClient):
                 reasoning = (
                     getattr(delta, "reasoning_content", None)
                     or getattr(delta, "reasoning", None)
+                    or getattr(delta, "thinking", None)
+                    or (
+                        delta.model_dump().get("reasoning_content")
+                        if hasattr(delta, "model_dump")
+                        else None
+                    )
+                    or (
+                        delta.model_dump().get("reasoning")
+                        if hasattr(delta, "model_dump")
+                        else None
+                    )
+                    or (
+                        delta.model_dump().get("thinking")
+                        if hasattr(delta, "model_dump")
+                        else None
+                    )
                     or ""
                 )
                 content = getattr(delta, "content", None) or ""
@@ -333,13 +419,14 @@ class LiteLLMClient(LLMClient):
                     if not started_thinking:
                         safe_console_print(
                             console,
-                            "[italic dim]Sir Pennyworth is pondering... [/italic dim]",
+                            "[italic dim]Sir Pennyworth is pondering... [/italic dim]\n",
                             end="",
                             markup=True,
                         )
                         started_thinking = True
-                    safe_console_print(console, reasoning, end="", style="italic dim")
-                    console.file.flush()
+                    safe_console_print(
+                        console, reasoning, end="", style="italic dim", flush=True
+                    )
 
                 if content:
                     if started_thinking:

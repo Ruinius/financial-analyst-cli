@@ -1,5 +1,6 @@
 import asyncio
 from pathlib import Path
+from typing import Optional
 
 import typer
 from src.core.config import Settings, save_config, load_config, mask_key
@@ -286,6 +287,10 @@ def config_show():
         )
         table.add_row("DeepSeek Model", settings.deepseek_model or "deepseek-v4-flash")
         table.add_row("Text-to-Text Model ID (Active)", settings.text_model_id)
+        table.add_row(
+            "Stream Thinking",
+            str(getattr(settings, "stream_thinking", True)),
+        )
         table.add_row("Base Workspace Dir", settings.base_workspace_dir)
 
         table.add_row("Active Ticker", settings.active_ticker or "[None]")
@@ -322,8 +327,14 @@ def config_set(
     deepseek_model: str = typer.Option(
         None, "--deepseek-model", help="Set the DeepSeek Model ID"
     ),
+    stream_thinking: Optional[bool] = typer.Option(
+        None,
+        "--stream-thinking",
+        "-s",
+        help="Enable or disable live streaming of LLM thinking tokens (true/false)",
+    ),
 ):
-    """Set the API provider, keys, and/or models directly without the interactive wizard."""
+    """Set the API provider, keys, models, and options directly without the interactive wizard."""
     try:
         settings = load_config()
     except Exception:
@@ -387,6 +398,10 @@ def config_set(
         settings.deepseek_model = deepseek_model.strip()
         if settings.api_provider == "deepseek":
             settings.text_model_id = deepseek_model.strip()
+        updated = True
+
+    if stream_thinking is not None:
+        settings.stream_thinking = stream_thinking
         updated = True
 
     if not updated:

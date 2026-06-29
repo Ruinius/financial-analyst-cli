@@ -11,7 +11,6 @@ requires-python = ">=3.14"
 dependencies = [
     "beautifulsoup4>=4.15.0",
     "duckduckgo-search>=8.1.1",
-    "google-genai>=2.9.0",
     "httpx>=0.28.1",
     "litellm>=1.90.0",
     "numpydoc>=1.10.0",

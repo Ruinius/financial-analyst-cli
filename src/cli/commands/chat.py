@@ -75,13 +75,18 @@ def main_chat(ticker: str = typer.Argument(..., help="Company ticker symbol")):
                     )
             else:
                 # LLM query
-                with console.status(
-                    "[bold gold1]Sir Pennyworth is pondering...[/bold gold1]",
-                    spinner="bouncingBar",
-                ):
+                if getattr(llm.settings, "stream_thinking", True):
                     response = llm.generate(
                         prompt=user_input, system_prompt=system_prompt
                     )
+                else:
+                    with console.status(
+                        "[bold gold1]Sir Pennyworth is pondering...[/bold gold1]",
+                        spinner="bouncingBar",
+                    ):
+                        response = llm.generate(
+                            prompt=user_input, system_prompt=system_prompt
+                        )
                 formatting.speak(response, title="Sir Pennyworth")
 
         except KeyboardInterrupt:

@@ -29,6 +29,30 @@ class LineItem(BaseModel):
         "income_statement",
     ]
 
+    @field_validator("category", mode="before")
+    @classmethod
+    def validate_category(cls, v: Any) -> str:
+        valid_cats = {
+            "current_assets",
+            "noncurrent_assets",
+            "current_liabilities",
+            "noncurrent_liabilities",
+            "equity",
+            "income_statement",
+        }
+        if isinstance(v, str):
+            if v in valid_cats:
+                return v
+            if "asset" in v:
+                return "current_assets"
+            if "liabilit" in v:
+                return "current_liabilities"
+            if "equity" in v:
+                return "equity"
+            if v.strip().lower() == "other":
+                return "income_statement"
+        return v
+
 
 # =====================================================================
 # 2. COMPANY METADATA (Ingestion & Setup Properties)

@@ -56,6 +56,14 @@ def test_line_item_validation():
             category="invalid_category",  # type: ignore
         )
 
+    # 'other' category sanitization
+    item_other = LineItem(
+        line_name="Misc Expense",
+        value=500.0,
+        category="other",  # type: ignore
+    )
+    assert item_other.category == "income_statement"
+
 
 def test_fiscal_year_validation():
     # Valid years

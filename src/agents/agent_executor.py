@@ -24,9 +24,8 @@ def run_agent_loop(
     average_turn_count: float = None,
 ) -> tuple[Dict[str, Any], list]:
     """
-    Executes a structured turn-based agent execution loop.
-    Supports both native tool use / function calling (via GeminiChatSession)
-    and simulated tool use (via SimulatedChatSession).
+    Executes a structured turn-based agent execution loop via LiteLLMChatSession.
+    Supports native tool use / function calling and structured agent interactions.
 
     Returns:
       (finalize_arguments: dict, chat_history: list)

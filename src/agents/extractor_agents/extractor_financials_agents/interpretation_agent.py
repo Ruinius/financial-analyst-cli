@@ -134,33 +134,35 @@ def run_interpretation_agent(
                 matching_orig = orig
                 break
 
+        raw_cat = up_item.get("category")
+        valid_cats = [
+            "current_assets",
+            "noncurrent_assets",
+            "current_liabilities",
+            "noncurrent_liabilities",
+            "equity",
+            "income_statement",
+        ]
+        if raw_cat in valid_cats:
+            cat = raw_cat
+        elif raw_cat and "asset" in raw_cat:
+            cat = "current_assets"
+        elif raw_cat and "liabilit" in raw_cat:
+            cat = "current_liabilities"
+        elif raw_cat and "equity" in raw_cat:
+            cat = "equity"
+        else:
+            cat = matching_orig.category if matching_orig else "income_statement"
+
         if matching_orig:
             matching_orig.operating = up_item.get("operating", matching_orig.operating)
             matching_orig.calculated = up_item.get(
                 "calculated", matching_orig.calculated
             )
-            matching_orig.category = up_item.get("category", matching_orig.category)
+            matching_orig.category = cat
             matching_orig.value = up_item.get("value", matching_orig.value)
             updated_items.append(matching_orig)
         else:
-            cat = up_item.get("category", "income_statement")
-            if cat not in [
-                "current_assets",
-                "noncurrent_assets",
-                "current_liabilities",
-                "noncurrent_liabilities",
-                "equity",
-                "income_statement",
-            ]:
-                if "asset" in cat:
-                    cat = "current_assets"
-                elif "liabilit" in cat:
-                    cat = "current_liabilities"
-                elif "equity" in cat:
-                    cat = "equity"
-                else:
-                    cat = "income_statement"
-
             new_item = LineItem(
                 line_name=up_item.get("line_name"),
                 value=up_item.get("value", 0.0),
