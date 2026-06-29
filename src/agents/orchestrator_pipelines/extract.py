@@ -625,13 +625,19 @@ async def orchestrate_extract(
         period_key = f"{fy}_{fq}"
         periods_docs.setdefault(period_key, []).append(row)
 
-    # Find which periods contain at least one of the selected files
+    # Find which periods contain at least one of the selected formal filing files that update financial statements
     periods_to_update = set()
     for period_key, doc_rows in periods_docs.items():
         for row in doc_rows:
             if row["new_filename"] in selected_filenames:
-                periods_to_update.add(period_key)
-                break
+                doc_type = row.get("document_type", "other")
+                if doc_type in (
+                    "quarterly_filing",
+                    "annual_filing",
+                    "earnings_announcement",
+                ):
+                    periods_to_update.add(period_key)
+                    break
 
     # For each period, initialize reports on blackboard
     for period_key in periods_docs:
@@ -900,7 +906,6 @@ async def orchestrate_extract(
                 if fn not in cur_state.reports[period_key].source_files:
                     cur_state.reports[period_key].source_files.append(fn)
                 save_workspace_state(ticker, cur_state)
-                updated_periods.add(period_key)
             except Exception as e:
                 logger.error(f"AnalystReportAgent failed for {fn}: {e}")
                 raise
@@ -922,7 +927,6 @@ async def orchestrate_extract(
                 if fn not in cur_state.reports[period_key].source_files:
                     cur_state.reports[period_key].source_files.append(fn)
                 save_workspace_state(ticker, cur_state)
-                updated_periods.add(period_key)
             except Exception as e:
                 logger.error(f"OtherDocAgent failed for {fn}: {e}")
                 raise
