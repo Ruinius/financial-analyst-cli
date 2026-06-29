@@ -1057,11 +1057,12 @@ async def orchestrate_extract(
                         learnings=learnings,
                     )
                     # Update
-                    cur_state = load_workspace_state(ticker)
-                    cur_state.reports[
-                        period_key
-                    ].financial_data.line_items = interpreted_items
-                    save_workspace_state(ticker, cur_state)
+                    async with orchestrator.state_lock:
+                        cur_state = load_workspace_state(ticker)
+                        cur_state.reports[
+                            period_key
+                        ].financial_data.line_items = interpreted_items
+                        save_workspace_state(ticker, cur_state)
                     updated_periods.add(period_key)
                 except Exception as e:
                     logger.error(f"InterpretationAgent failed for {period_key}: {e}")

@@ -224,9 +224,11 @@ class LearningAgent:
         # Set status to completed
         agent_learning.status = "completed"
 
-        # Save blackboard state atomically
+        # Save blackboard state atomically with fresh reload to prevent overwriting concurrent report statuses
         try:
-            save_workspace_state(ticker, workspace_state)
+            fresh_state = load_workspace_state(ticker)
+            fresh_state.company_data.learnings = workspace_state.company_data.learnings
+            save_workspace_state(ticker, fresh_state)
             logger.info(f"Blackboard state saved atomically for {ticker}")
         except Exception as e:
             logger.error(f"Failed to save blackboard state: {e}")
