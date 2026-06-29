@@ -1,13 +1,18 @@
 import json
 import logging
 import re
-import litellm
 from abc import ABC, abstractmethod
-from pydantic import BaseModel
-from typing import Type, TypeVar, Union
 from types import SimpleNamespace
+from typing import Type, TypeVar, Union
+
+import litellm
+from pydantic import BaseModel
 
 from src.core.config import load_config
+
+litellm.suppress_debug_info = True
+logging.getLogger("LiteLLM").setLevel(logging.ERROR)
+logging.getLogger("LiteLLM Router").setLevel(logging.ERROR)
 
 logger = logging.getLogger(__name__)
 

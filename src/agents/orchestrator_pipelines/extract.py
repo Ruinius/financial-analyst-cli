@@ -252,13 +252,12 @@ async def orchestrate_extract(
     else:
         # Apply limit to needing_extraction
         files_to_process = needing_extraction
-        if limit is not None:
-            import src.utils.formatting as formatting
+        import src.utils.formatting as formatting
 
+        already_extracted = [p.name for p in all_files if p not in needing_extraction]
+
+        if limit is not None:
             if limit > len(needing_extraction):
-                already_extracted = [
-                    p.name for p in all_files if p not in needing_extraction
-                ]
                 formatting.print_info(
                     f"Acknowledge limit of {limit} files requested, but there is only {len(needing_extraction)} file(s) that is new."
                 )
@@ -276,6 +275,17 @@ async def orchestrate_extract(
 
             for f in skipped_files:
                 formatting.print_info(f"Skipped extraction due to limit: {f.name}")
+        else:
+            if already_extracted and not force:
+                formatting.print_info(
+                    "Skipping already extracted document(s) and starting on new document(s):"
+                )
+                for fn_ext in already_extracted:
+                    formatting.print_info(f"  - Skipped (already extracted): {fn_ext}")
+                for p_proc in files_to_process:
+                    formatting.print_info(
+                        f"  - Starting extraction on new file: {p_proc.name}"
+                    )
 
     selected_filenames = {p.name for p in files_to_process}
 
