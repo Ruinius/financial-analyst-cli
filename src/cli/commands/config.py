@@ -2,9 +2,6 @@ import asyncio
 from pathlib import Path
 
 import typer
-from rich.table import Table
-from prompt_toolkit import PromptSession
-
 from src.core.config import Settings, save_config, load_config, mask_key
 from src.utils import formatting
 from src.utils.pig_animation import get_input_with_pig, pig_state
@@ -12,8 +9,19 @@ from src.utils.pig_animation import get_input_with_pig, pig_state
 app = typer.Typer(help="Manage Sir Pennyworth's configuration settings.")
 
 
+def __getattr__(name: str):
+    if name == "PromptSession":
+        from prompt_toolkit import PromptSession
+
+        return PromptSession
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+
+
 async def _initialize_config_flow_async() -> Settings:
-    session = PromptSession()
+    import sys
+
+    mod = sys.modules[__name__]
+    session = mod.PromptSession()
 
     from src.core.config import config_exists
 
@@ -247,6 +255,8 @@ def config_init():
 def config_show():
     """Display the current configuration with sensitive API keys masked."""
     try:
+        from rich.table import Table
+
         settings = load_config()
         table = Table(
             title="Sir Pennyworth's Settings Registry",

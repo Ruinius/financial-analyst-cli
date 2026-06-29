@@ -15,8 +15,18 @@ from src.cli.commands import query as query_cmd
 from src.cli.commands import chat as chat_cmd
 from src.cli.commands import viewer as viewer_cmd
 from src.utils import formatting
-from src.services.edgar_client import EdgarClient
-from src.agents.orchestrator_pipelines.ingest import Ingester
+
+
+def __getattr__(name: str):
+    if name == "EdgarClient":
+        from src.services.edgar_client import EdgarClient
+
+        return EdgarClient
+    if name == "Ingester":
+        from src.agents.orchestrator_pipelines.ingest import Ingester
+
+        return Ingester
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 
 def patch_typer_help() -> None:
@@ -330,7 +340,10 @@ def run_edgar(
         f"Starting filings download for {active_ticker} (limit {years} years)..."
     )
     try:
-        client = EdgarClient()
+        import sys
+
+        mod = sys.modules[__name__]
+        client = mod.EdgarClient()
         paths = client.download_filings(active_ticker, years)
         if paths:
             formatting.print_success(
@@ -385,7 +398,10 @@ def run_ingest(
     if heal:
         formatting.print_info("Starting metadata self-healing stage...")
         try:
-            ingester = Ingester()
+            import sys
+
+            mod = sys.modules[__name__]
+            ingester = mod.Ingester()
             ingester.run_self_healing()
             formatting.print_success("Successfully completed self-healing check.")
             return
@@ -435,7 +451,10 @@ def run_ingest(
 
     formatting.print_info("Starting ingestion stage...")
     try:
-        ingester = Ingester()
+        import sys
+
+        mod = sys.modules[__name__]
+        ingester = mod.Ingester()
         ingester.run_ingestion(limit=limit)
         formatting.print_success("Successfully processed raw files.")
     except Exception as e:
@@ -514,7 +533,9 @@ def run_extract(
         parsed_dir = workspace_path / "2_parsed_data"
         if parsed_dir.exists():
             from src.core.blackboard import load_workspace_state
-            from src.agents.orchestrator_pipelines.ingest import Ingester
+            import sys
+
+            mod = sys.modules[__name__]
 
             try:
                 state = load_workspace_state(active_ticker)
@@ -523,7 +544,7 @@ def run_extract(
 
             # Get parsed registry
             try:
-                ingester_inst = Ingester()
+                ingester_inst = mod.Ingester()
                 registry = ingester_inst.load_parsed_registry()
             except Exception:
                 registry = {}
