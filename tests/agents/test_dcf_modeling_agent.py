@@ -1,3 +1,4 @@
+from unittest.mock import patch
 import json
 from unittest.mock import MagicMock
 
@@ -9,10 +10,12 @@ from src.core.blackboard import (
 )
 
 
-def test_run_dcf_modeling_agent(tmp_path):
+@patch("src.agents.orchestrator_pipelines.model.load_config")
+def test_run_dcf_modeling_agent(mock_load_config, tmp_path):
     mock_llm = MagicMock()
     mock_llm.settings = MagicMock()
     mock_llm.settings.base_workspace_dir = str(tmp_path)
+    mock_load_config.return_value = mock_llm.settings
     mock_chat = MagicMock()
     mock_llm.create_chat.return_value = mock_chat
     # Needs history object return for get_history(), which is a list of dictionary representations of turns

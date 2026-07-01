@@ -8,12 +8,18 @@ from src.core.config import Settings
 runner = CliRunner()
 
 
+from src.core.config import save_config
+
 @pytest.fixture
-def mock_settings(tmp_path):
+def mock_settings(tmp_path, monkeypatch):
     # Setup temporary directories representing the workspace folders
     workspace_path = tmp_path / "CRM"
     (workspace_path / "1_ingest_data").mkdir(parents=True, exist_ok=True)
-    return Settings(
+
+    fake_config_path = tmp_path / ".env"
+    monkeypatch.setattr("src.core.config.CONFIG_FILE_PATH", fake_config_path)
+
+    settings = Settings(
         full_name="Tiger Huang",
         email="tiger@example.com",
         project_name="Value_Investing",
@@ -22,6 +28,8 @@ def mock_settings(tmp_path):
         active_workspace_path=str(workspace_path),
         active_ticker="CRM",
     )
+    save_config(settings)
+    return settings
 
 
 @patch("src.cli.main.load_config")
