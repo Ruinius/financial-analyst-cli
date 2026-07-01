@@ -1285,11 +1285,9 @@ async def orchestrate_extract(
                                 "income_statement",
                                 period_key,
                                 fn,
-                                lambda pk=period_key,
-                                f=fn,
-                                c=content,
-                                iq=is_q,
-                                dt=doc_type: (run_income_statement(pk, f, c, iq, dt)),
+                                lambda pk=period_key, f=fn, c=content, iq=is_q, dt=doc_type: (
+                                    run_income_statement(pk, f, c, iq, dt)
+                                ),
                             )
                         )
                     else:
@@ -1318,11 +1316,9 @@ async def orchestrate_extract(
                                 "balance_sheet",
                                 period_key,
                                 fn,
-                                lambda pk=period_key,
-                                f=fn,
-                                c=content,
-                                iq=is_q,
-                                dt=doc_type: (run_balance_sheet(pk, f, c, iq, dt)),
+                                lambda pk=period_key, f=fn, c=content, iq=is_q, dt=doc_type: (
+                                    run_balance_sheet(pk, f, c, iq, dt)
+                                ),
                             )
                         )
                     else:
