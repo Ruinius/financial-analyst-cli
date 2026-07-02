@@ -47,12 +47,14 @@ def run_dcf_modeling_agent(
         company_metadata.ticker, workspace, base_assumptions
     )
 
-    draft_model_md = f"### Draft Valuation Summary (Initial Recommendations)\n{valuation_table_str}\n\n### Draft Projections Table\n"
+    # ⚡ Bolt Optimization: Use list append and join instead of string concatenation inside loop
+    draft_model_parts = [f"### Draft Valuation Summary (Initial Recommendations)\n{valuation_table_str}\n\n### Draft Projections Table\n"]
     for p in projections:
-        draft_model_md += (
+        draft_model_parts.append(
             f"| Year {p['year']} | {p['revenue']:,.1f} | {p['growth'] * 100:.2f}% | "
             f"{p['margin'] * 100:.2f}% | {p['ic']:,.1f} | {p['fcf']:,.1f} | {p['df']:.4f} | {p['pv']:,.1f} |\n"
         )
+    draft_model_md = "".join(draft_model_parts)
 
     # Initialize final assumptions and critique defaults
     final_assumptions = dict(base_assumptions)
