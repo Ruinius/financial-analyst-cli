@@ -94,13 +94,14 @@ def run_dcf_modeling_agent(
             for k, v in test_assumptions.items():
                 final_assumptions[k] = v
 
-            calc_summary_md = f"### Recalculated Valuation Results\n{val_tab}\n\n### Projections Summary\n"
+            # ⚡ Bolt Optimization: Use list append and join instead of string concatenation inside loop
+            calc_summary_parts = [f"### Recalculated Valuation Results\n{val_tab}\n\n### Projections Summary\n"]
             for p in proj:
-                calc_summary_md += (
+                calc_summary_parts.append(
                     f"| Year {p['year']} | Rev: ${p['revenue']:,.1f}M | Margin: {p['margin'] * 100:.1f}% | "
                     f"FCF: ${p['fcf']:,.1f}M | PV: ${p['pv']:,.1f}M |\n"
                 )
-            return calc_summary_md
+            return "".join(calc_summary_parts)
         except Exception as e:
             return f"Error running valuation calculations: {e}"
 
@@ -169,9 +170,11 @@ def run_dcf_modeling_agent(
         raise LLMError(f"DCF Modeling Agent failed during LLM generation: {e}")
 
     # Reconstruct history text for Curator Agent logs
-    history_text = ""
+    # ⚡ Bolt Optimization: Use list append and join instead of string concatenation inside loop
+    history_parts = []
     for h in history:
-        history_text += f"\n\n--- {h['role'].upper()} ---\n{h['content']}"
+        history_parts.append(f"\n\n--- {h['role'].upper()} ---\n{h['content']}")
+    history_text = "".join(history_parts)
 
     if finalized_args:
         final_assumptions = finalized_args.get("assumptions", final_assumptions)
