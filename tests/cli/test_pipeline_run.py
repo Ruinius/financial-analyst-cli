@@ -2,13 +2,12 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock
 import pytest
 from typer.testing import CliRunner
+from src.core.config import save_config
 from src.cli.main import app
 from src.core.config import Settings
 
 runner = CliRunner()
 
-
-from src.core.config import save_config
 
 @pytest.fixture
 def mock_settings(tmp_path, monkeypatch):

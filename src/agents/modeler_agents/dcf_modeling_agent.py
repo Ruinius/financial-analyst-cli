@@ -48,7 +48,9 @@ def run_dcf_modeling_agent(
     )
 
     # ⚡ Bolt Optimization: Use list append and join instead of string concatenation inside loop
-    draft_model_parts = [f"### Draft Valuation Summary (Initial Recommendations)\n{valuation_table_str}\n\n### Draft Projections Table\n"]
+    draft_model_parts = [
+        f"### Draft Valuation Summary (Initial Recommendations)\n{valuation_table_str}\n\n### Draft Projections Table\n"
+    ]
     for p in projections:
         draft_model_parts.append(
             f"| Year {p['year']} | {p['revenue']:,.1f} | {p['growth'] * 100:.2f}% | "
@@ -97,7 +99,9 @@ def run_dcf_modeling_agent(
                 final_assumptions[k] = v
 
             # ⚡ Bolt Optimization: Use list append and join instead of string concatenation inside loop
-            calc_summary_parts = [f"### Recalculated Valuation Results\n{val_tab}\n\n### Projections Summary\n"]
+            calc_summary_parts = [
+                f"### Recalculated Valuation Results\n{val_tab}\n\n### Projections Summary\n"
+            ]
             for p in proj:
                 calc_summary_parts.append(
                     f"| Year {p['year']} | Rev: ${p['revenue']:,.1f}M | Margin: {p['margin'] * 100:.1f}% | "
