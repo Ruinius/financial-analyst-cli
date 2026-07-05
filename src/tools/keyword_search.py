@@ -1,6 +1,7 @@
 import bisect
 from typing import List
 
+
 def find_keyword_contexts(
     content: str, keywords: List[str], window: int = 200, max_matches: int = 15
 ) -> List[dict]:
@@ -27,7 +28,7 @@ def find_keyword_contexts(
         end_idx = content.find("-->", pos)
         if end_idx != -1:
             try:
-                cid = int(content[pos + 17:end_idx].strip())
+                cid = int(content[pos + 17 : end_idx].strip())
                 starts[cid] = end_idx + 3
             except ValueError:
                 pass
@@ -44,7 +45,7 @@ def find_keyword_contexts(
         end_idx = content.find("-->", pos)
         if end_idx != -1:
             try:
-                cid = int(content[pos + 15:end_idx].strip())
+                cid = int(content[pos + 15 : end_idx].strip())
                 ends[cid] = pos
             except ValueError:
                 pass
