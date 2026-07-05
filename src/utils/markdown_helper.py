@@ -78,10 +78,24 @@ def validate_markdown_table_syntax(content: str) -> str | None:
     5. Every row in a table block must have the same number of columns (delimited by |).
     """
     # ⚡ Bolt Optimization: Fast-fail by checking native character presence before expensive string list allocations (~1000x speedup for text without tables)
-    if "|" not in content:
+    first_pipe = content.find("|")
+    if first_pipe == -1:
         return "Error: No markdown table found. The extracted statement must be formatted as a valid markdown table (with columns separated by '|')."
 
-    lines = content.splitlines()
+    last_pipe = content.rfind("|")
+
+    # ⚡ Bolt Optimization: Find exact table bounds to bypass splitlines overhead on massive documents
+    start_idx = content.rfind("\n", 0, first_pipe)
+    start_idx = 0 if start_idx == -1 else start_idx + 1
+
+    end_idx = content.find("\n", last_pipe)
+    if end_idx == -1:
+        end_idx = len(content)
+
+    table_content = content[start_idx:end_idx]
+    starting_line_num = content.count("\n", 0, start_idx)
+
+    lines = table_content.splitlines()
 
     # 1. Group consecutive table lines
     table_blocks = []
@@ -96,7 +110,7 @@ def validate_markdown_table_syntax(content: str) -> str | None:
 
         stripped = line.strip()
         if stripped and stripped[0] == "|" and stripped[-1] == "|":
-            current_block.append((line_idx + 1, stripped))
+            current_block.append((starting_line_num + line_idx + 1, stripped))
         else:
             if current_block:
                 table_blocks.append(current_block)
