@@ -139,6 +139,10 @@ def parse_markdown_table(
     table_text = text[start_idx:end_idx]
 
     # ⚡ Bolt Optimization: Fast path to bypass expensive `.split("\n")` allocation on large file slices
+    # Fast fail if the sliced section obviously contains no markdown table elements
+    if "|" not in table_text:
+        return []
+
     lines = table_text.split("\n")
     for i, line in enumerate(lines):
         if line and line[0] == "#" and line.startswith(("# ", "## ", "### ")):
