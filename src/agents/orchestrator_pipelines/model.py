@@ -159,9 +159,11 @@ def parse_markdown_table(
                     headers = [x.strip() for x in line.split("|")[1:-1]]
                     in_table = True
             elif "---" not in line:
-                row_vals = [x.strip() for x in line.split("|")[1:-1]]
-                if len(row_vals) == len(headers):
-                    rows.append(dict(zip(headers, row_vals)))
+                # ⚡ Bolt Optimization: Fast-fail by checking native character count before expensive list allocation and split operations
+                if line.count("|") - 1 == len(headers):
+                    row_vals = [x.strip() for x in line.split("|")[1:-1]]
+                    if len(row_vals) == len(headers):
+                        rows.append(dict(zip(headers, row_vals)))
         elif in_table and not line.strip():
             in_table = False
 
