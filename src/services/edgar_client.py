@@ -14,6 +14,8 @@ SAFE_CHARS_RE = re.compile(r"[^a-zA-Z0-9_-]")
 
 
 class EdgarClient:
+    _ticker_to_cik_cache = None
+
     def __init__(self):
         self.settings = load_config()
         # Set up declared user agent
@@ -22,19 +24,23 @@ class EdgarClient:
 
     def get_cik(self, ticker: str) -> str:
         """Retrieve CIK for a given ticker case-insensitively from the SEC tickers endpoint."""
-        url = "https://www.sec.gov/files/company_tickers.json"
-        try:
-            with httpx.Client(headers=self.headers, timeout=15.0) as client:
-                response = client.get(url)
-                response.raise_for_status()
-                data = response.json()
-        except Exception as e:
-            raise RuntimeError(f"Failed to fetch SEC ticker database: {str(e)}")
+        # ⚡ Bolt Optimization: Cache SEC ticker dictionary to bypass redundant API calls and O(N) lookups
+        if EdgarClient._ticker_to_cik_cache is None:
+            url = "https://www.sec.gov/files/company_tickers.json"
+            try:
+                with httpx.Client(headers=self.headers, timeout=15.0) as client:
+                    response = client.get(url)
+                    response.raise_for_status()
+                    data = response.json()
+                EdgarClient._ticker_to_cik_cache = {
+                    item["ticker"].upper(): str(item["cik_str"]) for item in data.values()
+                }
+            except Exception as e:
+                raise RuntimeError(f"Failed to fetch SEC ticker database: {str(e)}")
 
         ticker_upper = ticker.upper()
-        for item in data.values():
-            if item["ticker"].upper() == ticker_upper:
-                return str(item["cik_str"])
+        if ticker_upper in EdgarClient._ticker_to_cik_cache:
+            return EdgarClient._ticker_to_cik_cache[ticker_upper]
 
         raise ValueError(f"Ticker {ticker} not found in SEC database.")
 
