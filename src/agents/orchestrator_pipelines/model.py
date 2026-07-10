@@ -196,6 +196,11 @@ def parse_financial_summary(content: str) -> Dict[str, str]:
                     end_idx = pos
 
             table_text = content[start_idx:end_idx].strip()
+
+            # ⚡ Bolt Optimization: Fast path to bypass expensive `.split("\n")` allocation on large file slices
+            if "|" not in table_text:
+                return metrics
+
             for line in table_text.split("\n"):
                 if "|" in line and "---" not in line and "Metric" not in line:
                     parts = [p.strip() for p in line.split("|")]
