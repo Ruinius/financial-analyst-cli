@@ -80,3 +80,7 @@
 ## 2024-05-24 - Testing Network Caches
 **Learning:** When implementing class-level caching for network clients (like caching SEC ticker lookups to bypass `httpx.get`), standard sequential mock side effects (`mock_get.side_effect = [resp1, resp2]`) will fail because cache hits skip expected HTTP calls. Furthermore, class-level state persists across tests, causing cross-test pollution.
 **Action:** When testing caching logic, use URL-routing for mock `side_effect` functions (`def side_effect(url): if "x" in url: return resp1`) and explicitly reset the cache state to `None` at the start of tests to ensure isolation.
+
+## 2024-05-30 - [Bypassing splitlines overhead for Chunking]
+**Learning:** For functions dividing massive documents into structural chunks, invoking `.split("\n")` completely loads the entire text into memory as an array of millions of strings, causing tremendous memory overhead. Finding newlines incrementally (`text.find("\n", start_idx)`) in a while-loop and slicing on demand achieves the exact same split functionality while entirely avoiding the massive list allocation.
+**Action:** When iterating over lines of an exceptionally large string without returning all of them at once, avoid `.split("\n")`. Instead, write a fast `str.find("\n")` iterator loop to extract and process each line sequentially without memory explosion.

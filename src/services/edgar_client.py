@@ -33,7 +33,8 @@ class EdgarClient:
                     response.raise_for_status()
                     data = response.json()
                 EdgarClient._ticker_to_cik_cache = {
-                    item["ticker"].upper(): str(item["cik_str"]) for item in data.values()
+                    item["ticker"].upper(): str(item["cik_str"])
+                    for item in data.values()
                 }
             except Exception as e:
                 raise RuntimeError(f"Failed to fetch SEC ticker database: {str(e)}")
