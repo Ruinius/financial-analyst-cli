@@ -78,9 +78,18 @@ def test_download_filings(mock_get, mock_load_config, mock_settings):
     mock_doc_resp.status_code = 200
     mock_doc_resp.content = b"Mock HTML Content"
 
-    # Define side effect to return responses in order
-    mock_get.side_effect = [mock_tickers_resp, mock_submissions_resp, mock_doc_resp]
+    # Define side effect to return responses based on URL to support cache hits
+    def side_effect(*args, **kwargs):
+        url = args[0] if args else kwargs.get("url", "")
+        if "company_tickers" in str(url):
+            return mock_tickers_resp
+        if "submissions" in str(url):
+            return mock_submissions_resp
+        return mock_doc_resp
 
+    mock_get.side_effect = side_effect
+
+    EdgarClient._ticker_to_cik_cache = None
     client = EdgarClient()
     downloaded = client.download_filings("AAPL", years=5)
 

@@ -76,3 +76,7 @@
 ## 2024-05-29 - [Cache Object Methods in Tight Loops]
 **Learning:** Inside tight loops (like iterating over stream chunks from an LLM response), repeatedly calling expensive object methods like `.model_dump()` to extract optional fields incurs substantial object allocation and serialization overhead. Caching the result of the method call in a local variable if it hasn't been accessed yet avoids repeated execution and redundant object creations, yielding measurable speedups on large payloads.
 **Action:** When querying multiple keys from a complex object or dictionary generation method (like `.model_dump()`) inside a tight loop, evaluate it once and cache the result into a local variable rather than calling the method repeatedly inside conditional checks (like `or`).
+
+## 2024-05-24 - Testing Network Caches
+**Learning:** When implementing class-level caching for network clients (like caching SEC ticker lookups to bypass `httpx.get`), standard sequential mock side effects (`mock_get.side_effect = [resp1, resp2]`) will fail because cache hits skip expected HTTP calls. Furthermore, class-level state persists across tests, causing cross-test pollution.
+**Action:** When testing caching logic, use URL-routing for mock `side_effect` functions (`def side_effect(url): if "x" in url: return resp1`) and explicitly reset the cache state to `None` at the start of tests to ensure isolation.
