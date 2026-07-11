@@ -130,9 +130,20 @@ def chunk_text(text: str, max_chars: int = 5000) -> List[str]:
     chunks = []
     current_chunk = []
     current_len = 0
-    lines = text.split("\n")
 
-    for line in lines:
+    # ⚡ Bolt Optimization: Fast path using find() to avoid memory-heavy split('\n') on massive documents
+    start_idx = 0
+    text_len = len(text)
+
+    while start_idx <= text_len:
+        pos = text.find("\n", start_idx)
+        if pos == -1:
+            line = text[start_idx:]
+            start_idx = text_len + 1
+        else:
+            line = text[start_idx:pos]
+            start_idx = pos + 1
+
         line_len = len(line)
         if line_len > max_chars:
             if current_chunk:
