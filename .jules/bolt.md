@@ -88,3 +88,7 @@
 ## 2024-07-21 - [Native string methods for table separator validation]
 **Learning:** When validating markdown table separator rows, checking native string methods (e.g. `.strip(":")` followed by checking if `.replace("-", "")` is empty) is significantly faster than using regex matching (`re.match(r"^:?-+:?$")`). The native method provides a ~1.8x speedup by completely avoiding regex engine overhead.
 **Action:** Replace simple regex checks with native string slicing, stripping, and replacing where possible to eliminate regex engine overhead.
+
+## 2024-05-31 - [Bypass text chunking overhead for small strings]
+**Learning:** Functions that parse and chunk texts (like text splitters) often iterate line-by-line looking for newlines. This introduces considerable iteration and tracking overhead for strings that are already smaller than the max chunk size, which happens frequently in applications chunking smaller fragments.
+**Action:** Always introduce a fast-fail check (`if len(text) <= max_chars: return [text]`) at the very beginning of text chunking/splitting functions. This completely bypasses the iterative loop overhead for strings that do not need to be chunked.
