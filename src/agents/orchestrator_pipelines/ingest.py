@@ -126,6 +126,11 @@ def html_to_markdown(html_content: str) -> str:
 
 def chunk_text(text: str, max_chars: int = 5000) -> List[str]:
     """Split text into chunks of at most max_chars, trying to split on newlines."""
+    # ⚡ Bolt Optimization: Fast path to avoid loop execution if the entire text fits within max_chars
+    text_len = len(text)
+    if text_len <= max_chars:
+        return [text]
+
     # ⚡ Bolt Optimization: Cache len(line) and use .clear() to reduce list allocation overhead
     chunks = []
     current_chunk = []
@@ -133,7 +138,6 @@ def chunk_text(text: str, max_chars: int = 5000) -> List[str]:
 
     # ⚡ Bolt Optimization: Fast path using find() to avoid memory-heavy split('\n') on massive documents
     start_idx = 0
-    text_len = len(text)
 
     while start_idx <= text_len:
         pos = text.find("\n", start_idx)
