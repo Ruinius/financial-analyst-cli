@@ -33,9 +33,14 @@ def extract_json_from_text(text: str) -> str | None:
     """Extract a JSON object from text by finding the first '{' and last '}' and cleansing it."""
     if not text:
         return None
+
+    # ⚡ Bolt Optimization: Fast-fail backward scan overhead by evaluating the forward scan first (~2x speedup for text without JSON)
     start_idx = text.find("{")
+    if start_idx == -1:
+        return None
+
     end_idx = text.rfind("}")
-    if start_idx != -1 and end_idx != -1 and end_idx >= start_idx:
+    if end_idx != -1 and end_idx >= start_idx:
         raw_json = text[start_idx : end_idx + 1]
         return clean_json_text(raw_json)
     return None
