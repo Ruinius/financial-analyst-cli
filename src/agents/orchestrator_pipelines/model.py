@@ -75,11 +75,9 @@ def parse_markdown_table(
         target_name = table_name.lower().replace("#", "").strip()
         text_lower = text.lower()
 
-        if target_name not in text_lower:
-            return []
-
         search_idx = 0
         found = False
+        # ⚡ Bolt Optimization: Use find() directly in the loop to fast-fail and avoid redundant O(N) string traversal from `in` check
         while True:
             h_idx = text_lower.find(target_name, search_idx)
             if h_idx == -1:
