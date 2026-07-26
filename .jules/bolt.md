@@ -98,3 +98,6 @@
 ## 2024-06-01 - [Avoid Redundant String Scans for Fast-Fails in Loops]
 **Learning:** When searching for a substring in a loop, introducing a fast-fail check with `in` (e.g., `if target_name not in text_lower:`) before entering the loop (which uses `text_lower.find(target_name)`) forces an extra O(N) string traversal just to check presence. Removing the `in` check and simply letting the `find()` inside the loop return `-1` provides the exact same fast-fail optimization for absent characters without penalizing the function with a redundant full-string scan.
 **Action:** When using `find()` in a loop, avoid preceding the loop with an `in` check. Execute `find()` directly in the loop and use its return value to determine presence, rather than forcing a redundant scan.
+## 2024-06-02 - [Avoid Redundant String Scans for List Comprehensions]
+**Learning:** When mapping through large lists of search items against text, pre-filtering with list comprehensions using the `in` operator (e.g., `[kw for kw in keywords if kw.lower() in text]`) followed by a `.find()` operation causes a redundant O(N) string traversal.
+**Action:** Iterate using `.find()` directly and check for `-1` to fast-fail.
