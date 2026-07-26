@@ -12,8 +12,13 @@ def find_keyword_contexts(
     content_lower = content.lower()
 
     # ⚡ Bolt Optimization: Fast-fail empty searches before expensive regex chunk parsing
-    active_keywords = [kw for kw in keywords if kw.lower() in content_lower]
-    if not active_keywords:
+    active_keywords_with_pos = []
+    for kw in keywords:
+        kw_lower = kw.lower()
+        pos = content_lower.find(kw_lower)
+        if pos != -1:
+            active_keywords_with_pos.append((kw, kw_lower, pos))
+    if not active_keywords_with_pos:
         return []
 
     # ⚡ Bolt Optimization: Replace regex finditer with native str.find for chunk bounds (~15x speedup)
@@ -78,14 +83,10 @@ def find_keyword_contexts(
 
     snippets = []
     seen = set()
-    for kw in active_keywords:
-        kw_lower = kw.lower()
-        start = 0
+    for kw, kw_lower, first_pos in active_keywords_with_pos:
+        pos = first_pos
         match_count = 0
         while True:
-            pos = content_lower.find(kw_lower, start)
-            if pos == -1:
-                break
             start_idx = max(0, pos - window)
             end_idx = min(len(content), pos + len(kw) + window)
             snippet = content[start_idx:end_idx].strip()
@@ -101,6 +102,7 @@ def find_keyword_contexts(
                     break
 
             start = pos + len(kw)
-            if start >= len(content):
+            pos = content_lower.find(kw_lower, start)
+            if pos == -1:
                 break
     return snippets
