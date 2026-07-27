@@ -295,7 +295,7 @@ class Ingester:
 
         offsets = [(0, 0) for _ in chunks]
         full_output = ""
-        for _ in range(3):
+        for iteration in range(3):
             chunk_lines = []
             chunk_lines.append("# Chunk Inventory (chunk_id=0)\n")
             chunk_lines.append("| Metadata Key | Value |")
@@ -318,35 +318,44 @@ class Ingester:
 
             header_part = "\n".join(chunk_lines) + "\n"
 
-            # ⚡ Bolt Optimization: Use list concatenation (join) instead of repeated string addition for ~2x speedup on large document compilation
-            parts = [header_part]
+            is_final = iteration == 2
+            # ⚡ Bolt Optimization: Fast path to avoid massive string/list allocations in stabilization iterations
+            if is_final:
+                # ⚡ Bolt Optimization: Use list concatenation (join) instead of repeated string addition for ~2x speedup on large document compilation
+                parts = [header_part]
+
             new_offsets = []
             current_len = len(header_part)
 
             for idx, chunk in enumerate(chunks, 1):
                 if idx > 1:
-                    parts.append("\n")
+                    if is_final:
+                        parts.append("\n")
                     current_len += 1
 
                 prefix = f"\n---\n<!-- CHUNK_START: {idx} -->\n"
-                parts.append(prefix)
+                if is_final:
+                    parts.append(prefix)
                 current_len += len(prefix)
 
                 start_pos = current_len
 
-                parts.append(chunk)
+                if is_final:
+                    parts.append(chunk)
                 current_len += len(chunk)
 
                 end_pos = current_len
 
                 suffix = f"\n<!-- CHUNK_END: {idx} -->\n---"
-                parts.append(suffix)
+                if is_final:
+                    parts.append(suffix)
                 current_len += len(suffix)
 
                 new_offsets.append((start_pos, end_pos))
 
             offsets = new_offsets
-            full_output = "".join(parts)
+            if is_final:
+                full_output = "".join(parts)
 
         # Write output markdown
         parsed_dir = Path(self.settings.active_workspace_path) / "2_parsed_data"
