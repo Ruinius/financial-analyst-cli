@@ -242,3 +242,84 @@ def test_curator_agent_wiki(temp_workspace_env):
     wiki_content = wiki_path.read_text(encoding="utf-8")
     assert "Apple has strong cash flow" in wiki_content
     assert "Hardware cycles are slow" in wiki_content
+
+
+def test_learning_agent_handles_string_args_and_filters_single_letters(
+    temp_workspace_env,
+):
+    settings = temp_workspace_env
+    ticker = "AAPL"
+
+    state = load_workspace_state(ticker)
+    state.metadata.ticker = ticker
+    save_workspace_state(ticker, state)
+
+    # LLM returns string args instead of list of strings
+    call = MagicMock()
+    call.name = "finalize"
+    call.args = {
+        "successful_keywords": '["operating income", "revenue"]',
+        "avoid_keywords": "MD&A, Results",
+        "successful_chunk": "70, 72",
+    }
+    mock_client = MockLLMClient(settings, responses=[[call]])
+    agent = LearningAgent(settings=settings, client=mock_client)
+
+    agent.run_learning(
+        ticker=ticker,
+        agent_name="ebita",
+        document_type="annual_filing",
+        turn_count=3,
+        run_logs="Some logs",
+    )
+
+    updated_state = load_workspace_state(ticker)
+    agent_learning = updated_state.company_data.learnings.annual_filing.ebita
+
+    assert "operating income" in agent_learning.successful_keywords
+    assert "revenue" in agent_learning.successful_keywords
+    # Ensure single letters were NOT added as individual items
+    for item in agent_learning.successful_keywords:
+        assert len(item) > 1 or item.isdigit()
+    assert "70" in agent_learning.successful_chunk
+    assert "72" in agent_learning.successful_chunk
+
+
+def test_learning_agent_parallel_execution_thread_safety(temp_workspace_env):
+    import threading
+
+    settings = temp_workspace_env
+    ticker = "AAPL"
+
+    state = load_workspace_state(ticker)
+    state.metadata.ticker = ticker
+    save_workspace_state(ticker, state)
+
+    mock_client = MockLLMClient(settings, responses=[])
+    agent = LearningAgent(settings=settings, client=mock_client)
+
+    # Run 5 parallel threads calling run_learning
+    threads = []
+    for _ in range(5):
+        t = threading.Thread(
+            target=agent.run_learning,
+            kwargs={
+                "ticker": ticker,
+                "agent_name": "diluted_shares",
+                "document_type": "quarterly_filing",
+                "turn_count": 4,
+                "run_logs": "Thread run",
+            },
+        )
+        threads.append(t)
+        t.start()
+
+    for t in threads:
+        t.join()
+
+    updated_state = load_workspace_state(ticker)
+    metrics = (
+        updated_state.company_data.learnings.quarterly_filing.diluted_shares.metrics
+    )
+    # Total runs must equal exactly 5 (no race condition lost updates)
+    assert metrics.total_runs == 5

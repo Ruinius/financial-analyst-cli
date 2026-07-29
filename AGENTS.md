@@ -14,7 +14,6 @@ Welcome to the `financial-analyst-cli` project.
 - docs/architecture.md: System architecture, folder structure, micro-agent definitions, tool permissions registry, and design decisions.
 - docs/blackboard_design.md: Detailed schema, evolution history, lifecycle, and storage specifications for the blackboard state.
 - docs/cli_spec.md: CLI command hierarchy, options, parameters, and user experience specification.
-- docs/litellm_refactor.md: Architectural evaluation of migrating LLM service layer to LiteLLM (pros, cons, and hybrid migration strategy).
 - docs/requirements.md: Scope of capabilities and product requirements translated from financial-analyst-skills.
 - docs/roadmap.md: Seven-phase development and refactoring roadmap for the Financial Analyst CLI.
 - LICENSE: MIT License.

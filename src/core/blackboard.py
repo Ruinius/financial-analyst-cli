@@ -686,11 +686,14 @@ _WORKSPACE_LOCKS: Dict[str, threading.Lock] = {}
 _LOCKS_GUARD = threading.Lock()
 
 
-def _get_ticker_lock(ticker: str) -> threading.Lock:
+def get_ticker_lock(ticker: str) -> threading.Lock:
     with _LOCKS_GUARD:
         if ticker not in _WORKSPACE_LOCKS:
             _WORKSPACE_LOCKS[ticker] = threading.Lock()
         return _WORKSPACE_LOCKS[ticker]
+
+
+_get_ticker_lock = get_ticker_lock
 
 
 def load_workspace_state(ticker: str) -> WorkspaceContext:
