@@ -1,5 +1,5 @@
 import asyncio
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 from src.core.blackboard import (
     load_workspace_state,
@@ -7,6 +7,7 @@ from src.core.blackboard import (
     CompanyMetadata,
     TemporalBlackboard,
     ExtractedFinancialData,
+    LineItem,
 )
 from src.agents.blackboard_orchestrator import BlackboardOrchestrator
 from src.agents.orchestrator_pipelines.analyze import orchestrate_analyze
@@ -113,3 +114,86 @@ def test_pipeline_analyze_q4_deduction(mock_curate, temp_workspace_env):
     # q4_org_inc = 40.5 - 8 - 11 - 8.4 = 13.1
     # q4_organic_growth = 13.1 / 120 = 0.109166... which rounds to 0.1092
     assert q4.organic_growth == 0.1092
+
+
+@patch("src.agents.orchestrator_pipelines.analyze.run_self_healing_analyzer_agent")
+@patch("src.agents.curator_agent.CuratorAgent.curate")
+def test_pipeline_analyze_self_healing_recalculation(
+    mock_curate, mock_self_healing, temp_workspace_env
+):
+    ticker = "MSFT"
+    orchestrator = BlackboardOrchestrator()
+    orchestrator.client = MagicMock()
+
+    state = load_workspace_state(ticker)
+    state.metadata = CompanyMetadata(ticker=ticker)
+
+    # Setup 2024_Q1 report with line items
+    report = TemporalBlackboard(
+        fiscal_year=2024,
+        fiscal_period="Q1",
+        is_quarterly=True,
+        balance_sheet_status="completed",
+        income_statement_status="completed",
+    )
+    report.financial_data = ExtractedFinancialData(
+        revenue=200.0,
+        ebita=50.0,
+        adjusted_tax_rate=0.20,
+        line_items=[
+            LineItem(
+                line_name="Accounts Receivable",
+                value=100.0,
+                operating=True,
+                calculated=False,
+                category="current_assets",
+            ),
+            LineItem(
+                line_name="Accounts Payable",
+                value=40.0,
+                operating=True,
+                calculated=False,
+                category="current_liabilities",
+            ),
+            LineItem(
+                line_name="PP&E Net",
+                value=300.0,
+                operating=True,
+                calculated=False,
+                category="noncurrent_assets",
+            ),
+            LineItem(
+                line_name="Noncurrent Operating Liabilities",
+                value=50.0,
+                operating=True,
+                calculated=False,
+                category="noncurrent_liabilities",
+            ),
+        ],
+    )
+    state.reports["2024_Q1"] = report
+    save_workspace_state(ticker, state)
+
+    # Simulate self-healing agent modifying a line item classification (e.g., PP&E Net set to non-operating)
+    def side_effect_self_healing(client, ticker, max_turns):
+        cur_state = load_workspace_state(ticker)
+        cur_state.reports["2024_Q1"].financial_data.line_items[2].operating = False
+        save_workspace_state(ticker, cur_state)
+        return {}
+
+    mock_self_healing.side_effect = side_effect_self_healing
+
+    # Run orchestrate_analyze
+    asyncio.run(orchestrate_analyze(orchestrator, ticker))
+
+    # Assert self healing agent was called
+    mock_self_healing.assert_called_once_with(
+        client=orchestrator.client, ticker=ticker, max_turns=10
+    )
+
+    # Verify summary table was recalculated:
+    # Initial IC = (100 - 40) + (300 - 50) = 60 + 250 = 310
+    # After setting PP&E operating=False: IC = (100 - 40) + (0 - 50) = 60 - 50 = 10
+    updated_state = load_workspace_state(ticker)
+    q1_summary = updated_state.company_data.quarterly_financials[0]
+    assert q1_summary.invested_capital == 10.0

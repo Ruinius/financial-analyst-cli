@@ -54,6 +54,8 @@ Welcome to the `financial-analyst-cli` project.
         - ebita_agent.py: Agent specialized in Operating EBITA adjustments and calculations.
         - tax_agent.py: Agent specialized in Adjusted Taxes adjustments and calculations.
 
+    - src/agents/analyzer_agents/: Directory containing specialized analysis agents.
+      - self_healing_analyzer.py: Self-healing AI agent that inspects summary tables across time periods for calculation anomalies/jumps, inspects line item details, and updates line item classifications.
     - src/agents/modeler_agents/: Directory containing specialized modeling agents.
       - wacc_agent.py: Agent specialized in WACC calculation and beta de-levering/re-levering.
       - growth_agent.py: Agent specialized in estimating future revenue growth rates (near-term, mid-term Year 5, terminal).

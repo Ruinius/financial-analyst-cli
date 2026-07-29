@@ -339,7 +339,8 @@ class BlackboardOrchestrator:
             "non_operating": "NonOperatingAgent",
             "non_operating_agent": "NonOperatingAgent",
             "dcf_modeling": "DCFModelingAgent",
-            "analyzer": "CuratorAgent",
+            "self_healing_analyzer": "SelfHealingAnalyzerAgent",
+            "analyzer": "AnalyzerStage",
             "ingestion": "IngestionAgent",
         }
         name = agent_names.get(

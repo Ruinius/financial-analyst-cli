@@ -1,13 +1,18 @@
 import logging
-from typing import List
+from typing import List, Tuple
 
 from src.core.blackboard import (
     load_workspace_state,
     save_workspace_state,
     HistoricalFinancialSummary,
     HistoricalAnalystView,
+    TemporalBlackboard,
 )
 from src.agents.curator_agent import CuratorAgent
+from src.agents.analyzer_agents.self_healing_analyzer import (
+    run_self_healing_analyzer_agent,
+)
+import src.utils.financial_math as pipeline_math
 
 logger = logging.getLogger(__name__)
 
@@ -201,111 +206,198 @@ def deduce_q4_financials(
     return deduced_entries
 
 
+def recalculate_report_metrics(report: TemporalBlackboard) -> None:
+    """Recalculate deterministic metrics (NWC, NLTOA, Invested Capital, Capital Turnover, NOPAT, ROIC)
+    from line items based on active operating and calculated flags."""
+    if not report.financial_data.line_items:
+        return
+
+    revenue = report.financial_data.revenue
+    ebita = report.financial_data.ebita
+    adjusted_tax_rate = report.financial_data.adjusted_tax_rate or 0.21
+
+    is_quarterly = report.is_quarterly
+    multiplier = 4.0 if is_quarterly else 1.0
+
+    oca_items = [
+        item
+        for item in report.financial_data.line_items
+        if item.category == "current_assets" and item.operating and not item.calculated
+    ]
+    ocl_items = [
+        item
+        for item in report.financial_data.line_items
+        if item.category == "current_liabilities"
+        and item.operating
+        and not item.calculated
+    ]
+    onca_items = [
+        item
+        for item in report.financial_data.line_items
+        if item.category == "noncurrent_assets"
+        and item.operating
+        and not item.calculated
+    ]
+    oncl_items = [
+        item
+        for item in report.financial_data.line_items
+        if item.category == "noncurrent_liabilities"
+        and item.operating
+        and not item.calculated
+    ]
+
+    oca = sum(item.value for item in oca_items)
+    ocl = sum(item.value for item in ocl_items)
+    onca = sum(item.value for item in onca_items)
+    oncl = sum(item.value for item in oncl_items)
+
+    ann_rev = revenue * multiplier
+    nwc, nltoa, ic, turnover = pipeline_math.calculate_invested_capital(
+        oca, ocl, onca, oncl, ann_rev
+    )
+
+    nopat, annualized_nopat, roic = pipeline_math.calculate_roic(
+        ebita, adjusted_tax_rate, ic, multiplier
+    )
+
+    report.financial_data.net_working_capital = nwc
+    report.financial_data.net_long_term_operating_assets = nltoa
+    report.financial_data.invested_capital = ic
+    report.financial_data.capital_turnover = turnover
+    report.financial_data.nopat = nopat
+    report.financial_data.roic = roic
+
+
+def build_summary_tables(
+    state,
+) -> Tuple[
+    List[HistoricalFinancialSummary],
+    List[HistoricalFinancialSummary],
+    List[HistoricalAnalystView],
+]:
+    """Build quarterly, yearly, and analyst summary records deterministically from workspace reports."""
+    doc_meta = {}
+    for doc in state.raw_documents:
+        doc_meta[doc.file_name] = {
+            "type": doc.document_type,
+            "date": doc.document_date or "N/A",
+        }
+
+    quarterly_financials_list = []
+    yearly_financials_list = []
+    historical_analyst_views_list = []
+
+    for period_key, report in state.reports.items():
+        if (
+            report.balance_sheet_status != "completed"
+            or report.income_statement_status != "completed"
+        ):
+            continue
+
+        fy = report.fiscal_year
+        fp = report.fiscal_period
+
+        # Create summary record
+        summary = HistoricalFinancialSummary(
+            fiscal_year=fy,
+            fiscal_period=fp,
+            revenue=report.financial_data.revenue,
+            operating_income=report.financial_data.operating_income,
+            ebita=report.financial_data.ebita,
+            reported_tax_provision=report.financial_data.reported_tax_provision,
+            adjusted_taxes=report.financial_data.adjusted_taxes,
+            adjusted_tax_rate=report.financial_data.adjusted_tax_rate,
+            basic_shares=report.financial_data.basic_shares,
+            diluted_shares=report.financial_data.diluted_shares,
+            simple_growth=report.financial_data.simple_growth,
+            organic_growth=report.financial_data.organic_growth,
+            net_working_capital=report.financial_data.net_working_capital,
+            net_long_term_operating_assets=report.financial_data.net_long_term_operating_assets,
+            invested_capital=report.financial_data.invested_capital,
+            capital_turnover=report.financial_data.capital_turnover,
+            nopat=report.financial_data.nopat,
+            roic=report.financial_data.roic,
+        )
+
+        if report.is_quarterly:
+            quarterly_financials_list.append(summary)
+        else:
+            yearly_financials_list.append(summary)
+
+        # Analyst views
+        for ar in report.other_data.analyst_reports:
+            view = HistoricalAnalystView(
+                report_date=report.fiscal_period,  # Fallback to period
+                source_file=ar.source_file,
+                economic_moat=ar.economic_moat,
+                economic_moat_rationale=ar.economic_moat_rationale,
+                margin_outlook=ar.margin_outlook,
+                margin_magnitude=ar.margin_magnitude,
+                margin_rationale=ar.margin_rationale,
+                growth_outlook=ar.growth_outlook,
+                growth_magnitude=ar.growth_magnitude,
+                growth_rationale=ar.growth_rationale,
+            )
+            historical_analyst_views_list.append(view)
+
+    # Deduce missing Q4 financials
+    deduced_q4 = deduce_q4_financials(quarterly_financials_list, yearly_financials_list)
+    quarterly_financials_list.extend(deduced_q4)
+
+    # Sort lists
+    quarterly_financials_list.sort(
+        key=lambda x: (
+            x.fiscal_year,
+            {"Q1": 1, "Q2": 2, "Q3": 3, "Q4": 4, "FY": 5}.get(x.fiscal_period, 0),
+        )
+    )
+    yearly_financials_list.sort(key=lambda x: x.fiscal_year)
+
+    return (
+        quarterly_financials_list,
+        yearly_financials_list,
+        historical_analyst_views_list,
+    )
+
+
 async def orchestrate_analyze(orchestrator, ticker: str) -> None:
     orchestrator.checkout_status(ticker, "analyzer")
     try:
         state = load_workspace_state(ticker)
 
-        doc_meta = {}
-        for doc in state.raw_documents:
-            doc_meta[doc.file_name] = {
-                "type": doc.document_type,
-                "date": doc.document_date or "N/A",
-            }
+        # 1. Generate initial deterministic summary tables
+        q_list, y_list, views_list = build_summary_tables(state)
+        state.company_data.quarterly_financials = q_list
+        state.company_data.yearly_financials = y_list
+        state.company_data.historical_analyst_views = views_list
+        save_workspace_state(ticker, state)
 
-        quarterly_financials_list = []
-        yearly_financials_list = []
-        historical_analyst_views_list = []
-        news_entries = []
-        transcript_entries = []
+        # 2. Run Self-Healing Analyzer Agent (if client is available)
+        if getattr(orchestrator, "client", None):
+            try:
+                run_self_healing_analyzer_agent(
+                    client=orchestrator.client,
+                    ticker=ticker,
+                    max_turns=10,
+                )
+            except Exception as e:
+                logger.warning(f"Self-healing analyzer agent execution warning: {e}")
 
+        # 3. Post-agent re-calculation and summary table re-generation
+        state = load_workspace_state(ticker)
         for period_key, report in state.reports.items():
             if (
-                report.balance_sheet_status != "completed"
-                or report.income_statement_status != "completed"
+                report.balance_sheet_status == "completed"
+                and report.income_statement_status == "completed"
             ):
-                continue
+                recalculate_report_metrics(report)
 
-            fy = report.fiscal_year
-            fp = report.fiscal_period
+        # Re-generate summary tables cleanly from updated line items and metrics
+        q_list_fresh, y_list_fresh, views_list_fresh = build_summary_tables(state)
 
-            # Create summary record
-            summary = HistoricalFinancialSummary(
-                fiscal_year=fy,
-                fiscal_period=fp,
-                revenue=report.financial_data.revenue,
-                operating_income=report.financial_data.operating_income,
-                ebita=report.financial_data.ebita,
-                reported_tax_provision=report.financial_data.reported_tax_provision,
-                adjusted_taxes=report.financial_data.adjusted_taxes,
-                adjusted_tax_rate=report.financial_data.adjusted_tax_rate,
-                basic_shares=report.financial_data.basic_shares,
-                diluted_shares=report.financial_data.diluted_shares,
-                simple_growth=report.financial_data.simple_growth,
-                organic_growth=report.financial_data.organic_growth,
-                net_working_capital=report.financial_data.net_working_capital,
-                net_long_term_operating_assets=report.financial_data.net_long_term_operating_assets,
-                invested_capital=report.financial_data.invested_capital,
-                capital_turnover=report.financial_data.capital_turnover,
-                nopat=report.financial_data.nopat,
-                roic=report.financial_data.roic,
-            )
-
-            if report.is_quarterly:
-                quarterly_financials_list.append(summary)
-            else:
-                yearly_financials_list.append(summary)
-
-            # Analyst views
-            for ar in report.other_data.analyst_reports:
-                view = HistoricalAnalystView(
-                    report_date=report.fiscal_period,  # Fallback to period
-                    source_file=ar.source_file,
-                    economic_moat=ar.economic_moat,
-                    economic_moat_rationale=ar.economic_moat_rationale,
-                    margin_outlook=ar.margin_outlook,
-                    margin_magnitude=ar.margin_magnitude,
-                    margin_rationale=ar.margin_rationale,
-                    growth_outlook=ar.growth_outlook,
-                    growth_magnitude=ar.growth_magnitude,
-                    growth_rationale=ar.growth_rationale,
-                )
-                historical_analyst_views_list.append(view)
-
-            # Qualitative others (press release, transcript, etc.)
-            for other in report.other_data.others:
-                meta = doc_meta.get(other.source_file, {})
-                dtype = meta.get("type")
-                ddate = meta.get("date", "N/A")
-
-                entry = {
-                    "date": ddate,
-                    "document": other.source_file,
-                    "summary": other.summary,
-                }
-                if dtype == "transcript":
-                    transcript_entries.append(entry)
-                elif dtype in ("press_release", "news_article", "other"):
-                    news_entries.append(entry)
-
-        # Deduce missing Q4 financials
-        deduced_q4 = deduce_q4_financials(
-            quarterly_financials_list, yearly_financials_list
-        )
-        quarterly_financials_list.extend(deduced_q4)
-
-        # Sort lists
-        quarterly_financials_list.sort(
-            key=lambda x: (
-                x.fiscal_year,
-                {"Q1": 1, "Q2": 2, "Q3": 3, "Q4": 4, "FY": 5}.get(x.fiscal_period, 0),
-            )
-        )
-        yearly_financials_list.sort(key=lambda x: x.fiscal_year)
-
-        state.company_data.quarterly_financials = quarterly_financials_list
-        state.company_data.yearly_financials = yearly_financials_list
-        state.company_data.historical_analyst_views = historical_analyst_views_list
+        state.company_data.quarterly_financials = q_list_fresh
+        state.company_data.yearly_financials = y_list_fresh
+        state.company_data.historical_analyst_views = views_list_fresh
 
         save_workspace_state(ticker, state)
         orchestrator.checkin_status(ticker, "analyzer", "completed")

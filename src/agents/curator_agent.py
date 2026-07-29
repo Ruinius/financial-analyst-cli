@@ -78,6 +78,9 @@ class CuratorAgent:
         if not isinstance(ticker, str) or "MagicMock" in str(ticker):
             ticker = "MOCK"
 
+        import src.utils.formatting as formatting
+
+        formatting.print_info("Starting sub-agent: CuratorAgent...")
         logger.info(f"CuratorAgent acquiring wiki write lock for {ticker}...")
         with _wiki_lock:
             logger.info(f"CuratorAgent write lock acquired for {ticker}.")
@@ -143,6 +146,7 @@ class CuratorAgent:
 
                     os.replace(str(tmp_file), str(wiki_path))
                     logger.info(f"Successfully updated qualitative wiki: {wiki_path}")
+            formatting.print_success("Sub-agent completed: CuratorAgent")
 
     def _ensure_wiki_exists(self, ticker: str, wiki_path: Path) -> None:
         if not wiki_path.exists():
