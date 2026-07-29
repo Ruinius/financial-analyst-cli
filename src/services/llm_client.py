@@ -210,58 +210,75 @@ class LiteLLMChatSession(ChatSession):
                 chunks = []
                 started_thinking = False
                 printed_dots = False
-                response_stream = litellm.completion(**kwargs)
-                for chunk in response_stream:
-                    chunks.append(chunk)
-                    if not chunk.choices:
-                        continue
-                    delta = chunk.choices[0].delta
-                    if not delta:
-                        continue
+                try:
+                    response_stream = litellm.completion(**kwargs)
+                    for chunk in response_stream:
+                        chunks.append(chunk)
+                        if not chunk.choices:
+                            continue
+                        delta = chunk.choices[0].delta
+                        if not delta:
+                            continue
 
-                    # ⚡ Bolt Optimization: Cache `model_dump()` to bypass heavy object allocation overhead inside tight streaming loops (~1.3x speedup on payload processing)
-                    delta_dump = (
-                        delta.model_dump() if hasattr(delta, "model_dump") else {}
-                    )
-
-                    reasoning = (
-                        getattr(delta, "reasoning_content", None)
-                        or getattr(delta, "reasoning", None)
-                        or getattr(delta, "thinking", None)
-                        or delta_dump.get("reasoning_content")
-                        or delta_dump.get("reasoning")
-                        or delta_dump.get("thinking")
-                        or ""
-                    )
-                    content = getattr(delta, "content", None) or ""
-                    tool_calls = getattr(delta, "tool_calls", None) or delta_dump.get(
-                        "tool_calls"
-                    )
-
-                    if reasoning:
-                        if not started_thinking:
-                            safe_console_print(
-                                console,
-                                "[italic dim]Sir Pennyworth is pondering... [/italic dim]\n",
-                                end="",
-                                markup=True,
-                            )
-                            started_thinking = True
-                        safe_console_print(
-                            console, reasoning, end="", style="italic dim", flush=True
+                        # ⚡ Bolt Optimization: Cache `model_dump()` to bypass heavy object allocation overhead inside tight streaming loops (~1.3x speedup on payload processing)
+                        delta_dump = (
+                            delta.model_dump() if hasattr(delta, "model_dump") else {}
                         )
 
-                    if content or tool_calls:
-                        if started_thinking:
-                            safe_console_print(console, "")
-                            started_thinking = False
-                        safe_console_print(console, ".", end="", flush=True)
-                        printed_dots = True
+                        reasoning = (
+                            getattr(delta, "reasoning_content", None)
+                            or getattr(delta, "reasoning", None)
+                            or getattr(delta, "thinking", None)
+                            or delta_dump.get("reasoning_content")
+                            or delta_dump.get("reasoning")
+                            or delta_dump.get("thinking")
+                            or ""
+                        )
+                        content = getattr(delta, "content", None) or ""
+                        tool_calls = getattr(
+                            delta, "tool_calls", None
+                        ) or delta_dump.get("tool_calls")
 
-                if started_thinking or printed_dots:
-                    safe_console_print(console, "")
+                        if reasoning:
+                            if not started_thinking:
+                                safe_console_print(
+                                    console,
+                                    "[italic dim]Sir Pennyworth is pondering... [/italic dim]\n",
+                                    end="",
+                                    markup=True,
+                                )
+                                started_thinking = True
+                            safe_console_print(
+                                console,
+                                reasoning,
+                                end="",
+                                style="italic dim",
+                                flush=True,
+                            )
 
-                return litellm.stream_chunk_builder(chunks, messages=self.messages)
+                        if content or tool_calls:
+                            if started_thinking:
+                                safe_console_print(console, "")
+                                started_thinking = False
+                            safe_console_print(console, ".", end="", flush=True)
+                            printed_dots = True
+
+                    if started_thinking or printed_dots:
+                        safe_console_print(console, "")
+
+                    return litellm.stream_chunk_builder(chunks, messages=self.messages)
+                except Exception as stream_err:
+                    err_msg = str(stream_err).lower()
+                    if (
+                        "midstream" in err_msg
+                        or "10038" in err_msg
+                        or "socket" in err_msg
+                    ):
+                        # Fallback seamlessly to non-streaming completion when OS socket closes mid-stream on Windows
+                        kwargs_no_stream = dict(kwargs)
+                        kwargs_no_stream["stream"] = False
+                        return litellm.completion(**kwargs_no_stream)
+                    raise stream_err
 
             response = _execute_with_backoff(_do_stream_call)
         else:

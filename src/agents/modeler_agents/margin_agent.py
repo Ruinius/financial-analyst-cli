@@ -5,6 +5,7 @@ from src.services.llm_client import LLMClient
 from src.core.exceptions import LLMError
 from src.agents.agent_executor import run_agent_loop
 from src.core.blackboard import WorkspaceContext, CompanyMetadata
+from src.utils.financial_math import safe_float
 
 logger = logging.getLogger(__name__)
 
@@ -85,10 +86,14 @@ def run_margin_agent(
         explanation: str,
     ) -> str:
         """Conclude margin estimation, specifying base, year 5, and terminal EBITA margins."""
-        final_margin_results["base_margin"] = base_margin
-        final_margin_results["margin_yr5"] = margin_yr5
-        final_margin_results["terminal_margin"] = terminal_margin
-        final_margin_results["explanation"] = explanation
+        final_margin_results["base_margin"] = safe_float(
+            base_margin, default_base_margin
+        )
+        final_margin_results["margin_yr5"] = safe_float(margin_yr5, default_yr5_margin)
+        final_margin_results["terminal_margin"] = safe_float(
+            terminal_margin, default_terminal_margin
+        )
+        final_margin_results["explanation"] = str(explanation)
         return "Margin assumptions finalized."
 
     sys_prompt = (
@@ -107,7 +112,8 @@ def run_margin_agent(
         "Rules:\n"
         "1. Identify historical EBITA margins, cost structures, operating leverage, qualitative margin outlooks, news trends, and conference call transcripts details on the blackboard or via web_search.\n"
         "2. Think step-by-step about what the right three EBITA margins should be and construct a strong rationale.\n"
-        "3. Call 'finalize' on your last turn. The explanation must describe the trends or source details extracted and your reasoning."
+        "3. Call 'finalize' on your last turn. The explanation must describe the trends or source details extracted and your reasoning.\n"
+        "4. CRITICAL TURN RULE: You have up to 10 turns. If you reach turn 8, 9, or 10, stop making search or query calls and call the 'finalize' tool immediately with your current best estimates."
     )
 
     user_content = (

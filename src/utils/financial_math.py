@@ -102,3 +102,21 @@ def clean_val(val: str) -> float:
         except ValueError:
             return 0.0
     return 0.0
+
+
+def safe_float(val: object, default: float = 0.0) -> float:
+    """Safely convert any input (float, int, str, single-item sequence, None) to float."""
+    if val is None:
+        return default
+    if isinstance(val, (int, float)):
+        return float(val)
+    if isinstance(val, (list, tuple)):
+        if not val:
+            return default
+        return safe_float(val[0], default)
+    if isinstance(val, dict):
+        return default
+    try:
+        return clean_val(str(val))
+    except Exception:
+        return default

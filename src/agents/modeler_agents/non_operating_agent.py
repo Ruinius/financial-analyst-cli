@@ -5,6 +5,7 @@ from src.services.llm_client import LLMClient
 from src.core.exceptions import LLMError
 from src.agents.agent_executor import run_agent_loop
 from src.core.blackboard import WorkspaceContext, CompanyMetadata
+from src.utils.financial_math import safe_float
 
 logger = logging.getLogger(__name__)
 
@@ -98,13 +99,15 @@ def run_non_operating_agent(
         explanation: str,
     ) -> str:
         """Conclude non-operating categories extraction."""
-        final_results["cash"] = cash
-        final_results["short_term_investments"] = short_term_investments
-        final_results["debt"] = debt
-        final_results["preferred_equity"] = preferred_equity
-        final_results["minority_interest"] = minority_interest
-        final_results["other_financial"] = other_financial
-        final_results["explanation"] = explanation
+        final_results["cash"] = safe_float(cash, 0.0)
+        final_results["short_term_investments"] = safe_float(
+            short_term_investments, 0.0
+        )
+        final_results["debt"] = safe_float(debt, 0.0)
+        final_results["preferred_equity"] = safe_float(preferred_equity, 0.0)
+        final_results["minority_interest"] = safe_float(minority_interest, 0.0)
+        final_results["other_financial"] = safe_float(other_financial, 0.0)
+        final_results["explanation"] = str(explanation)
         return "Non-operating extraction finalized."
 
     sys_prompt = (
@@ -121,7 +124,8 @@ def run_non_operating_agent(
         "3. For each category, sum the values of all corresponding line items. (All values are typically in millions, keep them scaled exactly as they are in the balance sheet).\n"
         "4. For 'other_financial', calculate: (Sum of non-operating assets in 'other_financial_physical_assets') minus (Sum of non-operating liabilities in 'other_financial_liabilities').\n"
         "5. If a category has no items, its value should be 0.0.\n"
-        "6. Call the 'finalize' tool with the extracted arguments."
+        "6. Call the 'finalize' tool with the extracted arguments.\n"
+        "7. CRITICAL TURN RULE: You have up to 10 turns. If you reach turn 8, 9, or 10, stop making search or query calls and call the 'finalize' tool immediately with your current best estimates."
     )
 
     user_content = (

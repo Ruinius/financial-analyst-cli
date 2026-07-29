@@ -6,6 +6,7 @@ from src.services.llm_client import LLMClient
 from src.core.exceptions import LLMError
 from src.agents.agent_executor import run_agent_loop
 from src.core.blackboard import WorkspaceContext, CompanyMetadata
+from src.utils.financial_math import safe_float
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +89,14 @@ def run_dcf_modeling_agent(
         test_assumptions = dict(final_assumptions)
         for k, v in kwargs.items():
             if v is not None:
-                test_assumptions[k] = v
+                if isinstance(v, (int, float, str, list, tuple)) and not isinstance(
+                    v, bool
+                ):
+                    test_assumptions[k] = safe_float(
+                        v, default=test_assumptions.get(k, 0.0)
+                    )
+                else:
+                    test_assumptions[k] = v
 
         try:
             d_res, proj, val_tab = m.run_valuation_calculation(
@@ -114,9 +122,17 @@ def run_dcf_modeling_agent(
     def finalize(assumptions: dict, comments_arg: str) -> str:
         """Conclude modeling, returning the final validated assumptions dictionary and comments."""
         nonlocal final_assumptions, comments
-        for k, v in assumptions.items():
-            final_assumptions[k] = v
-        comments = comments_arg
+        if isinstance(assumptions, dict):
+            for k, v in assumptions.items():
+                if isinstance(v, (int, float, str, list, tuple)) and not isinstance(
+                    v, bool
+                ):
+                    final_assumptions[k] = safe_float(
+                        v, default=final_assumptions.get(k, 0.0)
+                    )
+                else:
+                    final_assumptions[k] = v
+        comments = str(comments_arg)
         return "DCF modeling finalized."
 
     sys_prompt = (
@@ -140,7 +156,7 @@ def run_dcf_modeling_agent(
         "2. If you find any obvious errors, update them by calling 'run_valuation' with revised inputs to test them.\n"
         "3. Provide a clear reasoning/thought process in the 'thought' field of each turn.\n"
         "4. Your final comments must include: your opinion of the final valuation results, how sensitive the model is to key assumptions (like WACC or terminal growth), and why adjustments (if any) were made relative to the other agents' defaults.\n"
-        "5. Call 'finalize' on your last turn. You have up to 10 turns."
+        "5. Call 'finalize' on your last turn. You have up to 10 turns. CRITICAL TURN RULE: If you reach turn 8, 9, or 10, stop making query or valuation test calls and call the 'finalize' tool immediately with your current best estimates."
     )
 
     user_content = (
@@ -183,7 +199,17 @@ def run_dcf_modeling_agent(
     history_text = "".join(history_parts)
 
     if finalized_args:
-        final_assumptions = finalized_args.get("assumptions", final_assumptions)
+        passed_assumptions = finalized_args.get("assumptions")
+        if isinstance(passed_assumptions, dict):
+            for k, v in passed_assumptions.items():
+                if isinstance(v, (int, float, str, list, tuple)) and not isinstance(
+                    v, bool
+                ):
+                    final_assumptions[k] = safe_float(
+                        v, default=final_assumptions.get(k, 0.0)
+                    )
+                else:
+                    final_assumptions[k] = v
         comments = str(finalized_args.get("comments_arg", comments))
 
     return final_assumptions, comments, history_text

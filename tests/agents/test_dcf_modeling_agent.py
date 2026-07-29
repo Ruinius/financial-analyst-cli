@@ -132,3 +132,61 @@ def test_run_dcf_modeling_agent(mock_load_config, tmp_path):
     assert "valuation result aligns well" in comments.lower()
     assert "query_blackboard" in history_text
     assert "run_valuation" in history_text
+
+
+@patch("src.agents.orchestrator_pipelines.model.load_config")
+def test_run_dcf_modeling_agent_partial_assumptions(mock_load_config, tmp_path):
+    mock_llm = MagicMock()
+    mock_llm.settings = MagicMock()
+    mock_llm.settings.base_workspace_dir = str(tmp_path)
+    mock_load_config.return_value = mock_llm.settings
+    mock_chat = MagicMock()
+    mock_llm.create_chat.return_value = mock_chat
+    mock_chat.get_history.return_value = []
+
+    # Send finalize with ONLY 1 changed field ("wacc": 0.095)
+    mock_chat.send_message.return_value = json.dumps(
+        {
+            "thought": "Finalizing with updated WACC only.",
+            "tool": "finalize",
+            "arguments": {
+                "assumptions": {
+                    "wacc": 0.095,
+                },
+                "comments_arg": "Minor WACC tweak",
+            },
+        }
+    )
+
+    base_assumptions = {
+        "wacc": 0.08,
+        "revenue_growth_rate": 0.07,
+        "base_revenue": 1000.0,
+        "shares_outstanding": 100,
+    }
+
+    company_metadata = CompanyMetadata(ticker="MOCK", company_name="MOCK Corp")
+    workspace_state = WorkspaceContext(
+        metadata=company_metadata,
+        reports={
+            "2023_Q4": TemporalBlackboard(
+                fiscal_year=2023,
+                fiscal_period="Q4",
+                is_quarterly=True,
+            )
+        },
+    )
+
+    final_assumptions, comments, history_text = run_dcf_modeling_agent(
+        client=mock_llm,
+        company_metadata=company_metadata,
+        workspace_state=workspace_state,
+        period_key="2023_Q4",
+        base_assumptions=base_assumptions,
+    )
+
+    # WACC updated to 0.095
+    assert final_assumptions["wacc"] == 0.095
+    # Base revenue and shares_outstanding preserved!
+    assert final_assumptions["base_revenue"] == 1000.0
+    assert final_assumptions["shares_outstanding"] == 100

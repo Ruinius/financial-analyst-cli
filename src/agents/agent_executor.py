@@ -69,18 +69,6 @@ def run_agent_loop(
             finalized = True
             break
 
-        # If we are on the last turn and not finalized, send a warning
-        if turn == max_turns - 1 and not finalized:
-            warning = (
-                f"\n\nCRITICAL: This is your final turn (turn {max_turns} of {max_turns}). "
-                "You must call the 'finalize' tool immediately with your current best estimates."
-            )
-            if average_turn_count is not None:
-                warning += (
-                    f" Historical average runtime: {average_turn_count:.1f} turn(s)."
-                )
-            response = chat.send_message(warning)
-
         # 1. Process Tool Invocations
         if isinstance(
             response, list
@@ -148,10 +136,16 @@ def run_agent_loop(
 
             # Send tool execution results back to the chat session
             next_turn_num = turn + 2
-            if next_turn_num < max_turns:
-                tool_responses[-1]["content"] = str(
-                    tool_responses[-1]["content"]
-                ) + get_turn_warning(next_turn_num)
+            if next_turn_num <= max_turns:
+                warning_str = get_turn_warning(next_turn_num)
+                if next_turn_num == max_turns:
+                    warning_str += (
+                        f"\n\nCRITICAL: This is your FINAL turn (turn {max_turns} of {max_turns}). "
+                        "You MUST call the 'finalize' tool immediately with your current best estimates!"
+                    )
+                tool_responses[-1]["content"] = (
+                    str(tool_responses[-1]["content"]) + warning_str
+                )
 
             response = chat.send_message("", tool_responses=tool_responses)
 

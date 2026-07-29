@@ -468,6 +468,23 @@ class Modeler:
             - other_financial
         )
 
+        latest_q = hist_financials[-1] if hist_financials else None
+        default_base_growth = (
+            latest_q.organic_growth / 100.0
+            if (latest_q and latest_q.organic_growth)
+            else 0.05
+        )
+        default_yr5_growth = default_base_growth
+        default_terminal_growth = 0.03
+
+        default_base_margin = (
+            (latest_q.ebita / latest_q.revenue)
+            if (latest_q and latest_q.revenue and latest_q.ebita)
+            else 0.15
+        )
+        default_yr5_margin = default_base_margin
+        default_terminal_margin = default_base_margin
+
         growth_results = run_growth_agent(
             client=llm,
             company_metadata=company_metadata,
@@ -497,7 +514,7 @@ class Modeler:
         else:
             mct = round(avg_turnover, 1)
 
-        base_margin = margin_results["base_margin"]
+        base_margin = margin_results.get("base_margin", default_base_margin)
 
         # Get currency, fx_rate, adr_ratio directly from blackboard metadata
         currency = (workspace_state.metadata.reporting_currency or "USD").upper()
@@ -533,12 +550,20 @@ class Modeler:
             "base_wacc": wacc,
             "capital_turnover": mct,
             "base_capital_turnover": mct,
-            "revenue_growth_rate": growth_results["revenue_growth_rate"],
-            "base_growth_rate": growth_results["base_growth_rate"],
-            "margin_yr5": margin_results["margin_yr5"],
+            "revenue_growth_rate": growth_results.get(
+                "revenue_growth_rate", default_yr5_growth
+            ),
+            "base_growth_rate": growth_results.get(
+                "base_growth_rate", default_base_growth
+            ),
+            "margin_yr5": margin_results.get("margin_yr5", default_yr5_margin),
             "base_margin": base_margin,
-            "terminal_margin": margin_results["terminal_margin"],
-            "terminal_growth_rate": growth_results["terminal_growth_rate"],
+            "terminal_margin": margin_results.get(
+                "terminal_margin", default_terminal_margin
+            ),
+            "terminal_growth_rate": growth_results.get(
+                "terminal_growth_rate", default_terminal_growth
+            ),
             "base_terminal_growth": 0.04 if moat == "Wide" else 0.03,
             "adjusted_tax_rate": adjusted_tax,
             "base_adjusted_tax_rate": adjusted_tax,

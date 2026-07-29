@@ -289,3 +289,22 @@ def test_run_wacc_agent_with_folder_index(mock_llm_class, mock_curator_class, tm
     assert res["wacc"] == 0.08
     assert res["net_debt"] == 80.0
     assert res["unlevered_beta"] == 0.8
+
+
+def test_calculate_wacc_formula_sequence_inputs():
+    # Test passing lists or strings into calculate_wacc_formula (e.g. from LLM JSON output)
+    res = calculate_wacc_formula(
+        risk_free_rate=[0.04],
+        equity_risk_premium="5%",
+        beta=[1.1],
+        share_price="150.0",
+        shares_outstanding=10.0,
+        total_debt=200.0,
+        cash_and_equivalents=50.0,
+        interest_expense=10.0,
+        pretax_cost_of_debt=0.0,
+        tax_rate=0.20,
+        market_cap=0.0,
+    )
+    assert res["wacc_final"] > 0.06
+    assert res["levered_beta"] > 0.0

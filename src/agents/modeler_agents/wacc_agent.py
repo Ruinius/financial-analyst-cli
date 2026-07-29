@@ -6,6 +6,7 @@ from src.services.llm_client import LLMClient
 from src.core.exceptions import LLMError
 from src.agents.agent_executor import run_agent_loop
 from src.core.blackboard import WorkspaceContext, CompanyMetadata
+from src.utils.financial_math import safe_float
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,23 @@ def calculate_wacc_formula(
     All dollar/currency values (total_debt, cash_and_equivalents, market_cap, interest_expense)
     should be in millions to ensure consistent scaling.
     """
+    risk_free_rate = safe_float(risk_free_rate, 0.042)
+    equity_risk_premium = safe_float(equity_risk_premium, 0.05)
+    beta = safe_float(beta, 1.0)
+    share_price = safe_float(share_price, 0.0)
+    shares_outstanding = safe_float(shares_outstanding, 0.0)
+    total_debt = safe_float(total_debt, 0.0)
+    cash_and_equivalents = safe_float(cash_and_equivalents, 0.0)
+    interest_expense = safe_float(interest_expense, 0.0)
+    pretax_cost_of_debt = safe_float(pretax_cost_of_debt, 0.0)
+    tax_rate = safe_float(tax_rate, 0.21)
+    target_debt_to_equity = (
+        safe_float(target_debt_to_equity, 0.0)
+        if target_debt_to_equity is not None
+        else None
+    )
+    market_cap = safe_float(market_cap, 0.0)
+
     # 1. Calculate Equity Value (Market Cap in millions)
     if market_cap > 1000000:
         market_cap_m = market_cap / 1000000.0
@@ -62,14 +80,18 @@ def calculate_wacc_formula(
     if pretax_cost_of_debt > 0:
         cost_of_debt_pretax = pretax_cost_of_debt
     elif total_debt > 0 and interest_expense > 0:
-        cost_of_debt_pretax = interest_expense / total_debt
+        calculated_rd = interest_expense / total_debt
+        if 0.01 <= calculated_rd <= 0.25:
+            cost_of_debt_pretax = calculated_rd
+        else:
+            cost_of_debt_pretax = risk_free_rate + 0.02
     else:
         cost_of_debt_pretax = (
             risk_free_rate + 0.02
         )  # Fallback: Rf + 2.0% corporate spread
 
     # Ensure pre-tax cost of debt is reasonable
-    if cost_of_debt_pretax < 0:
+    if cost_of_debt_pretax < 0 or cost_of_debt_pretax > 0.25:
         cost_of_debt_pretax = risk_free_rate + 0.02
 
     cost_of_debt_aftertax = cost_of_debt_pretax * (1 - tax_rate)
@@ -230,32 +252,37 @@ def run_wacc_agent(
         Run the WACC formula (supporting beta de-levering/re-levering).
         All dollar/currency values should be in millions.
         """
-        calc_res = calculate_wacc_formula(
-            risk_free_rate=risk_free_rate,
-            equity_risk_premium=equity_risk_premium,
-            beta=beta,
-            share_price=share_price,
-            shares_outstanding=shares_outstanding,
-            total_debt=total_debt,
-            cash_and_equivalents=cash_and_equivalents,
-            interest_expense=interest_expense,
-            pretax_cost_of_debt=pretax_cost_of_debt,
-            tax_rate=tax_rate,
-            target_debt_to_equity=target_debt_to_equity,
-            market_cap=market_cap,
-        )
-        # Store calculation results in case agent finalizes using them
-        final_wacc_results["wacc"] = calc_res["wacc_final"]
-        final_wacc_results["net_debt"] = total_debt - cash_and_equivalents
-        final_wacc_results["unlevered_beta"] = calc_res["unlevered_beta"]
-        final_wacc_results["levered_beta"] = calc_res["levered_beta"]
-        final_wacc_results["cost_equity"] = calc_res["cost_equity"]
-        final_wacc_results["cost_debt_pretax"] = calc_res["cost_debt_pretax"]
-        final_wacc_results["cost_debt_aftertax"] = calc_res["cost_debt_aftertax"]
-        final_wacc_results["weight_equity"] = calc_res["weight_equity"]
-        final_wacc_results["weight_debt"] = calc_res["weight_debt"]
-        final_wacc_results["explanation"] = calc_res["explanation"]
-        return json.dumps({k: v for k, v in calc_res.items() if k != "explanation"})
+        try:
+            calc_res = calculate_wacc_formula(
+                risk_free_rate=risk_free_rate,
+                equity_risk_premium=equity_risk_premium,
+                beta=beta,
+                share_price=share_price,
+                shares_outstanding=shares_outstanding,
+                total_debt=total_debt,
+                cash_and_equivalents=cash_and_equivalents,
+                interest_expense=interest_expense,
+                pretax_cost_of_debt=pretax_cost_of_debt,
+                tax_rate=tax_rate,
+                target_debt_to_equity=target_debt_to_equity,
+                market_cap=market_cap,
+            )
+            # Store calculation results in case agent finalizes using them
+            final_wacc_results["wacc"] = calc_res["wacc_final"]
+            final_wacc_results["net_debt"] = safe_float(total_debt, 0.0) - safe_float(
+                cash_and_equivalents, 0.0
+            )
+            final_wacc_results["unlevered_beta"] = calc_res["unlevered_beta"]
+            final_wacc_results["levered_beta"] = calc_res["levered_beta"]
+            final_wacc_results["cost_equity"] = calc_res["cost_equity"]
+            final_wacc_results["cost_debt_pretax"] = calc_res["cost_debt_pretax"]
+            final_wacc_results["cost_debt_aftertax"] = calc_res["cost_debt_aftertax"]
+            final_wacc_results["weight_equity"] = calc_res["weight_equity"]
+            final_wacc_results["weight_debt"] = calc_res["weight_debt"]
+            final_wacc_results["explanation"] = calc_res["explanation"]
+            return json.dumps({k: v for k, v in calc_res.items() if k != "explanation"})
+        except Exception as e:
+            return f"Error executing calculate_wacc: {e}"
 
     def finalize(
         wacc: float,
@@ -267,13 +294,17 @@ def run_wacc_agent(
         explanation: str,
     ) -> str:
         """Finalize the WACC calculation."""
-        final_wacc_results["wacc"] = wacc
-        final_wacc_results["net_debt"] = total_debt - cash_and_equivalents
-        final_wacc_results["unlevered_beta"] = unlevered_beta
-        final_wacc_results["cost_equity"] = cost_of_equity
-        final_wacc_results["cost_debt_pretax"] = pretax_cost_of_debt
-        final_wacc_results["cost_debt_aftertax"] = pretax_cost_of_debt * (1 - tax_rate)
-        final_wacc_results["explanation"] = explanation
+        w_val = safe_float(wacc, 0.08)
+        final_wacc_results["wacc"] = max(0.06, min(0.11, w_val))
+        t_debt = safe_float(total_debt, 0.0)
+        c_eq = safe_float(cash_and_equivalents, 0.0)
+        final_wacc_results["net_debt"] = t_debt - c_eq
+        final_wacc_results["unlevered_beta"] = safe_float(unlevered_beta, 1.0)
+        final_wacc_results["cost_equity"] = safe_float(cost_of_equity, 0.09)
+        pt_debt = safe_float(pretax_cost_of_debt, 0.05)
+        final_wacc_results["cost_debt_pretax"] = pt_debt
+        final_wacc_results["cost_debt_aftertax"] = pt_debt * (1 - tax_rate)
+        final_wacc_results["explanation"] = str(explanation)
         return "WACC calculation finalized."
 
     sys_prompt = (
@@ -293,7 +324,8 @@ def run_wacc_agent(
         "2. Call 'get_market_data' to retrieve the current share price, market cap, and beta.\n"
         "3. Call 'calculate_wacc' with your extracted values. (Note: risk_free_rate defaults to 0.042 and equity_risk_premium to 0.05 if not specified. Tax rate defaults to the historical tax rate provided).\n"
         "4. Provide a clear reasoning/thought process in the 'thought' field of each turn.\n"
-        "5. Call 'finalize' on your last turn. The explanation must describe the line items extracted and where they came from."
+        "5. Call 'finalize' on your last turn. The explanation must describe the line items extracted and where they came from.\n"
+        "6. CRITICAL TURN RULE: You have up to 10 turns. If you reach turn 8, 9, or 10, stop making search or query calls and call the 'finalize' tool immediately with your current best estimates."
     )
 
     user_content = (
