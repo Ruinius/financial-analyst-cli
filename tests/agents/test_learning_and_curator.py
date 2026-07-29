@@ -184,7 +184,6 @@ def test_learning_agent_with_deviation(temp_workspace_env):
         "successful_keywords": ["balance sheet", "consolidated"],
         "avoid_keywords": ["unrelated"],
         "successful_chunk": ["12"],
-        "avoid_chunk": ["4"],
     }
     mock_client = MockLLMClient(settings, responses=[[call]])
     agent = LearningAgent(settings=settings, client=mock_client)
@@ -204,7 +203,6 @@ def test_learning_agent_with_deviation(temp_workspace_env):
     assert "balance sheet" in agent_learning.successful_keywords
     assert "unrelated" in agent_learning.avoid_keywords
     assert "12" in agent_learning.successful_chunk
-    assert "4" in agent_learning.avoid_chunk
 
     # Metrics should be: runs=2, avg_turns = (5.0 + 8) / 2 = 6.5
     assert agent_learning.metrics.total_runs == 2

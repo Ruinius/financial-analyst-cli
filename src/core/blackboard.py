@@ -104,7 +104,6 @@ class ExtractAgentLearning(BaseModel):
     successful_keywords: List[str] = Field(default_factory=list)
     avoid_keywords: List[str] = Field(default_factory=list)
     successful_chunk: List[str] = Field(default_factory=list)
-    avoid_chunk: List[str] = Field(default_factory=list)
     metrics: AgentExecutionMetrics = Field(default_factory=AgentExecutionMetrics)
 
 

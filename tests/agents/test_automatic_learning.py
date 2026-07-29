@@ -52,7 +52,6 @@ def test_learning_agent_modeling_support(temp_workspace_env):
         "successful_keywords": ["beta", "equity risk premium"],
         "avoid_keywords": ["unrelated_keyword"],
         "successful_chunk": ["chunk_3"],
-        "avoid_chunk": ["chunk_1"],
     }
     mock_client = MockLLMClient(settings, responses=[[call]])
 

@@ -132,11 +132,10 @@ class LearningAgent:
                 "Specifically, identify:\n"
                 "1. Successful keywords: Search terms or query substrings that successfully located target data in the document.\n"
                 "2. Avoid keywords: Search terms that returned empty results, excessive irrelevant logs, or errors.\n"
-                "3. Successful chunk: The string IDs of chunks that contained the actual statements, tables, or relevant numbers.\n"
-                "4. Avoid chunk: The string IDs of chunks that were inspected but found to be irrelevant or misleading.\n\n"
+                "3. Successful chunk: The string IDs of chunks that contained the actual statements, tables, or relevant numbers.\n\n"
                 "Rules:\n"
                 "- You must use 'query_blackboard' to look up current configurations or existing learnings if needed.\n"
-                "- Return the results by calling the 'finalize' tool with lists of strings/IDs for each of the four categories. All arguments must be list of strings."
+                "- Return the results by calling the 'finalize' tool with lists of strings/IDs for each of the three categories. All arguments must be list of strings."
             )
 
             initial_prompt = (
@@ -163,7 +162,6 @@ class LearningAgent:
                 successful_keywords: List[str],
                 avoid_keywords: List[str],
                 successful_chunk: List[str],
-                avoid_chunk: List[str],
             ) -> str:
                 """Finalize learnings extraction."""
                 return "Learnings finalized."
@@ -197,11 +195,6 @@ class LearningAgent:
                         for x in finalized_args.get("successful_chunk", [])
                         if x
                     ]
-                    a_ch = [
-                        str(x).strip()
-                        for x in finalized_args.get("avoid_chunk", [])
-                        if x
-                    ]
 
                     agent_learning.successful_keywords = sorted(
                         list(set(agent_learning.successful_keywords + s_kw))
@@ -211,9 +204,6 @@ class LearningAgent:
                     )
                     agent_learning.successful_chunk = sorted(
                         list(set(agent_learning.successful_chunk + s_ch))
-                    )
-                    agent_learning.avoid_chunk = sorted(
-                        list(set(agent_learning.avoid_chunk + a_ch))
                     )
                     logger.info(
                         f"Learnings successfully updated and merged for {std_agent_name}"

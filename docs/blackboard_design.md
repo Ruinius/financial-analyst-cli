@@ -122,7 +122,6 @@ class ExtractAgentLearning(BaseModel):
     successful_keywords: List[str] = []
     avoid_keywords: List[str] = []
     successful_chunk: List[str] = []
-    avoid_chunk: List[str] = []
     metrics: AgentExecutionMetrics = Field(default_factory=AgentExecutionMetrics)
 
 class DocumentTypeLearnings(BaseModel):
