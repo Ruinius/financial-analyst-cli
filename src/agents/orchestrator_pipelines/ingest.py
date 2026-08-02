@@ -126,48 +126,30 @@ def html_to_markdown(html_content: str) -> str:
 
 def chunk_text(text: str, max_chars: int = 5000) -> List[str]:
     """Split text into chunks of at most max_chars, trying to split on newlines."""
-    # ⚡ Bolt Optimization: Fast path to avoid loop execution if the entire text fits within max_chars
-    text_len = len(text)
-    if text_len <= max_chars:
+    # ⚡ Bolt Optimization: Fast-fail for small strings to bypass chunking overhead
+    if len(text) <= max_chars:
         return [text]
 
-    # ⚡ Bolt Optimization: Cache len(line) and use .clear() to reduce list allocation overhead
+    # ⚡ Bolt Optimization: Bypass text.split("\n") overhead by using native string bounds slicing
     chunks = []
-    current_chunk = []
-    current_len = 0
-
-    # ⚡ Bolt Optimization: Fast path using find() to avoid memory-heavy split('\n') on massive documents
     start_idx = 0
+    text_len = len(text)
 
-    while start_idx <= text_len:
-        pos = text.find("\n", start_idx)
-        if pos == -1:
-            line = text[start_idx:]
-            start_idx = text_len + 1
+    while start_idx < text_len:
+        end_idx = start_idx + max_chars
+        if end_idx >= text_len:
+            chunks.append(text[start_idx:])
+            break
+
+        newline_idx = text.rfind("\n", start_idx, end_idx + 1)
+
+        if newline_idx != -1 and newline_idx >= start_idx:
+            chunks.append(text[start_idx:newline_idx])
+            start_idx = newline_idx + 1
         else:
-            line = text[start_idx:pos]
-            start_idx = pos + 1
+            chunks.append(text[start_idx:end_idx])
+            start_idx = end_idx
 
-        line_len = len(line)
-        if line_len > max_chars:
-            if current_chunk:
-                chunks.append("\n".join(current_chunk))
-                current_chunk.clear()
-                current_len = 0
-            for i in range(0, line_len, max_chars):
-                chunks.append(line[i : i + max_chars])
-        else:
-            add_len = line_len + (1 if current_chunk else 0)
-            if current_len + add_len > max_chars:
-                chunks.append("\n".join(current_chunk))
-                current_chunk = [line]
-                current_len = line_len
-            else:
-                current_chunk.append(line)
-                current_len += add_len
-
-    if current_chunk:
-        chunks.append("\n".join(current_chunk))
     return chunks
 
 
