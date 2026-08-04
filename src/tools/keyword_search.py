@@ -1,4 +1,3 @@
-import bisect
 from typing import List
 
 
@@ -21,64 +20,16 @@ def find_keyword_contexts(
     if not active_keywords_with_pos:
         return []
 
-    # ⚡ Bolt Optimization: Replace regex finditer with native str.find for chunk bounds (~15x speedup)
-    chunk_spans = []  # list of tuples: (chunk_id, start_idx, end_idx)
-    starts = {}
-
-    pos = 0
-    while True:
-        pos = content.find("<!-- CHUNK_START:", pos)
-        if pos == -1:
-            break
-        end_idx = content.find("-->", pos)
-        if end_idx != -1:
-            try:
-                cid = int(content[pos + 17 : end_idx].strip())
-                starts[cid] = end_idx + 3
-            except ValueError:
-                pass
-            pos = end_idx + 3
-        else:
-            break
-
-    ends = {}
-    pos = 0
-    while True:
-        pos = content.find("<!-- CHUNK_END:", pos)
-        if pos == -1:
-            break
-        end_idx = content.find("-->", pos)
-        if end_idx != -1:
-            try:
-                cid = int(content[pos + 15 : end_idx].strip())
-                ends[cid] = pos
-            except ValueError:
-                pass
-            pos = end_idx + 3
-        else:
-            break
-
-    for cid, start in starts.items():
-        if cid in ends:
-            chunk_spans.append((cid, start, ends[cid]))
-
-    chunk_spans.sort(key=lambda x: x[1])
-
-    first_start = min(starts.values()) if starts else len(content)
-    chunk_spans.insert(0, (0, 0, first_start))
-
-    chunk_starts = [x[1] for x in chunk_spans]
-
+    # ⚡ Bolt Optimization: Replace O(N) full-document chunk parsing with on-demand native reverse search
     def get_chunk_for_pos(pos: int) -> int:
-        if not chunk_spans:
-            return 0
-        idx = bisect.bisect_right(chunk_starts, pos) - 1
-        if idx >= 0:
-            cid, start, end = chunk_spans[idx]
-            if start <= pos <= end:
-                return cid
-            # If not strictly within, return the closest previous chunk (or 0)
-            return cid
+        start_idx = content.rfind("<!-- CHUNK_START:", 0, pos)
+        if start_idx != -1:
+            end_idx = content.find("-->", start_idx)
+            if end_idx != -1 and end_idx < pos:
+                try:
+                    return int(content[start_idx + 17 : end_idx].strip())
+                except ValueError:
+                    pass
         return 0
 
     snippets = []
