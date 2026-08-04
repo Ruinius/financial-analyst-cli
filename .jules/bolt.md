@@ -108,3 +108,7 @@
 ## 2024-05-24 - Avoid Reinstantiating Sets in Loops
 **Learning:** Instantiating `set("abcdefghijklmnopqrstuvwxyz")` on every loop iteration to check for alphanumeric characters incurs heavy memory allocation and hashing overhead, making simple validation loops extremely slow. Native string methods execute in C and are drastically faster.
 **Action:** When iterating over characters or small strings in tight loops, always use native Python string methods (e.g., `s.isascii() and s.isalpha()`) rather than repeatedly creating objects for membership testing.
+
+## 2024-05-24 - O(N^2) nested loop string replacements
+**Learning:** Checking for string matches within a nested loop like `for x in list_a: for y in list_b: if x.lower() == y.lower()` scales poorly (O(N*M)) and repeatedly allocates strings.
+**Action:** Always precompute a hash map for the target list (e.g., `map = {x.lower(): x for x in list_a}`) outside the loop and use `map.get(y.lower())` inside the loop to achieve O(N) complexity with minimal allocations.
