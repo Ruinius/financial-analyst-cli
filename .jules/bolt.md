@@ -112,3 +112,7 @@
 ## 2024-05-24 - O(N^2) nested loop string replacements
 **Learning:** Checking for string matches within a nested loop like `for x in list_a: for y in list_b: if x.lower() == y.lower()` scales poorly (O(N*M)) and repeatedly allocates strings.
 **Action:** Always precompute a hash map for the target list (e.g., `map = {x.lower(): x for x in list_a}`) outside the loop and use `map.get(y.lower())` inside the loop to achieve O(N) complexity with minimal allocations.
+
+## 2024-08-05 - [Lazily resolve positional boundaries in large strings]
+**Learning:** When searching for matches and needing to determine their contextual boundaries (like chunk boundaries defined by start/end markers) within a massive string, performing an upfront O(N) full-document parse to map all bounds is extremely inefficient, especially if searches only touch a fraction of the document. Finding these boundaries on demand using native backward and forward searches (`str.rfind()` and `str.find()`) from the exact match position completely bypasses the upfront mapping overhead.
+**Action:** When resolving positional boundaries inside huge texts (e.g., matching a keyword to its enclosing section chunk), avoid parsing the entire document upfront. Lazily find the nearest boundaries on demand using native reverse search (`str.rfind()`) from the matched position to bypass O(N) full-document parse overhead.
