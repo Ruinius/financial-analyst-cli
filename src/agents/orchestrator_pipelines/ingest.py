@@ -96,8 +96,10 @@ def html_to_markdown(html_content: str) -> str:
 
             # Ensure all rows have equal columns
             for r_idx in range(len(markdown_rows)):
-                while len(markdown_rows[r_idx]) < max_cols:
-                    markdown_rows[r_idx].append("")
+                # ⚡ Bolt Optimization: Replace O(N) while loop with O(1) list.extend for faster padding
+                diff = max_cols - len(markdown_rows[r_idx])
+                if diff > 0:
+                    markdown_rows[r_idx].extend([""] * diff)
 
             # Build table markdown
             table_lines = []
