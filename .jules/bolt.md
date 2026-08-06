@@ -112,3 +112,7 @@
 ## 2024-05-24 - O(N^2) nested loop string replacements
 **Learning:** Checking for string matches within a nested loop like `for x in list_a: for y in list_b: if x.lower() == y.lower()` scales poorly (O(N*M)) and repeatedly allocates strings.
 **Action:** Always precompute a hash map for the target list (e.g., `map = {x.lower(): x for x in list_a}`) outside the loop and use `map.get(y.lower())` inside the loop to achieve O(N) complexity with minimal allocations.
+
+## 2024-06-04 - [Optimize List Padding with list.extend]
+**Learning:** When padding lists to a specific length (e.g. padding rows to have equal columns), using a `while` loop to repeatedly `.append()` items forces Python to do O(N) method calls and length checks. Calculating the required difference and using `list.extend([""] * diff)` achieves the same result in O(1) time and is significantly faster.
+**Action:** Replace `while len(list) < max_cols: list.append("")` loops with O(1) list extension operations like `diff = max_cols - len(list); if diff > 0: list.extend([""] * diff)`.
