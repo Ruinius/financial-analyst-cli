@@ -116,3 +116,7 @@
 ## 2024-06-04 - [Optimize List Padding with list.extend]
 **Learning:** When padding lists to a specific length (e.g. padding rows to have equal columns), using a `while` loop to repeatedly `.append()` items forces Python to do O(N) method calls and length checks. Calculating the required difference and using `list.extend([""] * diff)` achieves the same result in O(1) time and is significantly faster.
 **Action:** Replace `while len(list) < max_cols: list.append("")` loops with O(1) list extension operations like `diff = max_cols - len(list); if diff > 0: list.extend([""] * diff)`.
+
+## 2024-06-05 - [Bypass splitlines overhead for Table Validation]
+**Learning:** In functions like `validate_markdown_table_syntax`, processing large text segments into tables by calling `.splitlines()` allocates a massive array of strings, leading to performance bottlenecks when chunk sizes are massive or documents contain immense tables. We can maintain identical correctness by lazily finding line boundaries with `str.find('\n', pos)` in a while loop.
+**Action:** When validating formatting line-by-line across potentially massive strings, use an inner while loop with `str.find('\n')` to avoid creating a massive list of strings via `splitlines()`.
