@@ -116,3 +116,7 @@
 ## 2024-06-04 - [Optimize List Padding with list.extend]
 **Learning:** When padding lists to a specific length (e.g. padding rows to have equal columns), using a `while` loop to repeatedly `.append()` items forces Python to do O(N) method calls and length checks. Calculating the required difference and using `list.extend([""] * diff)` achieves the same result in O(1) time and is significantly faster.
 **Action:** Replace `while len(list) < max_cols: list.append("")` loops with O(1) list extension operations like `diff = max_cols - len(list); if diff > 0: list.extend([""] * diff)`.
+
+## 2024-06-05 - [Lazy Chunk Boundary Resolution]
+**Learning:** Pre-parsing an entire massive document to build a lookup table of chunk boundaries for a few keyword matches introduces severe O(N) overhead.
+**Action:** Use native reverse search (`str.rfind()`) from the matched position to lazily resolve the nearest boundary on demand, bypassing full-document parse overhead.
