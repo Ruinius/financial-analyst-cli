@@ -100,26 +100,37 @@ def validate_markdown_table_syntax(content: str) -> str | None:
     table_content = content[start_idx:end_idx]
     starting_line_num = content.count("\n", 0, start_idx)
 
-    lines = table_content.splitlines()
-
     # 1. Group consecutive table lines
     table_blocks = []
     current_block = []
-    for line_idx, line in enumerate(lines):
+
+    pos = 0
+    line_idx = 0
+    length = len(table_content)
+    while pos < length:
+        newline_pos = table_content.find("\n", pos)
+        if newline_pos == -1:
+            newline_pos = length
+
+        line = table_content[pos:newline_pos]
+
         # ⚡ Bolt Optimization: Fast path bypasses expensive strip/startswith/endswith for non-table rows (~35% speedup)
         if not line or "|" not in line:
             if current_block:
                 table_blocks.append(current_block)
                 current_block = []
-            continue
-
-        stripped = line.strip()
-        if stripped and stripped[0] == "|" and stripped[-1] == "|":
-            current_block.append((starting_line_num + line_idx + 1, stripped))
         else:
-            if current_block:
-                table_blocks.append(current_block)
-                current_block = []
+            stripped = line.strip()
+            if stripped and stripped[0] == "|" and stripped[-1] == "|":
+                current_block.append((starting_line_num + line_idx + 1, stripped))
+            else:
+                if current_block:
+                    table_blocks.append(current_block)
+                    current_block = []
+
+        pos = newline_pos + 1
+        line_idx += 1
+
     if current_block:
         table_blocks.append(current_block)
 
