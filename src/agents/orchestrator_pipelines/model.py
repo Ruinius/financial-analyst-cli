@@ -141,8 +141,15 @@ def parse_markdown_table(
     if "|" not in table_text:
         return []
 
-    lines = table_text.split("\n")
-    for i, line in enumerate(lines):
+    pos = 0
+    length = len(table_text)
+    while pos < length:
+        newline_pos = table_text.find("\n", pos)
+        if newline_pos == -1:
+            newline_pos = length
+
+        line = table_text[pos:newline_pos]
+
         if line and line[0] == "#" and line.startswith(("# ", "## ", "### ")):
             if target_name:
                 cleaned_line = line.lower().replace("#", "").strip()
@@ -153,7 +160,13 @@ def parse_markdown_table(
 
         if in_target_table and "|" in line:
             if not in_table:
-                if i + 1 < len(lines) and "|---" in lines[i + 1].replace(" ", ""):
+                next_newline_pos = table_text.find("\n", newline_pos + 1) if newline_pos < length else -1
+                next_line = ""
+                if newline_pos < length:
+                    end_next = next_newline_pos if next_newline_pos != -1 else length
+                    next_line = table_text[newline_pos + 1:end_next]
+
+                if next_line and "|---" in next_line.replace(" ", ""):
                     headers = [x.strip() for x in line.split("|")[1:-1]]
                     in_table = True
             elif "---" not in line:
@@ -164,6 +177,8 @@ def parse_markdown_table(
                         rows.append(dict(zip(headers, row_vals)))
         elif in_table and not line.strip():
             in_table = False
+
+        pos = newline_pos + 1
 
     return rows
 
@@ -199,13 +214,23 @@ def parse_financial_summary(content: str) -> Dict[str, str]:
             if "|" not in table_text:
                 return metrics
 
-            for line in table_text.split("\n"):
+            pos = 0
+            length = len(table_text)
+            while pos < length:
+                newline_pos = table_text.find("\n", pos)
+                if newline_pos == -1:
+                    newline_pos = length
+
+                line = table_text[pos:newline_pos]
+
                 if "|" in line and "---" not in line and "Metric" not in line:
                     parts = [p.strip() for p in line.split("|")]
                     if len(parts) >= 3:
                         metric_name = parts[1].replace("**", "").strip()
                         metric_val = parts[2].replace("**", "").strip()
                         metrics[metric_name] = metric_val
+
+                pos = newline_pos + 1
     return metrics
 
 
