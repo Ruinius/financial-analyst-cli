@@ -120,3 +120,7 @@
 ## 2024-06-05 - [Bypass splitlines overhead for Table Validation]
 **Learning:** In functions like `validate_markdown_table_syntax`, processing large text segments into tables by calling `.splitlines()` allocates a massive array of strings, leading to performance bottlenecks when chunk sizes are massive or documents contain immense tables. We can maintain identical correctness by lazily finding line boundaries with `str.find('\n', pos)` in a while loop.
 **Action:** When validating formatting line-by-line across potentially massive strings, use an inner while loop with `str.find('\n')` to avoid creating a massive list of strings via `splitlines()`.
+
+## 2024-11-20 - [Bypass splitlines overhead for markdown table parsing]
+**Learning:** In functions that extract tabular data by line matching (like `parse_markdown_table` or `parse_financial_summary`), calling `.split("\n")` on large markdown slices forces Python to allocate a massive list of temporary strings. By switching to a native `while` loop that calls `str.find("\n", pos)` to incrementally slice lines on-demand, we can achieve identical parsing semantics while avoiding immense memory allocations and garbage collection overhead, yielding a significant speedup.
+**Action:** Replace `.split("\n")` with an iterative `str.find("\n", pos)` boundary search loop in any string processing path that iterates line-by-line over potentially large text slices but does not require returning the entire list of strings.
