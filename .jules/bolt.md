@@ -120,3 +120,7 @@
 ## 2024-06-05 - [Bypass splitlines overhead for Table Validation]
 **Learning:** In functions like `validate_markdown_table_syntax`, processing large text segments into tables by calling `.splitlines()` allocates a massive array of strings, leading to performance bottlenecks when chunk sizes are massive or documents contain immense tables. We can maintain identical correctness by lazily finding line boundaries with `str.find('\n', pos)` in a while loop.
 **Action:** When validating formatting line-by-line across potentially massive strings, use an inner while loop with `str.find('\n')` to avoid creating a massive list of strings via `splitlines()`.
+
+## 2024-06-10 - [Avoid .splitlines() or .split("\n") for Massive Document Table Parsing]
+**Learning:** During extraction of markdown tables from massive documents (like 10-K parsed chunks), using `.split("\n")` allocates an unnecessarily large array of string lines in memory before any validation or parsing begins. By using a fast `while` loop that advances using `str.find("\n", pos)` on the sliced substring, we eliminate the need to create the large string list, achieving lower memory pressure and better performance.
+**Action:** When extracting or iterating through table rows from a massive document slice, avoid `.split("\n")`. Instead, use a native loop tracking `newline_pos = table_text.find("\n", pos)` to process the text lazily row by row.
