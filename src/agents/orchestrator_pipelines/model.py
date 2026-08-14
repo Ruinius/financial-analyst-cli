@@ -141,8 +141,17 @@ def parse_markdown_table(
     if "|" not in table_text:
         return []
 
-    lines = table_text.split("\n")
-    for i, line in enumerate(lines):
+    # ⚡ Bolt Optimization: Bypass table_text.split("\n") overhead by using native string bounds slicing
+    line_start = 0
+    text_len = len(table_text)
+
+    while line_start < text_len:
+        line_end = table_text.find("\n", line_start)
+        if line_end == -1:
+            line_end = text_len
+
+        line = table_text[line_start:line_end]
+
         if line and line[0] == "#" and line.startswith(("# ", "## ", "### ")):
             if target_name:
                 cleaned_line = line.lower().replace("#", "").strip()
@@ -153,9 +162,15 @@ def parse_markdown_table(
 
         if in_target_table and "|" in line:
             if not in_table:
-                if i + 1 < len(lines) and "|---" in lines[i + 1].replace(" ", ""):
-                    headers = [x.strip() for x in line.split("|")[1:-1]]
-                    in_table = True
+                next_line_start = line_end + 1
+                if next_line_start < text_len:
+                    next_line_end = table_text.find("\n", next_line_start)
+                    if next_line_end == -1:
+                        next_line_end = text_len
+                    next_line = table_text[next_line_start:next_line_end]
+                    if "|---" in next_line.replace(" ", ""):
+                        headers = [x.strip() for x in line.split("|")[1:-1]]
+                        in_table = True
             elif "---" not in line:
                 # ⚡ Bolt Optimization: Fast-fail by checking native character count before expensive list allocation and split operations
                 if line.count("|") - 1 == len(headers):
@@ -164,6 +179,8 @@ def parse_markdown_table(
                         rows.append(dict(zip(headers, row_vals)))
         elif in_table and not line.strip():
             in_table = False
+
+        line_start = line_end + 1
 
     return rows
 
@@ -199,13 +216,25 @@ def parse_financial_summary(content: str) -> Dict[str, str]:
             if "|" not in table_text:
                 return metrics
 
-            for line in table_text.split("\n"):
+            # ⚡ Bolt Optimization: Bypass table_text.split("\n") overhead by using native string bounds slicing
+            line_start = 0
+            text_len = len(table_text)
+
+            while line_start < text_len:
+                line_end = table_text.find("\n", line_start)
+                if line_end == -1:
+                    line_end = text_len
+
+                line = table_text[line_start:line_end]
+
                 if "|" in line and "---" not in line and "Metric" not in line:
                     parts = [p.strip() for p in line.split("|")]
                     if len(parts) >= 3:
                         metric_name = parts[1].replace("**", "").strip()
                         metric_val = parts[2].replace("**", "").strip()
                         metrics[metric_name] = metric_val
+
+                line_start = line_end + 1
     return metrics
 
 
