@@ -124,3 +124,7 @@
 ## 2024-06-06 - [Bypass splitlines overhead for Table Extractors]
 **Learning:** In functions extracting optional structures like markdown tables from large text strings, validating presence via fast-fail checks (`if "|" not in table_text`) avoids the immediate allocation of massive lists of strings from `split("\n")` for completely invalid strings. However, when valid tables do exist in the text block, calling `split("\n")` still incurs tremendous O(N) allocation overhead for the lines of the entire string slice. Using a memory-efficient `while` loop that sequentially extracts lines with `text.find("\n", start_idx)` eliminates the list overhead while achieving the same line-by-line processing semantics.
 **Action:** Replace `split("\n")` allocations in line-by-line parsing functions (like table extraction) with `while` loops and native `str.find("\n")` bounds slicing for scalable parsing of massive strings.
+
+## 2024-08-15 - [Fast-fail Early Return for Markdown Stripping]
+**Learning:** Found that string preprocessing functions often execute expensive O(N) operations like `.lower()` on full documents before checking if the transformation is even applicable.
+**Action:** Always add early return fast-fail checks using native string bounds like `.startswith()` or `.endswith()` to skip unnecessary string allocations (like `.lower()`) when the target pattern is clearly absent.

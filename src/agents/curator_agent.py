@@ -16,6 +16,11 @@ _wiki_lock = threading.Lock()
 def strip_markdown_code_blocks(text: str) -> str:
     """Strip leading/trailing markdown code block fences (e.g. ```markdown ... ```)."""
     text = text.strip()
+
+    # ⚡ Bolt Optimization: Fast-fail early check for markdown backticks before expensive operations
+    if not text.startswith("```") and not text.endswith("```"):
+        return text
+
     text_lower = text.lower()
 
     # ⚡ Bolt Optimization: Replace regex re.sub with native string methods for ~25x speedup
