@@ -128,3 +128,6 @@
 ## 2024-08-15 - [Fast-fail Early Return for Markdown Stripping]
 **Learning:** Found that string preprocessing functions often execute expensive O(N) operations like `.lower()` on full documents before checking if the transformation is even applicable.
 **Action:** Always add early return fast-fail checks using native string bounds like `.startswith()` or `.endswith()` to skip unnecessary string allocations (like `.lower()`) when the target pattern is clearly absent.
+## 2024-08-16 - [Fast-fail Early Return for Markdown Table Parsing]
+**Learning:** Functions that parse enormous text files by repeatedly searching for sections or tables via O(N) backward scans (`str.rfind()`) incur massive overhead when the target section doesn't exist in the file at all. Attempting complex bounding loops before checking basic presence degrades performance on invalid searches.
+**Action:** When extracting a specific target section or table from a massive string, always add an upfront native fast-fail check (`if text.find(target) == -1: return []`) before running the complex bounded parsing logic to bypass all redundant scan overhead.

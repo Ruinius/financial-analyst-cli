@@ -75,6 +75,10 @@ def parse_markdown_table(
         target_name = table_name.lower().replace("#", "").strip()
         text_lower = text.lower()
 
+        # ⚡ Bolt Optimization: Fast-fail early return for absent target tables to completely skip redundant O(N) backward scans and string parsing
+        if text_lower.find(target_name) == -1:
+            return []
+
         search_idx = 0
         found = False
         # ⚡ Bolt Optimization: Use find() directly in the loop to fast-fail and avoid redundant O(N) string traversal from `in` check
