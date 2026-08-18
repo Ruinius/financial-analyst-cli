@@ -128,3 +128,7 @@
 ## 2024-08-15 - [Fast-fail Early Return for Markdown Stripping]
 **Learning:** Found that string preprocessing functions often execute expensive O(N) operations like `.lower()` on full documents before checking if the transformation is even applicable.
 **Action:** Always add early return fast-fail checks using native string bounds like `.startswith()` or `.endswith()` to skip unnecessary string allocations (like `.lower()`) when the target pattern is clearly absent.
+
+## 2024-08-16 - [Fast-fail lower() on entire string]
+**Learning:** Found that string preprocessing functions sometimes call `.lower()` on the full document just to check a short prefix case-insensitively (e.g. `text.lower().startswith("```markdown")`). For massive strings, this creates a huge memory allocation.
+**Action:** When doing case-insensitive prefix checks on massive strings, slice the specific length first (e.g. `text[:11].lower() == "```markdown"`) to avoid allocating a massive lowercased copy of the entire string.
