@@ -219,37 +219,19 @@ def recalculate_report_metrics(report: TemporalBlackboard) -> None:
     is_quarterly = report.is_quarterly
     multiplier = 4.0 if is_quarterly else 1.0
 
-    oca_items = [
-        item
-        for item in report.financial_data.line_items
-        if item.category == "current_assets" and item.operating and not item.calculated
-    ]
-    ocl_items = [
-        item
-        for item in report.financial_data.line_items
-        if item.category == "current_liabilities"
-        and item.operating
-        and not item.calculated
-    ]
-    onca_items = [
-        item
-        for item in report.financial_data.line_items
-        if item.category == "noncurrent_assets"
-        and item.operating
-        and not item.calculated
-    ]
-    oncl_items = [
-        item
-        for item in report.financial_data.line_items
-        if item.category == "noncurrent_liabilities"
-        and item.operating
-        and not item.calculated
-    ]
+    # ⚡ Bolt Optimization: Calculate sums in a single O(N) pass to avoid redundant iteration overhead
+    oca = ocl = onca = oncl = 0.0
 
-    oca = sum(item.value for item in oca_items)
-    ocl = sum(item.value for item in ocl_items)
-    onca = sum(item.value for item in onca_items)
-    oncl = sum(item.value for item in oncl_items)
+    for item in report.financial_data.line_items:
+        if item.operating and not item.calculated:
+            if item.category == "current_assets":
+                oca += item.value
+            elif item.category == "current_liabilities":
+                ocl += item.value
+            elif item.category == "noncurrent_assets":
+                onca += item.value
+            elif item.category == "noncurrent_liabilities":
+                oncl += item.value
 
     ann_rev = revenue * multiplier
     nwc, nltoa, ic, turnover = pipeline_math.calculate_invested_capital(
