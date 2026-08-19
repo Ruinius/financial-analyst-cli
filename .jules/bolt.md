@@ -132,3 +132,7 @@
 ## 2024-08-16 - [Fast-fail lower() on entire string]
 **Learning:** Found that string preprocessing functions sometimes call `.lower()` on the full document just to check a short prefix case-insensitively (e.g. `text.lower().startswith("```markdown")`). For massive strings, this creates a huge memory allocation.
 **Action:** When doing case-insensitive prefix checks on massive strings, slice the specific length first (e.g. `text[:11].lower() == "```markdown"`) to avoid allocating a massive lowercased copy of the entire string.
+
+## 2024-08-19 - [Combine List Comprehensions into a Single Pass]
+**Learning:** Performing multiple list comprehensions over the same collection to filter and sum different categories introduces redundant O(N) iteration overhead. For example, iterating over a list of line items four times to calculate four different sums is inefficient.
+**Action:** When calculating multiple sums or aggregations from a single collection based on different conditions, refactor the code to perform a single O(N) `for` loop and accumulate all values simultaneously to avoid redundant traversal overhead.
