@@ -1547,32 +1547,21 @@ async def orchestrate_extract(
             is_quarterly = "Q" in period_key
             multiplier = 4.0 if is_quarterly else 1.0
 
-            # Group line items
-            oca_items = [
-                item
-                for item in report.financial_data.line_items
-                if item.category == "current_assets" and item.operating
-            ]
-            ocl_items = [
-                item
-                for item in report.financial_data.line_items
-                if item.category == "current_liabilities" and item.operating
-            ]
-            onca_items = [
-                item
-                for item in report.financial_data.line_items
-                if item.category == "noncurrent_assets" and item.operating
-            ]
-            oncl_items = [
-                item
-                for item in report.financial_data.line_items
-                if item.category == "noncurrent_liabilities" and item.operating
-            ]
-
-            oca = sum(item.value for item in oca_items)
-            ocl = sum(item.value for item in ocl_items)
-            onca = sum(item.value for item in onca_items)
-            oncl = sum(item.value for item in oncl_items)
+            # ⚡ Bolt Optimization: Group line items using a single O(N) pass instead of multiple comprehensions
+            oca = ocl = onca = oncl = 0.0
+            for item in report.financial_data.line_items:
+                if not item.operating:
+                    continue
+                cat = item.category
+                val = item.value
+                if cat == "current_assets":
+                    oca += val
+                elif cat == "current_liabilities":
+                    ocl += val
+                elif cat == "noncurrent_assets":
+                    onca += val
+                elif cat == "noncurrent_liabilities":
+                    oncl += val
 
             ann_rev = revenue * multiplier
             nwc, nltoa, ic, turnover = pipeline_math.calculate_invested_capital(
