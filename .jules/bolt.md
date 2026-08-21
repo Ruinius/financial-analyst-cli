@@ -140,3 +140,7 @@
 ## 2024-08-19 - [Combine List Comprehensions into a Single Pass]
 **Learning:** Performing multiple list comprehensions over the same collection to filter and sum different categories introduces redundant O(N) iteration overhead. For example, iterating over a list of line items four times to calculate four different sums is inefficient.
 **Action:** When calculating multiple sums or aggregations from a single collection based on different conditions, refactor the code to perform a single O(N) `for` loop and accumulate all values simultaneously to avoid redundant traversal overhead.
+
+## 2024-08-19 - [Fast-fail string list parsing]
+**Learning:** When sanitizing strings into lists, adding a native fast-fail check (`if "," not in text and "\n" not in text:`) before expensive operations like `.split()` entirely bypasses list allocation overhead for simple, clean strings.
+**Action:** Add fast-fail checks before `.split()` operations on strings to bypass overhead for strings that do not contain the split delimiters.
