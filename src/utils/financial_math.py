@@ -76,6 +76,12 @@ def clean_val(val: str) -> float:
     if val_str in ("N/A", "--") or not val_str:
         return 0.0
 
+    # ⚡ Bolt Optimization: Fast-fail for perfectly clean numeric strings before string replacements
+    try:
+        return float(val_str)
+    except ValueError:
+        pass
+
     # ⚡ Bolt Optimization: Attempt fast float parse before regex overhead (~2.5x speedup)
     cleaned = val_str.replace(",", "").replace("$", "").strip()
     is_negative = False
