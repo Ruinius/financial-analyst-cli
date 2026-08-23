@@ -144,3 +144,7 @@
 ## 2024-08-19 - [Fast-fail string list parsing]
 **Learning:** When sanitizing strings into lists, adding a native fast-fail check (`if "," not in text and "\n" not in text:`) before expensive operations like `.split()` entirely bypasses list allocation overhead for simple, clean strings.
 **Action:** Add fast-fail checks before `.split()` operations on strings to bypass overhead for strings that do not contain the split delimiters.
+
+## 2024-08-20 - [Fast-fail string sanitization for numbers]
+**Learning:** Functions designed to sanitize noisy numeric strings (like `clean_val` removing commas, dollar signs, and parentheses) often unnecessarily apply these string operations (like `.replace()` or `.strip()`) to inputs that are already perfectly clean numbers (e.g., `"123.45"`). This incurs unnecessary string allocation and traversal overhead on the happy path.
+**Action:** When parsing potentially noisy numerical data, always implement a fast-fail path by attempting an immediate `float()` conversion inside a `try/except` block as the absolute first step. This bypasses all string stripping and native replacements entirely for already perfectly clean inputs.
