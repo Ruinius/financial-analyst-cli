@@ -82,6 +82,19 @@ def clean_val(val: str) -> float:
     except ValueError:
         pass
 
+    # ⚡ Bolt Optimization: Fast-fail for strings with noise but no explicit formatting characters to bypass string replacements
+    if (
+        "," not in val_str
+        and "$" not in val_str
+        and "%" not in val_str
+        and "(" not in val_str
+        and "-" not in val_str
+    ):
+        match = NUMBER_EXTRACT_RE.search(val_str)
+        if match:
+            return float(match.group(1))
+        return 0.0
+
     # ⚡ Bolt Optimization: Attempt fast float parse before regex overhead (~2.5x speedup)
     cleaned = val_str.replace(",", "").replace("$", "").strip()
     is_negative = False
