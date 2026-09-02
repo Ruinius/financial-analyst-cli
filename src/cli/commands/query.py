@@ -119,14 +119,16 @@ def format_valuation_model(model: BaseFinancialModel, period_str: str) -> str:
         f"|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n"
     )
 
+    # ⚡ Bolt Optimization: Use list and "".join() to avoid iterative string concatenation memory reallocation overhead
+    md_parts = [md]
     for p in projections:
-        md += (
+        md_parts.append(
             f"| {p.year} | ${p.revenue:,.1f} | {p.growth * 100:.1f}% | ${p.ebita:,.1f} | {p.margin * 100:.1f}% | "
             f"${p.nopat:,.1f} | ${p.reinvestment:,.1f} | ${p.invested_capital:,.1f} | {p.roic * 100:.1f}% | "
             f"${p.fcf:,.1f} | ${p.present_value:,.1f} |\n"
         )
 
-    return md
+    return "".join(md_parts)
 
 
 @app.command("summary")
