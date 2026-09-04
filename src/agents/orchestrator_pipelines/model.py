@@ -1,3 +1,4 @@
+import math
 import asyncio
 import logging
 from pathlib import Path
@@ -23,11 +24,49 @@ from src.rust_core import calculate_dcf
 
 
 def clean_value(val_str: Any) -> float:
-    if val_str is None:
+    if val_str is None or isinstance(val_str, bool):
         return 0.0
+
+    # ⚡ Bolt Optimization: Fast-fail for perfectly clean float strings
+    if isinstance(val_str, float):
+        if math.isnan(val_str) or math.isinf(val_str):
+            return 0.0
+        return val_str
+    if isinstance(val_str, int):
+        return float(val_str)
+
     val_str_cleaned = str(val_str).strip()
-    if val_str_cleaned == "N/A" or val_str_cleaned == "--" or not val_str_cleaned:
+    if (
+        val_str_cleaned in ("N/A", "--", "NaN", "Inf", "Infinity", "-Inf", "-Infinity")
+        or not val_str_cleaned
+    ):
         return 0.0
+
+    # ⚡ Bolt Optimization: Fast-fail for perfectly clean numeric strings before string replacements
+    try:
+        num = float(val_str_cleaned)
+        if math.isnan(num) or math.isinf(num):
+            return 0.0
+        return num
+    except ValueError:
+        pass
+
+    # ⚡ Bolt Optimization: Fast-fail for strings with noise but no explicit formatting characters to bypass string replacements
+    if (
+        "," not in val_str_cleaned
+        and "$" not in val_str_cleaned
+        and "%" not in val_str_cleaned
+        and "(" not in val_str_cleaned
+        and "-" not in val_str_cleaned
+        and "x" not in val_str_cleaned
+        and "X" not in val_str_cleaned
+        and " " not in val_str_cleaned
+    ):
+        match = NUMBER_EXTRACT_RE.search(val_str_cleaned)
+        if match:
+            return float(match.group(1))
+        return 0.0
+
     cleaned = (
         val_str_cleaned.replace(",", "")
         .replace("$", "")
