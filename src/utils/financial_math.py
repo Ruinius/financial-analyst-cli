@@ -1,5 +1,6 @@
 from typing import Tuple
 import re
+import math
 
 NUMBER_EXTRACT_RE = re.compile(r"(-?\d+\.?\d*)")
 
@@ -66,9 +67,19 @@ def clean_val(val: str) -> float:
     """Clean string number to float."""
     if not val:
         return 0.0
+
     # ⚡ Bolt Optimization: Fast-fail for perfectly clean float strings (~4x speedup)
     try:
-        return float(val)
+        # Safe fast path: prevent booleans from parsing as 1.0/0.0
+        if isinstance(val, bool):
+            raise ValueError
+
+        res = float(val)
+        # Safe fast path: prevent NaN/Inf bypass
+        if math.isnan(res) or math.isinf(res):
+            raise ValueError
+
+        return res
     except Exception:
         pass
 
@@ -78,7 +89,11 @@ def clean_val(val: str) -> float:
 
     # ⚡ Bolt Optimization: Fast-fail for perfectly clean numeric strings before string replacements
     try:
-        return float(val_str)
+        res = float(val_str)
+        if math.isnan(res) or math.isinf(res):
+            raise ValueError
+
+        return res
     except ValueError:
         pass
 
@@ -109,7 +124,11 @@ def clean_val(val: str) -> float:
 
     # Fast path for clean numeric strings (bypasses regex engine)
     try:
-        num = float(cleaned)
+        res = float(cleaned)
+        if math.isnan(res) or math.isinf(res):
+            raise ValueError
+
+        num = res
         if is_negative:
             num = -num
         return num / 100.0 if is_pct else num
