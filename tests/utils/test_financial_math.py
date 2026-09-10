@@ -46,3 +46,12 @@ def test_calculations_logic():
     assert nopat == 88.0
     assert ann_nopat == 352.0
     assert roic == (352.0 / 150.0) * 100.0
+
+
+def test_clean_val_edge_cases():
+    assert clean_val(True) == 0.0
+    assert clean_val(False) == 0.0
+    assert clean_val("NaN") == 0.0
+    assert clean_val("Inf") == 0.0
+    assert clean_val("-Inf") == 0.0
+    assert clean_val("1 000") == 1.0
