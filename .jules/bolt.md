@@ -169,3 +169,7 @@
 ## 2024-12-01 - [Safe fast-fail for parsing floats by catching string exceptions]
 **Learning:** When attempting to safely fast-fail for clean floats, it is much faster and simpler to do a native type check or string check before casting, rather than relying strictly on Python's float conversion which will silently convert boolean `True` to `1.0` or strings like `"NaN"`, `"Inf"` to floating point equivalents.
 **Action:** Always test fast-fail float attempts with explicit `isinstance(val, bool)` or string presence checks `val.lower() in ("nan", "inf")` or spacing checks to ensure semantic equivalence with original formatting-heavy logic, which might otherwise ignore those strings.
+
+## 2024-05-24 - [Avoid lowercasing entire documents for bounded searches]
+**Learning:** Functions designed to extract small sections of text from massive documents (like `parse_financial_summary` extracting a single markdown table) often begin by case-insensitively lowering the entire document (e.g. `content_lower = content.lower()`). This causes an immediate O(N) allocation of the whole text just to perform a small boundary search, severely increasing memory pressure and latency.
+**Action:** When performing case-insensitive block extractions, attempt fast-path boundary searches using exact casing (`content.find("## Financial Summary")`) first. Only allocate `.lower()` if the fast paths fail. Additionally, use a variable pointer (`search_content = content` or `search_content = content.lower()`) to perform subsequent bound searches without redundant lowercasing.

@@ -238,14 +238,23 @@ def parse_kv_table(text: str, section_name: str) -> Dict[str, str]:
 
 def parse_financial_summary(content: str) -> Dict[str, str]:
     metrics = {}
-    content_lower = content.lower()
-    start_idx = content_lower.find("## financial summary")
+
+    # ⚡ Bolt Optimization: Try exact case string matches before falling back to allocating `content.lower()`
+    start_idx = content.find("## Financial Summary")
+    if start_idx == -1:
+        start_idx = content.find("## financial summary")
+
+    search_content = content
+    if start_idx == -1:
+        search_content = content.lower()
+        start_idx = search_content.find("## financial summary")
+
     if start_idx != -1:
-        start_idx = content_lower.find("\n", start_idx)
+        start_idx = search_content.find("\n", start_idx)
         if start_idx != -1:
             end_idx = len(content)
             for h in ["\n---", "\n##"]:
-                pos = content_lower.find(h, start_idx)
+                pos = search_content.find(h, start_idx)
                 if pos != -1 and pos < end_idx:
                     end_idx = pos
 
