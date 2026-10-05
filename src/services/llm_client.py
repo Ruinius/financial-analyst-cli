@@ -164,6 +164,8 @@ class LiteLLMChatSession(ChatSession):
             for t in self.tools:
                 try:
                     tool_dict = litellm.utils.function_to_dict(t)
+                    if isinstance(tool_dict, dict) and "type" not in tool_dict:
+                        tool_dict = {"type": "function", "function": tool_dict}
                     self.formatted_tools.append(tool_dict)
                 except Exception as e:
                     logger.warning(f"Could not format tool {t} for LiteLLM: {e}")

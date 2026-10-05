@@ -673,17 +673,21 @@ class Modeler:
     def run_valuation_calculation(
         self, ticker: str, workspace: Path, assumptions: Dict[str, Any]
     ) -> Tuple[Dict[str, Any], List[Dict[str, Any]], str]:
-        rev = assumptions["base_revenue"]
-        base_margin = assumptions["base_margin"]
-        target_margin_yr5 = assumptions["margin_yr5"]
-        terminal_margin = assumptions.get("terminal_margin", target_margin_yr5)
-        target_growth_yr5 = assumptions["revenue_growth_rate"]
-        l4q_growth = assumptions["base_growth_rate"]
-        terminal_growth = assumptions["terminal_growth_rate"]
-        wacc = assumptions["wacc"]
-        mct = assumptions["capital_turnover"]
-        l4q_tax = assumptions["adjusted_tax_rate"]
-        ic = assumptions["base_ic"]
+        rev = clean_value(assumptions.get("base_revenue", 0.0))
+        base_margin = clean_value(assumptions.get("base_margin", 0.20))
+        target_margin_yr5 = clean_value(assumptions.get("margin_yr5", base_margin))
+        terminal_margin = clean_value(
+            assumptions.get("terminal_margin", target_margin_yr5)
+        )
+        target_growth_yr5 = clean_value(assumptions.get("revenue_growth_rate", 0.05))
+        l4q_growth = clean_value(assumptions.get("base_growth_rate", target_growth_yr5))
+        terminal_growth = clean_value(assumptions.get("terminal_growth_rate", 0.025))
+        wacc = clean_value(assumptions.get("wacc", 0.08))
+        mct = clean_value(assumptions.get("capital_turnover", 1.5))
+        if mct == 0:
+            mct = 1.5
+        l4q_tax = clean_value(assumptions.get("adjusted_tax_rate", 0.21))
+        ic = clean_value(assumptions.get("base_ic", 0.0))
 
         projections = []
         growth_rates = []
@@ -735,7 +739,7 @@ class Modeler:
             terminal_growth_rate=terminal_growth,
             wacc=wacc,
             free_cash_flow_base=fcf_base,
-            shares_outstanding=assumptions["shares_outstanding"],
+            shares_outstanding=clean_value(assumptions.get("shares_outstanding", 1.0)),
             cash=assumptions.get("cash", 0.0),
             short_term_investments=assumptions.get("short_term_investments", 0.0),
             debt=assumptions.get("debt", 0.0),

@@ -99,3 +99,23 @@ def test_chat_session_creation(mock_load_config, base_settings):
     assert isinstance(chat, LiteLLMChatSession)
     assert len(chat.messages) == 1
     assert chat.messages[0]["role"] == "system"
+
+
+@patch("src.services.llm_client.load_config")
+def test_chat_session_tools_format(mock_load_config, base_settings):
+    base_settings.api_provider = "deepseek"
+    mock_load_config.return_value = base_settings
+
+    def sample_tool(ticker: str) -> str:
+        """Sample tool docstring."""
+        return ticker
+
+    client = get_llm_client()
+    chat = client.create_chat(
+        system_prompt="You are Sir Pennyworth", tools=[sample_tool]
+    )
+    assert len(chat.formatted_tools) == 1
+    tool_entry = chat.formatted_tools[0]
+    assert tool_entry.get("type") == "function"
+    assert "function" in tool_entry
+    assert tool_entry["function"]["name"] == "sample_tool"
