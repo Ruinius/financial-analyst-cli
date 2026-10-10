@@ -49,7 +49,11 @@ def run_metadata_agent(
         content = parsed_documents.get(filename, "")
         if not content:
             return f"Error: Document {filename} not found or empty."
-        keywords_list = [k.strip() for k in keywords.split(",") if k.strip()]
+        if "," not in keywords:
+            stripped = keywords.strip()
+            keywords_list = [stripped] if stripped else []
+        else:
+            keywords_list = [k.strip() for k in keywords.split(",") if k.strip()]
         return str(find_keyword_contexts(content, keywords_list, window))
 
     def finalize(

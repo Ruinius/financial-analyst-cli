@@ -66,7 +66,11 @@ def run_analyst_report_agent(
             keywords: Comma-separated list of keywords to search for.
             window: Character window around matching keywords.
         """
-        keywords_list = [k.strip() for k in keywords.split(",") if k.strip()]
+        if "," not in keywords:
+            stripped = keywords.strip()
+            keywords_list = [stripped] if stripped else []
+        else:
+            keywords_list = [k.strip() for k in keywords.split(",") if k.strip()]
         return str(find_keyword_contexts(content, keywords_list, window))
 
     def finalize(

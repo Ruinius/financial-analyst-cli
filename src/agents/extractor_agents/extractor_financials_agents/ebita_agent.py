@@ -85,7 +85,11 @@ def run_ebita_agent(
         Search for occurrences of keywords (comma-separated list) within a window of characters.
         If filename is specified, search only that document. Otherwise, searches all fanned-in documents.
         """
-        keywords_list = [k.strip() for k in keywords.split(",") if k.strip()]
+        if "," not in keywords:
+            stripped = keywords.strip()
+            keywords_list = [stripped] if stripped else []
+        else:
+            keywords_list = [k.strip() for k in keywords.split(",") if k.strip()]
         if filename:
             doc_content = parsed_documents.get(filename, "")
             if not doc_content:
