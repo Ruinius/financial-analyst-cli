@@ -177,3 +177,7 @@
 ## 2024-10-05 - Avoid Lowercasing Massive Documents on Boundary Search
 **Learning:** When performing case-insensitive keyword searches across massive text blobs (e.g. 100MB+ financial filings), directly calling `content.lower()` creates a full O(N) duplicate of the document in memory before the search even begins. This is extremely expensive if the document doesn't even contain the keyword or if an exact-case search would have matched instantly.
 **Action:** Implement a fast-path that attempts exact-case matches (`content.find(kw)`, `content.find(kw.lower())`, `content.find(kw.upper())`) first. Only allocate the full lowercased copy `content_lower = content.lower()` lazily if these fast paths fail and a true case-insensitive scan is required. Share this lowercased reference as a variable pointer to subsequent bounding logic cleanly without multiple allocations.
+
+## 2024-12-05 - [Avoid O(N) list comprehension overhead for simple fast-fail string matches]
+**Learning:** Found that extractor agents were parsing comma-separated keywords using a list comprehension (`[k.strip() for k in keywords.split(",") if k.strip()]`) even when the string contained no commas (i.e. a single keyword). This incurred unnecessary O(N) traversal and string split allocation overhead for simple, single-keyword queries.
+**Action:** When mapping or parsing small, comma-separated lists, inject a fast-fail string check (`if "," not in string:`) to bypass the list comprehension and `.split(",")` operations entirely when no delimiters are present.
