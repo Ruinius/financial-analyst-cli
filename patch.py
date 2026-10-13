@@ -1,7 +1,7 @@
 import sys
 
-filepath = 'src/agents/modeler_agents/non_operating_agent.py'
-with open(filepath, 'r') as f:
+filepath = "src/agents/modeler_agents/non_operating_agent.py"
+with open(filepath, "r") as f:
     content = f.read()
 
 search = """    # Extract non-operating items from blackboard
@@ -31,7 +31,7 @@ replace = """    # Extract non-operating items from blackboard
 
 if search in content:
     content = content.replace(search, replace)
-    with open(filepath, 'w') as f:
+    with open(filepath, "w") as f:
         f.write(content)
     print("Patch applied successfully.")
 else:

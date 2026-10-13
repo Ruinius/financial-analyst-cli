@@ -207,7 +207,7 @@ def parse_markdown_table(
                     if next_line_end == -1:
                         next_line_end = text_len
                     next_line = table_text[next_line_start:next_line_end]
-                    if "|---" in next_line.replace(" ", ""):
+                    if "-" in next_line and "|---" in next_line.replace(" ", ""):
                         headers = [x.strip() for x in line.split("|")[1:-1]]
                         in_table = True
             elif "---" not in line:
