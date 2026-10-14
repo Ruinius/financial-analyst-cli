@@ -177,3 +177,7 @@
 ## 2024-10-05 - Avoid Lowercasing Massive Documents on Boundary Search
 **Learning:** When performing case-insensitive keyword searches across massive text blobs (e.g. 100MB+ financial filings), directly calling `content.lower()` creates a full O(N) duplicate of the document in memory before the search even begins. This is extremely expensive if the document doesn't even contain the keyword or if an exact-case search would have matched instantly.
 **Action:** Implement a fast-path that attempts exact-case matches (`content.find(kw)`, `content.find(kw.lower())`, `content.find(kw.upper())`) first. Only allocate the full lowercased copy `content_lower = content.lower()` lazily if these fast paths fail and a true case-insensitive scan is required. Share this lowercased reference as a variable pointer to subsequent bounding logic cleanly without multiple allocations.
+
+## 2024-05-24 - O(1) memory optimization for avg turnover calc
+**Learning:** Redundant list comprehensions or `append` loops followed by `sum()` incur unnecessary memory allocation and CPU overhead.
+**Action:** Use an accumulator variable during iteration to compute sums, avoiding the creation of an intermediate list and a secondary pass via `sum()`.
