@@ -578,12 +578,12 @@ class Modeler:
             learnings=learning_context,
         )
 
-        l4q_turnovers = []
+        # ⚡ Bolt Optimization: Calculate sum during iteration to bypass O(N) list allocation overhead
+        total_turnover = 0.0
         for q in l4q:
-            t_val = q.capital_turnover
-            l4q_turnovers.append(t_val)
+            total_turnover += q.capital_turnover
         avg_turnover = (
-            sum(l4q_turnovers) / len(l4q_turnovers) if l4q_turnovers else 100.0
+            total_turnover / len(l4q) if l4q else 100.0
         )
 
         if avg_turnover <= 0 or avg_turnover > 100:
