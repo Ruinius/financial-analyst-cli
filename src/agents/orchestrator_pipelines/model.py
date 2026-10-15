@@ -207,7 +207,8 @@ def parse_markdown_table(
                     if next_line_end == -1:
                         next_line_end = text_len
                     next_line = table_text[next_line_start:next_line_end]
-                    if "|---" in next_line.replace(" ", ""):
+                    # ⚡ Bolt Optimization: Fast-fail by checking native character presence before expensive string replacement
+                    if "-" in next_line and "|---" in next_line.replace(" ", ""):
                         headers = [x.strip() for x in line.split("|")[1:-1]]
                         in_table = True
             elif "---" not in line:
@@ -582,9 +583,7 @@ class Modeler:
         total_turnover = 0.0
         for q in l4q:
             total_turnover += q.capital_turnover
-        avg_turnover = (
-            total_turnover / len(l4q) if l4q else 100.0
-        )
+        avg_turnover = total_turnover / len(l4q) if l4q else 100.0
 
         if avg_turnover <= 0 or avg_turnover > 100:
             mct = 100.0

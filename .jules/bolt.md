@@ -181,3 +181,7 @@
 ## 2024-05-24 - O(1) memory optimization for avg turnover calc
 **Learning:** Redundant list comprehensions or `append` loops followed by `sum()` incur unnecessary memory allocation and CPU overhead.
 **Action:** Use an accumulator variable during iteration to compute sums, avoiding the creation of an intermediate list and a secondary pass via `sum()`.
+
+## 2024-10-15 - Fast-fail character presence check for markdown table separator rows
+**Learning:** Validating structural patterns like markdown table separator rows by doing `line.replace(" ", "")` on every row that begins a table creates unnecessary string allocation overhead. For a table separator row to be valid, it must contain a dash (`-`).
+**Action:** When validating structural string patterns that ignore whitespace (like markdown table separator rows), prepend a fast-fail character presence check (e.g., `if "-" in line`) to bypass the string allocation overhead of `.replace()` on non-matching lines.
