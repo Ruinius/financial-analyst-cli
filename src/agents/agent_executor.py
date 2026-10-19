@@ -198,13 +198,16 @@ def run_agent_loop(
         finalized = True
 
     # Capture execution metrics in context variable unconditionally before exiting
+    # ⚡ Bolt Optimization: Calculate sum during loop to bypass generator O(N) allocation overhead
     history = chat.get_history()
-    turn_count = sum(1 for msg in history if msg.get("role") == "assistant")
+    turn_count = 0
     lines = []
     for msg in history:
-        role = msg.get("role", "unknown").upper()
+        role = msg.get("role", "unknown")
+        if role == "assistant":
+            turn_count += 1
         content = msg.get("content", "")
-        lines.append(f"{role}: {content}")
+        lines.append(f"{role.upper()}: {content}")
     run_logs = "\n\n".join(lines)
     last_agent_run.set((turn_count, run_logs))
 
