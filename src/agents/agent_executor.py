@@ -199,9 +199,12 @@ def run_agent_loop(
 
     # Capture execution metrics in context variable unconditionally before exiting
     history = chat.get_history()
-    turn_count = sum(1 for msg in history if msg.get("role") == "assistant")
+    turn_count = 0
     lines = []
     for msg in history:
+        # ⚡ Bolt Optimization: Calculate turn_count inside the existing loop to bypass redundant O(N) traversal and generator overhead
+        if msg.get("role") == "assistant":
+            turn_count += 1
         role = msg.get("role", "unknown").upper()
         content = msg.get("content", "")
         lines.append(f"{role}: {content}")
