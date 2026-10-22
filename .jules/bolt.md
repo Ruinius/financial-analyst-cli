@@ -185,3 +185,7 @@
 ## 2024-10-15 - Fast-fail character presence check for markdown table separator rows
 **Learning:** Validating structural patterns like markdown table separator rows by doing `line.replace(" ", "")` on every row that begins a table creates unnecessary string allocation overhead. For a table separator row to be valid, it must contain a dash (`-`).
 **Action:** When validating structural string patterns that ignore whitespace (like markdown table separator rows), prepend a fast-fail character presence check (e.g., `if "-" in line`) to bypass the string allocation overhead of `.replace()` on non-matching lines.
+
+## 2024-12-05 - [Merge adjacent counting loop into history traversal]
+**Learning:** Counting occurrences in a collection using a separate generator expression (like `sum(1 for x in collection if condition)`) immediately before traversing the exact same collection for a different purpose creates an O(2N) redundant traversal and incurs generator object allocation overhead.
+**Action:** Merge the counting logic directly into the existing `for` loop by using an accumulator variable. This prevents O(2N) redundant traversals and bypasses generator object allocation overhead.
