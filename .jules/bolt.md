@@ -185,3 +185,7 @@
 ## 2024-10-15 - Fast-fail character presence check for markdown table separator rows
 **Learning:** Validating structural patterns like markdown table separator rows by doing `line.replace(" ", "")` on every row that begins a table creates unnecessary string allocation overhead. For a table separator row to be valid, it must contain a dash (`-`).
 **Action:** When validating structural string patterns that ignore whitespace (like markdown table separator rows), prepend a fast-fail character presence check (e.g., `if "-" in line`) to bypass the string allocation overhead of `.replace()` on non-matching lines.
+
+## 2024-06-08 - [Avoid Redundant Generator Comprehensions for Counting]
+**Learning:** When calculating `turn_count = sum(1 for msg in history if msg.get("role") == "assistant")` immediately followed by a `for msg in history:` loop that extracts role strings, the code redundantly traverses the history array twice and incurs the overhead of allocating a generator object for the sum.
+**Action:** Merge counting logic directly into existing iteration loops (`turn_count += 1`) to bypass redundant O(N) traversals and generator object overhead.
